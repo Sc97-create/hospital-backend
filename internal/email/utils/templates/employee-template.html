@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif; line-height:1.6; color:#333;">
+    <h2>Hey {{.EmployeeName}},</h2>
+
+    <p>
+      Welcome to <b>{{.OrganisationName}}</b> 🎉<br>
+      Congratulations! You have been added as a <b>{{.Role}}</b> in the <b>{{.Department}}</b> department.
+    </p>
+
+    <p>
+      To get started, you’ll need to log in using the credentials provided below:
+    </p>
+
+    <p>
+      <b>EmailID:</b> {{.EmailID}} <br>
+      <b>Password:</b> {{.Password}}
+    </p>
+
+    <p>
+      Click the button below to go to the login page. Enter your credentials and start working on your tasks:
+    </p>
+
+    <p>
+      <a href="{{.LoginURL}}" style="background:#28a745; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;">
+        Go to Login
+      </a>
+    </p>
+
+    <p>
+      If you were not expecting this account, you can ignore this email.
+    </p>
+
+    <br>
+    <p>Thanks,<br>The {{.AppName}} Team</p>
+  </body>
+</html>
