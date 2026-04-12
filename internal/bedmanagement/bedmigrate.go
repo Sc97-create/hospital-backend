@@ -18,5 +18,9 @@ func Migrate(db db.Postgre) error {
 	if err != nil {
 		return err
 	}
+	err = db.AutoMigrate(&models.RoomSummary{})
+	if err != nil {
+		return err
+	}
 	return nil
 }

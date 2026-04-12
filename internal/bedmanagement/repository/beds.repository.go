@@ -15,13 +15,17 @@ func NewBedDB(db *gorm.DB) *BedDb {
 }
 
 type BedRepository interface {
-	Create(bed *models.Bed) error
+	Create(db *gorm.DB, bed *models.Bed) error
 }
 
-func (b *BedDb) CreateBatch(bed *[]models.Bed) error {
-	err := b.db.CreateInBatches(&bed, 2).Error
+func (b *BedDb) CreateBatch(tx *gorm.DB, bed *[]models.Bed) error {
+	err := tx.CreateInBatches(&bed, 2).Error
 	if err != nil {
 		return err
 	}
+	return nil
+}
+func (b *BedDb) CheckIfExist(bed *models.Bed) error {
+
 	return nil
 }

@@ -41,18 +41,6 @@ func Migrate() (err error) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&patient.BedAllotment{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = config.PostgreClient.AutoMigrate(&patient.Rooms{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = config.PostgreClient.AutoMigrate(&patient.Bed{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
 	err = config.PostgreClient.AutoMigrate(&department.Department{})
 	if err != nil {
 		log.Fatalf("%v", err)

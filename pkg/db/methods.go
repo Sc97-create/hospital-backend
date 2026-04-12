@@ -5,10 +5,13 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func (p *Postgre) CreateClient(connstrin string) (err error) {
-	p.GormDriver, err = gorm.Open(postgres.Open(connstrin), &gorm.Config{})
+	p.GormDriver, err = gorm.Open(postgres.Open(connstrin), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return
 	}

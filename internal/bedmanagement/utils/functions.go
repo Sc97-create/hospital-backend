@@ -26,11 +26,9 @@ func GenerateRoomNumber(prefix string, totalfloors int, roomperfloor int, starti
 }
 func GenerateBeds(bedsperroom int) []string {
 	var beds []string
-
 	for i := 1; i <= bedsperroom; i++ {
 		bednumber := fmt.Sprintf("B%02d", i)
 		beds = append(beds, bednumber)
 	}
-
 	return beds
 }

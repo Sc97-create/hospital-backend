@@ -29,22 +29,27 @@ func (i *IRoomModel) CreateRoomController(c *fiber.Ctx) (err error) {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
+	payloadReq.RoomTypeID, err = payload.Getstring("room_type_id")
+	if err != nil {
+		errwrap.Wrap(err, c, 409)
+		return
+	}
 	payloadReq.OrganisationID, err = payload.Getstring("organisation_id")
 	if err != nil {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
-	payloadReq.Floor, err = payload.Getint("no_of_floor")
+	payloadReq.Floor, err = payload.Getfloat("no_of_floors")
 	if err != nil {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
-	payloadReq.RoomPerFloor, err = payload.Getint("room_per_floor")
+	payloadReq.RoomPerFloor, err = payload.Getfloat("room_per_floor")
 	if err != nil {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
-	payloadReq.StartingPerFloor, err = payload.Getint("starting_per_floor")
+	payloadReq.StartingPerFloor, err = payload.Getfloat("starting_per_floor")
 	if err != nil {
 		errwrap.Wrap(err, c, 409)
 		return
@@ -54,10 +59,20 @@ func (i *IRoomModel) CreateRoomController(c *fiber.Ctx) (err error) {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
-	err = i.RoomService.CreateBatchRooms(payloadReq)
+	arrayRooms, err := i.RoomService.CreateBatchRooms(payloadReq)
 	if err != nil {
 		errwrap.Wrap(err, c, 409)
 		return
 	}
-	return
+	return c.JSON(fiber.Map{"data": arrayRooms, "code": 200})
 }
+
+// func (i *IRoomModel) GetRoomsByIDController(c *fiber.Ctx) (err error) {
+// 	roomID := c.Params("roomID")
+// 	room, err := i.RoomService.GetRoomByID(roomID)
+// 	if err != nil {
+// 		errwrap.Wrap(err, c, 409)
+// 		return
+// 	}
+// 	return c.JSON(fiber.Map{"data": room, "code": 200})
+// }

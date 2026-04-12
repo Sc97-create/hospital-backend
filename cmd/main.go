@@ -34,6 +34,7 @@ func main() {
 	clientConfig.Concurrency = 256 * 1024
 	clientConfig.DisableDefaultContentType = true
 	clientConfig.EnableTrustedProxyCheck = true
+
 	app := fiber.New(clientConfig)
 	middleware.HandleMiddleware(app)
 	containers := appinit.NewContainer(config.PostgreClient.GormDriver)
@@ -54,6 +55,7 @@ func main() {
 	routers.RegisterPermissionRoutes(app, containers.PermissionService)
 	routers.RegisterDepartmentRoutes(app, containers.DepartmentService)
 	routers.RegisterRoleRoutes(app, containers.RoleService)
+	routers.RegisterBedRoute(app, containers.BedManagement)
 	err = app.Listen(":9069")
 	if err != nil {
 		log.Fatalf("%v", err)

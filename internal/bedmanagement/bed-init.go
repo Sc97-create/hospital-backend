@@ -8,15 +8,17 @@ import (
 )
 
 type BedContainer struct {
-	RoomTypeService *bedService.RoomTypeService
-	RoomServices    *bedService.RoomService
-	BedServices     *bedService.BedService
+	RoomTypeService    *bedService.RoomTypeService
+	RoomServices       *bedService.RoomService
+	BedServices        *bedService.BedService
+	RoomSummaryService *bedService.RoomSummaryService
 }
 
 func NewBedContainer(db *gorm.DB) *BedContainer {
 	return &BedContainer{
-		RoomTypeService: bedService.NewRoomTypeService(bedRepo.NewRoomTypeDB(db)),
-		RoomServices:    bedService.NewRoomService(bedRepo.NewRoomDB(db)),
-		BedServices:     bedService.NewBedService(bedRepo.NewBedDB(db)),
+		RoomTypeService:    bedService.NewRoomTypeService(bedRepo.NewRoomTypeDB(db)),
+		RoomServices:       bedService.NewRoomService(db, bedRepo.NewRoomDB(db), bedService.NewRoomSummaryService(bedRepo.NewRoomSummaryDB(db))),
+		BedServices:        bedService.NewBedService(db, bedRepo.NewBedDB(db), bedService.NewRoomSummaryService(bedRepo.NewRoomSummaryDB(db))),
+		RoomSummaryService: bedService.NewRoomSummaryService(bedRepo.NewRoomSummaryDB(db)),
 	}
 }

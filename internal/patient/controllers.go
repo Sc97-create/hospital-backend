@@ -35,7 +35,7 @@ func AddGeneralInfoHandler(c *fiber.Ctx, service *PatientService) (err error) {
 
 	payloadModel.Age, err = params.Getstring("age")
 	if err != nil {
-		errwrap.WrapV2(err, 409)
+		errwrap.Wrap(err, c, 409)
 		return
 	}
 	payloadModel.Weight, err = params.Getstring("weight")

@@ -8,39 +8,55 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type RoomService struct {
-	RoomRepo repository.RoomRepository
+	DB                 *gorm.DB
+	RoomRepo           repository.RoomRepository
+	RoomSummaryService *RoomSummaryService
 }
 
-func NewRoomService(roomRepo repository.RoomRepository) *RoomService {
-	return &RoomService{RoomRepo: roomRepo}
+func NewRoomService(db *gorm.DB, roomRepo repository.RoomRepository, roomSummaryService *RoomSummaryService) *RoomService {
+	return &RoomService{DB: db, RoomRepo: roomRepo, RoomSummaryService: roomSummaryService}
 }
-func (i *RoomService) CreateBatchRooms(payloadReq dto.RoomRequest) (err error) {
+func (i *RoomService) CreateBatchRooms(payloadReq dto.RoomRequest) ([]models.Room, error) {
 	totalRooms := payloadReq.Floor * (payloadReq.RoomPerFloor - payloadReq.StartingPerFloor + 1)
-	roomModel := make([]models.Room, 0, totalRooms)
-	roomNumbers := utils.GenerateRoomNumber(payloadReq.Prefix, payloadReq.Floor, payloadReq.RoomPerFloor, payloadReq.StartingPerFloor)
-	
+	roomNumbers := utils.GenerateRoomNumber(payloadReq.Prefix, int(payloadReq.Floor), int(payloadReq.RoomPerFloor), int(payloadReq.StartingPerFloor))
+	roomModel := i.ToRoomModel(roomNumbers, payloadReq.RoomTypeID, payloadReq.OrganisationID)
+	err := i.DB.Transaction(func(tx *gorm.DB) error {
+		err := i.RoomRepo.CreateBatch(tx, &roomModel)
+		if err != nil {
+			return err
+		}
+		RoomSummaryModel := i.RoomSummaryService.ToCreateRoomSummary(payloadReq.RoomTypeID, int(totalRooms), int(payloadReq.Floor), payloadReq.OrganisationID)
+		err = i.RoomSummaryService.CreateRoomSummary(RoomSummaryModel)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return roomModel, nil
+}
+func (i *RoomService) ToRoomModel(roomNumbers map[int][]string, roomTypeID string, organisationID string) []models.Room {
+	roomModel := []models.Room{}
 	for key, each := range roomNumbers {
 		for _, rooms := range each {
 			roomModel = append(roomModel, models.Room{
 				RoomNumber:     rooms,
-				RoomTypeID:     payloadReq.RoomTypeID,
-				OrganisationID: payloadReq.OrganisationID,
+				RoomTypeID:     roomTypeID,
+				OrganisationID: organisationID,
 				Floors:         key,
-				Status:         "available",
+				Status:         models.StatusAvailable,
 				ID:             uuid.New().String(),
 				CreatedAt:      time.Now(),
 				UpdatedAt:      time.Now(),
 			})
 		}
 	}
-
-	err = i.RoomRepo.CreateBatch(&roomModel)
-	if err != nil {
-		return err
-	}
-
-	return
+	return roomModel
 }

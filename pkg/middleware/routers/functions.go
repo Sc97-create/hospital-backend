@@ -12,7 +12,6 @@ import (
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/roles"
-	"hospital-backend/pkg/middleware"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -36,9 +35,12 @@ func RegisterBedRoute(app *fiber.App, services *bedmanagement.BedContainer) {
 	RoomTypeManagement := bedcontroller.NewRoomtypeControllerInterface(services.RoomTypeService)
 	RoomManagement := bedcontroller.NewRoomControllerInterface(services.RoomServices)
 	BedManagement := bedcontroller.NewBedControllerInterface(services.BedServices)
+
 	bedGroup.Post("/createRoomType", RoomTypeManagement.CreateRoomTypeController)
+	bedGroup.Get("/getRoomTypeData", RoomTypeManagement.GetRoomTypeData)
 	bedGroup.Post("/createRoom", RoomManagement.CreateRoomController)
 	bedGroup.Post("/createBed", BedManagement.CreateBedController)
+	bedGroup.Post("/generateBeds", BedManagement.GenerateBeds)
 
 }
 func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
@@ -51,9 +53,8 @@ func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
 func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService) {
 	version := getVersion(app)
 	departmentGrp := version.Group("department")
-	departmentGrp.Get("/getDepartments/:organisation_id", func(c *fiber.Ctx) error {
-		return department.FindMany(c, service)
-	})
+	departmentController := department.NewDepartmentControllerInterface(service)
+	departmentGrp.Get("/getDepartments/:organisation_id", departmentController.FindMany)
 }
 func RegisterPermissionRoutes(app *fiber.App, service *permissions.PermService) {
 	version := getVersion(app)
@@ -80,32 +81,14 @@ func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService) {
 func RegisterEmployeeRoutes(app *fiber.App, service *employee.EmployeeService) {
 	version := getVersion(app)
 	employeeGroup := version.Group("employee")
-	employeeGroup.Post("/addEmployee", func(c *fiber.Ctx) error {
-		return employee.AddHandler(c, service)
-	})
-	employeeGroup.Post("/create", func(c *fiber.Ctx) error {
-		return employee.CreateAdmin(c, service)
-	})
-	employeeGroup.Patch("/update", func(c *fiber.Ctx) error {
-		return employee.UpdateUser(c, service)
-	})
-	employeeGroup.Delete("/delete", func(c *fiber.Ctx) error {
-		return employee.DeleteHandler(c, service)
-	})
-	employeeGroup.Get("/findbyID", func(c *fiber.Ctx) error {
-		return employee.FindByIDHandler(c, service)
-	})
-	employeeGroup.Get("/getEmployees", func(c *fiber.Ctx) error {
-		return employee.FindManyHandler(c, service)
-	})
-
-	employeeGroup.Get("/getDoctors", func(c *fiber.Ctx) error {
-		err := middleware.Authenticate(c)
-		if err != nil {
-			return err
-		}
-		return employee.FindDoctorsHandler(c, service)
-	})
+	employeeController := employee.NewEmployeeControllerInterface(service)
+	employeeGroup.Post("/addEmployee", employeeController.AddHandler)
+	employeeGroup.Post("/create", employeeController.CreateAdmin)
+	employeeGroup.Patch("/update", employeeController.UpdateUser)
+	employeeGroup.Delete("/delete", employeeController.DeleteHandler)
+	employeeGroup.Get("/findbyID", employeeController.FindByIDHandler)
+	employeeGroup.Get("/getEmployees", employeeController.FindManyHandler)
+	employeeGroup.Get("/getDoctors", employeeController.FindDoctorsHandler)
 }
 func RegisterOrganisationRoutes(app *fiber.App, service *organisation.OrganisationService) {
 	version := getVersion(app)
