@@ -14,10 +14,11 @@ type BedService struct {
 	DB                 *gorm.DB
 	BedRepo            *repository.BedDb
 	RoomSummaryService *RoomSummaryService
+	RoomTypeService    *RoomTypeService
 }
 
-func NewBedService(db *gorm.DB, bedRepo *repository.BedDb, roomSummaryService *RoomSummaryService) *BedService {
-	return &BedService{DB: db, BedRepo: bedRepo, RoomSummaryService: roomSummaryService}
+func NewBedService(db *gorm.DB, bedRepo *repository.BedDb, roomSummaryService *RoomSummaryService, roomTypeService *RoomTypeService) *BedService {
+	return &BedService{DB: db, BedRepo: bedRepo, RoomSummaryService: roomSummaryService, RoomTypeService: roomTypeService}
 }
 
 func (b *BedService) CreateBedSrv(bed dto.CreateBed) error {
@@ -42,7 +43,14 @@ func (b *BedService) CreateBedSrv(bed dto.CreateBed) error {
 	return nil
 }
 func (b *BedService) GenerateBeds(bed dto.BedGenerate) (map[string][]dto.BedResponse, dto.RoomSummaryResponse, error) {
-	bedMap, totalbeds := b.ToBedModel(bed)
+	roomType, err := b.RoomTypeService.GetRoomTypeData(bed.RoomTypeID)
+	if err != nil {
+		return nil, dto.RoomSummaryResponse{}, err
+	}
+	bedMap, totalbeds, err := b.ToBedModel(bed, roomType)
+	if err != nil {
+		return nil, dto.RoomSummaryResponse{}, err
+	}
 	roomsummary, err := b.RoomSummaryService.GetRoomSummaryByRoomType(bed.RoomTypeID)
 	if err != nil {
 		return nil, dto.RoomSummaryResponse{}, err
@@ -70,12 +78,13 @@ func (b *BedService) CreateBedModel(bed dto.CreateBed) []models.Bed {
 	}
 	return bedArray
 }
-func (b *BedService) ToBedModel(bed dto.BedGenerate) (map[string][]dto.BedResponse, int) {
+func (b *BedService) ToBedModel(bed dto.BedGenerate, roomType dto.RoomTypeResponse) (map[string][]dto.BedResponse, int, error) {
 	bedMap := make(map[string][]dto.BedResponse)
 	count := 0
+
 	for _, each := range bed.RoomNumber {
 		bedArray := []dto.BedResponse{}
-		beds := utils.GenerateBeds(bed.BedsPerRoom)
+		beds := utils.GenerateBeds(bed.BedsPerRoom, roomType.RoomTypeName)
 		count += len(beds)
 		bedModel := dto.BedResponse{
 			BedNumber:  beds,
@@ -86,5 +95,9 @@ func (b *BedService) ToBedModel(bed dto.BedGenerate) (map[string][]dto.BedRespon
 		bedMap[each] = bedArray
 
 	}
-	return bedMap, count
+	return bedMap, count, nil
+}
+func (s *BedService) FindAllAvailableBeds(organisationID string, limit string, offset string, roomID string) ([]models.Bed, error) {
+	skip, limitInt := utils.CalculateSkip(offset, limit)
+	return s.BedRepo.FindAllAvailableBeds(organisationID, limitInt, skip, roomID)
 }

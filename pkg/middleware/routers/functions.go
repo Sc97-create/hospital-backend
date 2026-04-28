@@ -6,13 +6,14 @@ import (
 	bedcontroller "hospital-backend/internal/bedmanagement/controllers"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
+	"hospital-backend/internal/jwt"
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/roles"
-	"log"
+	"hospital-backend/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -29,26 +30,35 @@ func RegisterRoleRoutes(app *fiber.App, service *roles.RoleServices) {
 		return roles.FindMany(c, service)
 	})
 }
-func RegisterBedRoute(app *fiber.App, services *bedmanagement.BedContainer) {
+func RegisterBedRoute(app *fiber.App, services *bedmanagement.BedContainer, jwtService *jwt.JwtService) {
 	version := getVersion(app)
 	bedGroup := version.Group("bed")
+
+	// Apply JWT authentication middleware to all bed routes
+	bedGroup.Use(func(c *fiber.Ctx) error {
+		return middleware.Authenticate(c, jwtService)
+	})
 	RoomTypeManagement := bedcontroller.NewRoomtypeControllerInterface(services.RoomTypeService)
 	RoomManagement := bedcontroller.NewRoomControllerInterface(services.RoomServices)
 	BedManagement := bedcontroller.NewBedControllerInterface(services.BedServices)
-
+	BedAllotmentManagement := bedcontroller.NewBedAllotmentController(services.BedAllotmentService)
 	bedGroup.Post("/createRoomType", RoomTypeManagement.CreateRoomTypeController)
 	bedGroup.Get("/getRoomTypeData", RoomTypeManagement.GetRoomTypeData)
 	bedGroup.Post("/createRoom", RoomManagement.CreateRoomController)
 	bedGroup.Post("/createBed", BedManagement.CreateBedController)
 	bedGroup.Post("/generateBeds", BedManagement.GenerateBeds)
+	bedGroup.Get("/getAvailableBeds", BedManagement.FindAllAvailableBeds)
+	bedGroup.Get("/getAvailableRooms", RoomManagement.FindAllAvailableRooms)
+	bedGroup.Get("/getAvailableRoomTypes", RoomTypeManagement.FindAllRoomTypes)
+	bedGroup.Post("/createBedAllotment", BedAllotmentManagement.CreateBedAllotmentController)
 
 }
 func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
 	version := getVersion(app)
 	authGroup := version.Group("authentication")
-	authGroup.Post("/login", func(c *fiber.Ctx) error {
-		return authentication.Login(c, service)
-	})
+	auth := authentication.NewAuthController(service)
+	authGroup.Post("/login", auth.Login)
+	authGroup.Post("/refresh", auth.Refresh)
 }
 func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService) {
 	version := getVersion(app)
@@ -63,20 +73,16 @@ func RegisterPermissionRoutes(app *fiber.App, service *permissions.PermService) 
 		return permissions.FindMany(c, service)
 	})
 }
-func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService) {
+func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService, jwtservice *jwt.JwtService) {
 	version := getVersion(app)
-	patientGroup := version.Group("patient")
-	patientGroup.Post("/addGeneralInfo", func(c *fiber.Ctx) error {
-		err := patient.AddGeneralInfoHandler(c, service)
-		if err != nil {
-			log.Println("err", err)
-			return err
-		}
-		return nil
+	patientGroup := version.Group("patients")
+	patientGroup.Use(func(c *fiber.Ctx) error {
+		return middleware.Authenticate(c, jwtservice)
 	})
-	patientGroup.Post("/getPatients", func(c *fiber.Ctx) error {
-		return patient.PatientHandler(c, service)
-	})
+	patientManagement := patient.NewPatientControllerInterface(service)
+	patientGroup.Post("/addGeneralInfo", patientManagement.AddGeneralInfoHandler)
+	patientGroup.Get("/getPatients", patientManagement.Find)
+	//patientGroup.Post("/getPatients", patientManagement.PatientHandler)
 }
 func RegisterEmployeeRoutes(app *fiber.App, service *employee.EmployeeService) {
 	version := getVersion(app)

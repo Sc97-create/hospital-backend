@@ -1,6 +1,9 @@
 package department
 
-import "gorm.io/gorm"
+import (
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
 
 type DepartmentRepository interface {
 	Create(*gorm.DB, *Department) error
@@ -24,7 +27,10 @@ func (DeptDb *DepartmentDB) FindDeptID(organisationID string) (departmentID stri
 	return
 }
 func (DeptDb *DepartmentDB) BatchInsert(tx *gorm.DB, depts []Department, size int) error {
-	return DeptDb.DB.CreateInBatches(depts, size).Error
+	return DeptDb.DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		DoNothing: true,
+	}).CreateInBatches(depts, size).Error
 }
 func (DeptDb *DepartmentDB) FindMany(limit int, skip int) ([]Department, error) {
 	query := `select id,name from departments where is_default=true`

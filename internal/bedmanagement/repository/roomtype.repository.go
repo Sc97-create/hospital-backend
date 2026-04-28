@@ -19,6 +19,7 @@ type RoomTypeRepository interface {
 	Create(roomType *models.RoomType) error
 	CheckRoomType(roomType *models.RoomType) error
 	GetRoomTypeData(roomTypeId string) (roomTypeResponse models.RoomType, err error)
+	FindAllRoomTypes(organisationID string) ([]models.RoomType, error)
 }
 
 func (b *RoomTypeDB) Create(roomType *models.RoomType) error {
@@ -48,4 +49,13 @@ func (b *RoomTypeDB) GetRoomTypeData(roomTypeId string) (roomTypeResponse models
 		return models.RoomType{}, err
 	}
 	return roomTypeResponse, nil
+}
+func (b *RoomTypeDB) FindAllRoomTypes(organisationID string) ([]models.RoomType, error) {
+	var roomTypes []models.RoomType
+	query := `select id,name,base_price from room_types where organisation_id = $1`
+	err := b.DB.Model(&models.RoomType{}).Raw(query, organisationID).Scan(&roomTypes).Error
+	if err != nil {
+		return nil, err
+	}
+	return roomTypes, nil
 }

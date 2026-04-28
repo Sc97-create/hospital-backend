@@ -5,6 +5,7 @@ import (
 	"hospital-backend/internal/bedmanagement"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
+	jwtAuth "hospital-backend/internal/jwt"
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine"
 	"hospital-backend/internal/modules"
@@ -31,13 +32,16 @@ type Container struct {
 	ModuleService         *modules.ModuleService
 	RoleService           *roles.RoleServices
 	BedManagement         *bedmanagement.BedContainer
+	JwtManagement         *jwtAuth.JwtService
 }
 
 func NewContainer(db *gorm.DB) *Container {
 	bedmanagement := bedmanagement.NewBedContainer(db)
 	patientRepo := patient.NewPatientRepo(db)
 	employeeRepo := employee.NewEmployeeRepo(db)
+	jwtRepo := jwtAuth.NewRefreshTokenModel(db)
 	organisationRepo := organisation.NewOrganisationRepo(db)
+	jwtService := jwtAuth.NewJwtService(jwtRepo)
 	authenticationRepo := authentication.NewAuthRepo(db)
 	roleRepo := roles.NewRoleRepo(db)
 	DeptRepo := department.NewDepartmentRepo(db)
@@ -51,7 +55,7 @@ func NewContainer(db *gorm.DB) *Container {
 	rolePermissionRepo := rolepermissions.NewRolePermissionDb(db)
 	departmentService := department.NewDepartmentService(DeptRepo)
 	employeeService := employee.NewEmpService(db, employeeRepo, organisationRepo, roleRepo, DeptRepo, rolePermissionRepo, PermissionRepo)
-	authService := authentication.NewService(*authenticationRepo)
+	authService := authentication.NewService(*authenticationRepo, *jwtService)
 	licenseService := license.NewLicenseService(*licenseRepo)
 	medicineService := medicine.NewMedicineService(*medicineRepo)
 	roleService := roles.NewRoleServices(roleRepo)
@@ -68,5 +72,6 @@ func NewContainer(db *gorm.DB) *Container {
 		ModuleService:       moduleService,
 		RoleService:         roleService,
 		BedManagement:       bedmanagement,
+		JwtManagement:       jwtService,
 	}
 }

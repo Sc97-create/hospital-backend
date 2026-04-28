@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -36,7 +37,7 @@ func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation
 
 func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id string, err error) {
 	user := new(User)
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := EService.hashPassword(payload.Password)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +101,7 @@ func (Eservice *EmployeeService) FindMany(limit int, pageno int) (u []User, err 
 }
 func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID string, err error) {
 	user := new(User)
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := Eservice.hashPassword(payload.Password)
 	if err != nil {
 		return
 	}
@@ -158,7 +159,7 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 	if userData.LastName != payload.LastName {
 		updateUser["last_name"] = payload.LastName
 	}
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := Eservice.hashPassword(payload.Password)
 	if err != nil {
 		return
 	}
@@ -175,6 +176,14 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 func (Eservice *EmployeeService) FindDoctors(name string) (u []User, err error) {
 	u, err = Eservice.EmpRepo.ReadDoctors(name)
 	if err != nil {
+		return
+	}
+	return
+}
+func (Eservice *EmployeeService) hashPassword(password string) (hashedPwd []byte, err error) {
+	hashedPwd, err = bcrypt.GenerateFromPassword([]byte(password), 8)
+	if err != nil {
+		err = errors.New("something went wrong, please contact administrator")
 		return
 	}
 	return

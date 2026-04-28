@@ -49,3 +49,6 @@ func (s *RoomTypeService) GetRoomTypeData(roomTypeId string) (roomTypeResponse d
 	roomTypeResponse.BasePrice = roomTypeDB.BasePrice
 	return roomTypeResponse, nil
 }
+func (s *RoomTypeService) FindAllRoomTypes(organisationID string) ([]models.RoomType, error) {
+	return s.RoomTypeRepo.FindAllRoomTypes(organisationID)
+}

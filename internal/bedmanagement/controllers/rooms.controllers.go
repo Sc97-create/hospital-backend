@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"hospital-backend/internal/bedmanagement/dto"
 	"hospital-backend/internal/bedmanagement/services"
 	errwrap "hospital-backend/shared/error"
@@ -14,6 +15,7 @@ type IRoomModel struct {
 }
 type IRoomController interface {
 	CreateRoomController(c *fiber.Ctx) (err error)
+	FindAllAvailableRooms(c *fiber.Ctx) (err error)
 }
 
 func NewRoomControllerInterface(roomService *services.RoomService) *IRoomModel {
@@ -65,6 +67,34 @@ func (i *IRoomModel) CreateRoomController(c *fiber.Ctx) (err error) {
 		return
 	}
 	return c.JSON(fiber.Map{"data": arrayRooms, "code": 200})
+}
+func (i *IRoomModel) FindAllAvailableRooms(c *fiber.Ctx) (err error) {
+	organisationID := c.Query("organisation_id")
+	limit := c.Query("limit")
+	offset := c.Query("pageno")
+	err = i.ValidateFindManyRequest(organisationID, limit, offset)
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+
+	}
+	rooms, err := i.RoomService.FindAllAvailableRooms(organisationID, limit, offset)
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+
+	}
+	return c.JSON(fiber.Map{"data": rooms, "code": 200})
+}
+func (i *IRoomModel) ValidateFindManyRequest(organisationID string, limit string, offset string) error {
+	if organisationID == "" {
+		return errors.New("organisation id is required")
+	}
+	if limit == "" {
+		return errors.New("limit is required")
+	}
+	if offset == "" {
+		return errors.New("offset is required")
+	}
+	return nil
 }
 
 // func (i *IRoomModel) GetRoomsByIDController(c *fiber.Ctx) (err error) {

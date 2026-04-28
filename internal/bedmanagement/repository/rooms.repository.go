@@ -17,6 +17,7 @@ func NewRoomDB(db *gorm.DB) *RoomDB {
 type RoomRepository interface {
 	CreateBatch(tx *gorm.DB, room *[]models.Room) error
 	GetRoomByID(roomID string) (*models.Room, error)
+	FindAllAvailableRooms(organisationID string, limit int, offset int) ([]models.Room, error)
 }
 
 func (b *RoomDB) CreateBatch(tx *gorm.DB, room *[]models.Room) error {
@@ -32,4 +33,13 @@ func (b *RoomDB) GetRoomByID(roomID string) (room *models.Room, err error) {
 		return nil, err
 	}
 	return room, nil
+}
+func (b *RoomDB) FindAllAvailableRooms(organistionID string, limit int, offset int) ([]models.Room, error) {
+	var rooms []models.Room
+	query := `select id,room_number,status,floors from rooms where status=$1 and organisation_id=$2 limit $3 offset $4`
+	err := b.DB.Model(models.Room{}).Raw(query, models.StatusAvailable, organistionID, limit, offset).Scan(&rooms).Error
+	if err != nil {
+		return nil, err
+	}
+	return rooms, nil
 }

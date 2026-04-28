@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	routers.RegisterPatientRoutes(app, containers.PatientService)
+	routers.RegisterPatientRoutes(app, containers.PatientService, containers.JwtManagement)
 	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
 	routers.RegisterLicenseRoutes(app, containers.LicenseService)
 	routers.RegisterEmployeeRoutes(app, containers.EmployeeService)
@@ -55,7 +55,7 @@ func main() {
 	routers.RegisterPermissionRoutes(app, containers.PermissionService)
 	routers.RegisterDepartmentRoutes(app, containers.DepartmentService)
 	routers.RegisterRoleRoutes(app, containers.RoleService)
-	routers.RegisterBedRoute(app, containers.BedManagement)
+	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
 	err = app.Listen(":9069")
 	if err != nil {
 		log.Fatalf("%v", err)

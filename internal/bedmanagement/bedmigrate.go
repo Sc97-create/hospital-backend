@@ -22,5 +22,9 @@ func Migrate(db db.Postgre) error {
 	if err != nil {
 		return err
 	}
+	err = db.AutoMigrate(&models.BedAllotment{})
+	if err != nil {
+		return err
+	}
 	return nil
 }

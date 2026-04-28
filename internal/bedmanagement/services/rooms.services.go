@@ -60,3 +60,7 @@ func (i *RoomService) ToRoomModel(roomNumbers map[int][]string, roomTypeID strin
 	}
 	return roomModel
 }
+func (s *RoomService) FindAllAvailableRooms(organisationID string, limit string, offset string) ([]models.Room, error) {
+	skip, limitInt := utils.CalculateSkip(offset, limit)
+	return s.RoomRepo.FindAllAvailableRooms(organisationID, limitInt, skip)
+}

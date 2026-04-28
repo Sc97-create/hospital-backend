@@ -5,6 +5,7 @@ import (
 	"hospital-backend/internal/bedmanagement"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
+	"hospital-backend/internal/jwt"
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/modules"
 	"hospital-backend/internal/organisation"
@@ -12,7 +13,6 @@ import (
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/rolepermissions"
 	"hospital-backend/internal/roles"
-	"hospital-backend/shared/jwt"
 	"log"
 )
 
