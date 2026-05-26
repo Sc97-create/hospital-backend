@@ -39,18 +39,23 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	if err != nil {
 		return dto.LoginResponse{}, errors.New("failed to check refresh token")
 	}
-	var refreshtoken string
+	var refreshToken string
 	if refreshID != "" {
 		//update existing row
-		refreshtoken, err = a.JwtService.UpdateRefreshToken(refreshID, user.ID, user.OrganisationID)
+		refreshToken, err = a.JwtService.UpdateRefreshToken(refreshID, user.ID, user.OrganisationID)
 		if err != nil {
 			return dto.LoginResponse{}, errors.New("failed to update refresh token")
 		}
 	} else {
-		refreshtoken, err = a.JwtService.RefreshToken(user.OrganisationID, user.ID)
+		claims, err := a.JwtService.RefreshToken(user.OrganisationID, user.ID, "")
 		if err != nil {
 			return dto.LoginResponse{}, errors.New("failed to generate refresh token")
 		}
+		err = a.JwtService.InsertRefreshToken(claims.RefereshToken, claims.ExpiresAt, user.ID)
+		if err != nil {
+			return dto.LoginResponse{}, errors.New("failed to save refresh token")
+		}
+		refreshToken = claims.RefereshToken
 	}
 
 	err = a.Repo.UpdateLastLoginAttempt(user.ID, user.LastLoginAttempt+1)
@@ -60,7 +65,7 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	response := dto.LoginResponse{}
 	response.UserID = user.ID
 	response.Token = token
-	response.RefreshToken = refreshtoken
+	response.RefreshToken = refreshToken
 	return response, nil
 }
 func (a *UserService) validateCredentials(L dto.LoginUser) error {

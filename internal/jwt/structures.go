@@ -11,7 +11,7 @@ type KeyPath string
 
 const (
 	AccessTokenExpiresAt  ExpiresAt = 15
-	RefreshTokenExpiresAt ExpiresAt = 1440
+	RefreshTokenExpiresAt ExpiresAt = 7
 	PrivateKeyPath        KeyPath   = "C:/Users/sachin/Hospital-backend/config/keys/jwt_private.pem"
 	PublicKeyPath         KeyPath   = "C:/Users/sachin/Hospital-backend/config/keys/jwt_public.pem"
 )
@@ -30,4 +30,9 @@ type claims struct {
 type TokenResp struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+type Claims struct {
+	RefereshToken string    `json:"refresh_token"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	JTI           string    `json:"jti"`
 }

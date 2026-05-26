@@ -26,14 +26,14 @@ func (p *Postgre) Insert(args any) (err error) {
 }
 
 func (p *Postgre) ReadOne(args interface{}, conds ...interface{}) (err error) {
-	tx := p.GormDriver.First(&args, conds...)
+	tx := p.GormDriver.First(args, conds...)
 	if tx.Error != nil {
 		return
 	}
 	return
 }
 func (p *Postgre) UpdateOne(model any, updatevalue any, query string, args ...any) (ack int64, err error) {
-	tx := p.GormDriver.Model(&model).Where(query, args...).Updates(updatevalue)
+	tx := p.GormDriver.Model(model).Where(query, args...).Updates(updatevalue)
 	if tx.Error != nil {
 		return
 	}
@@ -52,7 +52,7 @@ func (p *Postgre) AutoMigrate(model any) (err error) {
 }
 func (p *Postgre) CheckIfExist(model any, query string, args ...any) (flag bool, err error) {
 	count := int64(0)
-	err = p.GormDriver.Model(&model).Where(query, args...).Count(&count).Error
+	err = p.GormDriver.Model(model).Where(query, args...).Count(&count).Error
 	if err != nil {
 		err = errors.New("failed to query database")
 		return
@@ -60,7 +60,7 @@ func (p *Postgre) CheckIfExist(model any, query string, args ...any) (flag bool,
 	return count > 0, nil
 }
 func (p *Postgre) ReadMany(limit int, offset int, data any, cond ...any) (err error) {
-	tx := p.GormDriver.Limit(limit).Offset(offset).Find(&data, cond...)
+	tx := p.GormDriver.Limit(limit).Offset(offset).Find(data, cond...)
 	if tx.Error != nil {
 		return
 	}

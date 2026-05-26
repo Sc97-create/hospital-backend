@@ -26,7 +26,7 @@ func (d *DepartmentController) FindMany(c *fiber.Ctx) error {
 		payload.Page = 1
 	}
 	offset := payload.Limit * (payload.Page - 1)
-	department, err := d.DepartmentService.FindMany(payload.Limit, offset)
+	department, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
 	if err != nil {
 		return err
 	}

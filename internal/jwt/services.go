@@ -21,6 +21,19 @@ func NewJwtService(refreshRepo RefreshtokenRepo) *JwtService {
 	return &JwtService{RefreshtokenRepo: refreshRepo}
 }
 
+func (j *JwtService) InsertRefreshToken(token string, expiry time.Time, userID string) error {
+	var refreshToken RefreshToken
+	refreshToken.TokenHash = token
+	refreshToken.UserID = userID
+	refreshToken.ExpiresAt = expiry
+	refreshToken.ID = uuid.NewString()
+	refreshToken.CreatedAt = time.Now()
+	err := j.RefreshtokenRepo.Insert(&refreshToken)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 func (j *JwtService) AccessToken(userID string, organistionID string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Issuer:    organistionID,
@@ -31,23 +44,25 @@ func (j *JwtService) AccessToken(userID string, organistionID string) (string, e
 	}
 	return j.token(claims)
 }
-func (j *JwtService) RefreshToken(organisationID string, userID string) (string, error) {
-	refreshID := uuid.NewString()
+func (j *JwtService) RefreshToken(organisationID string, userID string, refreshID string) (Claims, error) {
+	if refreshID == "" {
+		refreshID = uuid.NewString()
+	}
 	claims := j.createclaims(organisationID, userID, refreshID)
 	token, err := j.token(claims)
 	if err != nil {
-		return "", err
+		return Claims{}, err
 	}
-	refreshToken, err := j.toRefreshTokenModel(token, refreshID, userID)
-	if err != nil {
-		return "", err
-	}
-	err = j.RefreshtokenRepo.Insert(refreshToken)
-	if err != nil {
-		return "", err
-	}
-	return token, nil
+	Claims := j.toClaimsModel(token, claims)
+	return Claims, nil
 
+}
+func (j *JwtService) toClaimsModel(token string, claims jwt.RegisteredClaims) Claims {
+	return Claims{
+		RefereshToken: token,
+		ExpiresAt:     claims.ExpiresAt.Time,
+		JTI:           claims.ID,
+	}
 }
 func (j *JwtService) UpdateRefreshToken(refreshID string, userID string, organisationID string) (rToken string, err error) {
 	claims := j.createclaims(organisationID, userID, refreshID)
@@ -56,9 +71,10 @@ func (j *JwtService) UpdateRefreshToken(refreshID string, userID string, organis
 	if err != nil {
 		return "", err
 	}
-	return
+	return token, nil
 }
 func (j *JwtService) ValidateRefreshToken(token string) (TokenResp, error) {
+	var tokenResponse TokenResp
 	token1, err := j.parseToken(token)
 	if err != nil {
 		return TokenResp{}, err
@@ -75,7 +91,7 @@ func (j *JwtService) ValidateRefreshToken(token string) (TokenResp, error) {
 	if err != nil {
 		return TokenResp{}, err
 	}
-	newRefreshToken, err := j.RefreshToken(organisationID, userID)
+	claimsModel, err := j.RefreshToken(organisationID, userID, refreshID)
 	if err != nil {
 		return TokenResp{}, err
 	}
@@ -83,13 +99,15 @@ func (j *JwtService) ValidateRefreshToken(token string) (TokenResp, error) {
 	if err != nil {
 		return TokenResp{}, err
 	}
-	//refreshToken.TokenHash = newRefreshToken
-	refreshToken.ExpiresAt = time.Now().Add(time.Duration(RefreshTokenExpiresAt) * time.Minute)
-	err = j.RefreshtokenRepo.Update(newRefreshToken, refreshToken.ExpiresAt, refreshID)
+	refreshToken.ExpiresAt = time.Now().AddDate(0, 0, int(RefreshTokenExpiresAt))
+	err = j.RefreshtokenRepo.Update(claimsModel.RefereshToken, refreshToken.ExpiresAt, refreshID)
 	if err != nil {
 		return TokenResp{}, err
 	}
-	return TokenResp{AccessToken: newAccessToken, RefreshToken: newRefreshToken}, nil
+	tokenResponse.AccessToken = newAccessToken
+	tokenResponse.RefreshToken = claimsModel.RefereshToken
+
+	return tokenResponse, nil
 
 }
 func (j *JwtService) ValidateAccessToken(token string) (bool, error) {
@@ -126,19 +144,19 @@ func (j *JwtService) createclaims(organisationID string, userID string, refreshI
 	claims := jwt.RegisteredClaims{
 		Issuer:    organisationID,
 		Subject:   userID,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(RefreshTokenExpiresAt) * time.Minute)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().AddDate(0, 0, int(RefreshTokenExpiresAt))),
 		ID:        refreshID,
 	}
 	return claims
 }
 
-func (j *JwtService) toRefreshTokenModel(token string, id string, userID string) (*RefreshToken, error) {
+func (j *JwtService) toRefreshTokenModel(token string, id string, userID string, Expiry time.Time) (*RefreshToken, error) {
 	refreshToken := RefreshToken{
 		TokenHash: token,
 		ID:        id,
 		UserID:    userID,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(time.Duration(RefreshTokenExpiresAt) * time.Minute),
+		ExpiresAt: Expiry,
 	}
 	return &refreshToken, nil
 }
@@ -184,6 +202,10 @@ func (j *JwtService) parseToken(token string) (*jwt.Token, error) {
 	return token1, nil
 }
 func (j *JwtService) checkRefreshToken(refreshToken *RefreshToken, userID string) (err error) {
+	if refreshToken == nil {
+		err = errors.New("refresh token not found")
+		return err
+	}
 	if refreshToken.ExpiresAt.Before(time.Now()) {
 		err = errors.New("token is expired")
 		return err

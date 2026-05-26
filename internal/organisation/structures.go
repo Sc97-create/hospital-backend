@@ -8,7 +8,7 @@ import (
 )
 
 type Organisation struct {
-	ID               string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ID               string    `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	Code             string    `json:"code" gorm:"type:text"`
 	HospitalType     string    `json:"hospital_type" gorm:"type:text"`
 	LegalEntityName  string    `json:"legal_entity_name" gorm:"type:text"`
@@ -23,7 +23,7 @@ type Location struct {
 	StateID   string    `json:"state" gorm:"type:text"`
 	CityID    string    `json:"city" gorm:"type:text;not null"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	CreatedBy string    `json:"created_by" gorm:"type:text"`
+	CreatedBy string    `json:"created_by" gorm:"type:uuid"`
 }
 type Security struct {
 	EnableAuditLog  bool `json:"enabel_audit_logs"`

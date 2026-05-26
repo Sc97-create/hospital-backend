@@ -9,13 +9,13 @@ import (
 )
 
 type EmployeeControllers interface {
-	AddHandler(c *fiber.Ctx) error
-	DeleteHandler(c *fiber.Ctx) error
-	FindByIDHandler(c *fiber.Ctx) error
-	FindManyHandler(c *fiber.Ctx) error
+	Add(c *fiber.Ctx) error
+	Delete(c *fiber.Ctx) error
+	FindByID(c *fiber.Ctx) error
+	FindMany(c *fiber.Ctx) error
 	CreateAdmin(c *fiber.Ctx) error
 	UpdateUser(c *fiber.Ctx) error
-	FindDoctorsHandler(c *fiber.Ctx) error
+	FindDoctors(c *fiber.Ctx) error
 }
 type EmployeeController struct {
 	EmployeeService *EmployeeService
@@ -25,7 +25,7 @@ func NewEmployeeControllerInterface(employeeService *EmployeeService) *EmployeeC
 	return &EmployeeController{EmployeeService: employeeService}
 }
 
-func (e *EmployeeController) AddHandler(c *fiber.Ctx) (err error) {
+func (e *EmployeeController) Add(c *fiber.Ctx) (err error) {
 	payload, err := params.New(c)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -61,7 +61,7 @@ func (e *EmployeeController) AddHandler(c *fiber.Ctx) (err error) {
 	}
 	return c.Status(200).JSON(fiber.Map{"message": "success"})
 }
-func (e *EmployeeController) DeleteHandler(c *fiber.Ctx) (err error) {
+func (e *EmployeeController) Delete(c *fiber.Ctx) (err error) {
 	payload, err := params.New(c)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -77,7 +77,7 @@ func (e *EmployeeController) DeleteHandler(c *fiber.Ctx) (err error) {
 	}
 	return c.Status(200).JSON(fiber.Map{"message": "deleted successfully", "code": "xyz123"})
 }
-func (e *EmployeeController) FindByIDHandler(c *fiber.Ctx) (err error) {
+func (e *EmployeeController) FindByID(c *fiber.Ctx) (err error) {
 	userID := c.Query("user_id")
 
 	user, err := e.EmployeeService.FindOne(userID)
@@ -86,7 +86,7 @@ func (e *EmployeeController) FindByIDHandler(c *fiber.Ctx) (err error) {
 	}
 	return c.Status(200).JSON(fiber.Map{"data": user, "message": "user fetched successfully"})
 }
-func (e *EmployeeController) FindManyHandler(c *fiber.Ctx) (err error) {
+func (e *EmployeeController) FindMany(c *fiber.Ctx) (err error) {
 	param, err := params.New(c)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -139,9 +139,6 @@ func (e *EmployeeController) CreateAdmin(c *fiber.Ctx) (err error) {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	AdminReq.AssignDefRoles, _ = payload.GetBool("assign_default_roles")
-	AdminReq.AssignDefDept, _ = payload.GetBool("assign_default_departments")
-	AdminReq.AssignDefRolePerm, _ = payload.GetBool("assign_default_role_permissions")
 	AdminReq.EmailID, err = payload.Getstring("email_id")
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -178,10 +175,11 @@ func (e *EmployeeController) UpdateUser(c *fiber.Ctx) (err error) {
 	return c.JSON(fiber.Map{"message": "updated successfully", "code": 200})
 }
 
-func (e *EmployeeController) FindDoctorsHandler(c *fiber.Ctx) (err error) {
+func (e *EmployeeController) FindDoctors(c *fiber.Ctx) (err error) {
 	name := c.Query("name")
+	organisationID := c.Query("organisation_id")
 
-	users, err := e.EmployeeService.FindDoctors(name)
+	users, err := e.EmployeeService.FindDoctors(name, organisationID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}

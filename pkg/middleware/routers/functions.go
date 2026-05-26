@@ -12,6 +12,7 @@ import (
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/permissions"
+	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/roles"
 	"hospital-backend/pkg/middleware"
 
@@ -60,11 +61,14 @@ func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
 	authGroup.Post("/login", auth.Login)
 	authGroup.Post("/refresh", auth.Refresh)
 }
-func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService) {
+func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService, jwtservice *jwt.JwtService) {
 	version := getVersion(app)
 	departmentGrp := version.Group("department")
+	departmentGrp.Use(func(c *fiber.Ctx) error {
+		return middleware.Authenticate(c, jwtservice)
+	})
 	departmentController := department.NewDepartmentControllerInterface(service)
-	departmentGrp.Get("/getDepartments/:organisation_id", departmentController.FindMany)
+	departmentGrp.Get("/getDepartments", departmentController.FindMany)
 }
 func RegisterPermissionRoutes(app *fiber.App, service *permissions.PermService) {
 	version := getVersion(app)
@@ -82,35 +86,30 @@ func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService, jwts
 	patientManagement := patient.NewPatientControllerInterface(service)
 	patientGroup.Post("/addGeneralInfo", patientManagement.AddGeneralInfoHandler)
 	patientGroup.Get("/getPatients", patientManagement.Find)
+	patientGroup.Get("/getpatientByID/:patientID", patientManagement.GetPatientByID)
+
 	//patientGroup.Post("/getPatients", patientManagement.PatientHandler)
 }
 func RegisterEmployeeRoutes(app *fiber.App, service *employee.EmployeeService) {
 	version := getVersion(app)
 	employeeGroup := version.Group("employee")
 	employeeController := employee.NewEmployeeControllerInterface(service)
-	employeeGroup.Post("/addEmployee", employeeController.AddHandler)
+	employeeGroup.Post("/addEmployee", employeeController.Add)
 	employeeGroup.Post("/create", employeeController.CreateAdmin)
 	employeeGroup.Patch("/update", employeeController.UpdateUser)
-	employeeGroup.Delete("/delete", employeeController.DeleteHandler)
-	employeeGroup.Get("/findbyID", employeeController.FindByIDHandler)
-	employeeGroup.Get("/getEmployees", employeeController.FindManyHandler)
-	employeeGroup.Get("/getDoctors", employeeController.FindDoctorsHandler)
+	employeeGroup.Delete("/delete", employeeController.Delete)
+	employeeGroup.Get("/findbyID", employeeController.FindByID)
+	employeeGroup.Get("/getEmployees", employeeController.FindMany)
+	employeeGroup.Get("/getDoctors", employeeController.FindDoctors)
 }
 func RegisterOrganisationRoutes(app *fiber.App, service *organisation.OrganisationService) {
 	version := getVersion(app)
 	organisationGrp := version.Group("organisation")
-	organisationGrp.Post("/signupOrg", func(c *fiber.Ctx) error {
-		return organisation.OrganisationSignup(c, service)
-	})
-	organisationGrp.Patch("/updateLocation", func(c *fiber.Ctx) error {
-		return organisation.UpdateOrgLocation(c, service)
-	})
-	organisationGrp.Get("/getbyid/:organisation_id", func(c *fiber.Ctx) error {
-		return organisation.GetByID(c, service)
-	})
-	organisationGrp.Patch("/update", func(c *fiber.Ctx) error {
-		return organisation.Update(c, service)
-	})
+	organisationController := organisation.NewIOrganisationController(service)
+	organisationGrp.Post("/signupOrg", organisationController.CreateOrganisation)
+	organisationGrp.Patch("/updateLocation", organisationController.UpdateOrganisationLoc)
+	organisationGrp.Get("/getbyid/:organisation_id", organisationController.GetByID)
+	organisationGrp.Patch("/update", organisationController.Update)
 }
 func RegisterLicenseRoutes(app *fiber.App, service *license.LicenseService) {
 	version := getVersion(app)
@@ -122,13 +121,26 @@ func RegisterLicenseRoutes(app *fiber.App, service *license.LicenseService) {
 func RegisterMedicineRoutes(app *fiber.App, service *medicine.MedicineService) {
 	version := getVersion(app)
 	medicineGrp := version.Group("medicine")
-	medicineGrp.Post("/addMedicine", func(c *fiber.Ctx) error {
-		return medicine.CreateHandler(c, service)
-	})
-	medicineGrp.Get("/getMedicineByID", func(c *fiber.Ctx) error {
-		return medicine.GetByIDHandler(c, service)
-	})
-	medicineGrp.Get("/GetMedicines", func(c *fiber.Ctx) error {
-		return medicine.GetAllHandler(c, service)
-	})
+	medicineController := medicine.NewMedicineController(service)
+	medicineGrp.Post("/addMedicine", medicineController.AddMedicine)
+	medicineGrp.Get("/getMedicineByID", medicineController.GetByIDHandler)
+	medicineGrp.Get("/GetMedicines", medicineController.GetAllHandler)
+	medicineGrp.Get("/searchMedicine", medicineController.SearchMedicine)
+}
+func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.PrescriptionService) {
+	version := getVersion(app)
+	prescriptionGrp := version.Group("prescription")
+	prescriptionController := prescription.NewPrescriptionController(service)
+	prescriptionGrp.Post("/create", prescriptionController.CreatePrescription)
+	prescriptionGrp.Get("/get", prescriptionController.FindMany)
+	prescriptionGrp.Patch("/update", prescriptionController.UpdatePrescription)
+	prescriptionGrp.Get("/getprescriptionbyid/:prescription_id", prescriptionController.FindPrescriptionByID)
+	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
+}
+func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
+	version := getVersion(app)
+	supplierGrp := version.Group("supplier")
+	supplierController := medicine.NewSupplierController(service)
+	supplierGrp.Get("/getSupplierByID", supplierController.GetSupplierByID)
+	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
 }

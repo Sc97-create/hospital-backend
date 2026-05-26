@@ -3,18 +3,16 @@ package dto
 import "time"
 
 type PatientInfo struct {
-	UserID          string   `json:"user_id"`
-	FirstName       string   `json:"first_name"`
-	LastName        string   `json:"last_name"`
-	Age             string   `json:"age"`
-	Weight          string   `json:"weight"`
-	Gender          string   `json:"gender"`
-	EmailID         string   `json:"email_id"`
-	MobileNumber    string   `json:"mobile_number"`
-	DoctorID        string   `json:"assign_doctor"`
-	Symptoms        []string `json:"symptoms"`
-	ActiveCondition string   `json:"active_condition"`
-	OrganisationID  string   `json:"organisation_id"`
+	UserID         string `json:"user_id"`
+	Name           string `json:"name"`
+	Age            string `json:"age"`
+	Weight         string `json:"weight"`
+	Gender         string `json:"gender"`
+	EmailID        string `json:"email_id"`
+	MobileNumber   string `json:"mobile_number"`
+	BloodGroup     string `json:"blood_group"`
+	Address        string `json:"address"`
+	OrganisationID string `json:"organisation_id"`
 }
 
 type PatientResponse struct {
@@ -29,5 +27,12 @@ type PatientResponse struct {
 	PatientImage   string    `json:"patient_image"`
 	PatientStatus  string    `json:"patient_status"`
 	PatientAge     int       `json:"patient_age"`
-	AdmissionDate  time.Time `json:"admission_date"`
+	PatientBG      string    `json:"patient_bg"`
+	PatientLVD     time.Time `json:"patient_lvd"`
+	WaitingTime    string    `json:"waiting_time"`
+}
+type PatientListResponse struct {
+	Data  []PatientResponse `json:"data"`
+	Total int64             `json:"total"`
+	Code  int               `json:"code"`
 }

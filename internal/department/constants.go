@@ -1,11 +1,4 @@
-package utils
-
-import (
-	"hospital-backend/internal/department"
-	"time"
-
-	"github.com/google/uuid"
-)
+package department
 
 const (
 	DefaultDeptAdmin           = "Administration"
@@ -29,20 +22,4 @@ var DefaultDeptArr DeptArr = DeptArr{
 	DefaultDeptLaboratory,
 	DefaultDeptPharmacy,
 	DefaultDeptNursing,
-}
-
-func AddDefaultDepartment(userID string) []department.Department {
-	defaultDepartments := []department.Department{}
-	for _, each := range DefaultDeptArr {
-		defaultDepartments = append(defaultDepartments, department.Department{
-			ID:        uuid.NewString(),
-			Name:      each,
-			CreatedBy: userID,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			UpdatedBy: userID,
-			IsDefault: true,
-		})
-	}
-	return defaultDepartments
 }

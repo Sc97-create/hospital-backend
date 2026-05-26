@@ -40,10 +40,12 @@ func (a *AuthController) Login(c *fiber.Ctx) (err error) {
 		return wrapError.Wrap(err, c, 409)
 	}
 	a.setRefreshToken(c, userResp.RefreshToken)
-	response := make(map[string]any)
-	response["user_id"] = userResp.UserID
-	response["accesstoken"] = userResp.Token
-	response["message"] = "user logged in successfully"
+	var response dto.LoginResponse
+	response.UserID = userResp.UserID
+	response.Token = userResp.Token
+	response.RefreshToken = userResp.RefreshToken
+	response.OrganisationID = userResp.OrganisationID
+	response.Message = "user logged in successfully"
 	if err := c.Status(200).JSON(response); err != nil {
 		return err
 	}
