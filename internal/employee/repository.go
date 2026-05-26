@@ -1,18 +1,20 @@
 package employee
 
-import "gorm.io/gorm"
-
 type EmployeeRepository interface {
-	Create(*gorm.DB, *User) error
+	Create(*User) error
 	Update(string, map[string]interface{}) (err error)
 	DeleteOne(string) (err error)
 	ReadMany(limit int, skip int) ([]User, error)
 	ReadOne(id string) (*User, error)
-	ReadDoctors(name string) ([]User, error)
+	ReadDoctors(query string, args ...any) ([]User, error)
 }
 
-func (E *EmployeeRepo) Create(tx *gorm.DB, employee *User) (err error) {
-	return tx.Create(employee).Error
+func (E *EmployeeRepo) Create(employee *User) (err error) {
+	err = E.db.Create(employee).Error
+	if err != nil {
+		return
+	}
+	return
 
 }
 
@@ -46,11 +48,8 @@ func (E *EmployeeRepo) ReadOne(id string) (*User, error) {
 	return &u, nil
 }
 
-func (E *EmployeeRepo) ReadDoctors(name string) (u []User, err error) {
-	query := E.db.Model(&User{}).Select("users.*").Joins("JOIN roles on roles.id = users.role_id").Where("roles.name = ?", "Doctor")
-	if name != "" {
-		query = query.Where("users.first_name ILIKE ? OR users.last_name ILIKE ?", "%"+name+"%", "%"+name+"%")
-	}
-	err = query.Find(&u).Error
-	return u, err
+func (E *EmployeeRepo) ReadDoctors(query string, args ...any) ([]User, error) {
+	var users []User
+	err := E.db.Raw(query, args...).Scan(&users).Error
+	return users, err
 }

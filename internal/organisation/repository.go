@@ -5,27 +5,27 @@ import (
 )
 
 type OrganisationRepo interface {
-	Create(*gorm.DB, *Organisation) error
-	GetOrganisationByID(organisationID string) (*Organisation, error)
+	Create(*gorm.DB, Organisation) error
+	GetOrganisationByID(organisationID string) (Organisation, error)
 	UpdateLocationByID(organisation *Organisation) error
 	Update(organisationID string, update map[string]interface{}) error
 }
 
-func (ORepo *OrgRepo) Create(tx *gorm.DB, organisation *Organisation) error {
+func (ORepo *OrgRepo) Create(tx *gorm.DB, organisation Organisation) error {
 	err := tx.Create(&organisation).Error
 	if err != nil {
 		return tx.Error
 	}
 	return nil
 }
-func (ORepo *OrgRepo) GetOrganisationByID(organisationID string) (*Organisation, error) {
-	orgModel := Organisation{}
+func (ORepo *OrgRepo) GetOrganisationByID(organisationID string) (Organisation, error) {
+	var orgModel Organisation
 	query := `select id,organisation_name,code,legal_entity_name,hospital_type,address,security from organisations where id=$1`
 	err := ORepo.db.Raw(query, organisationID).Scan(&orgModel).Error
 	if err != nil {
-		return nil, err
+		return Organisation{}, err
 	}
-	return &orgModel, nil
+	return orgModel, nil
 }
 func (ORepo *OrgRepo) UpdateLocationByID(organisation *Organisation) error {
 	orgModel := Organisation{}

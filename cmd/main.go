@@ -34,6 +34,7 @@ func main() {
 	clientConfig.Concurrency = 256 * 1024
 	clientConfig.DisableDefaultContentType = true
 	clientConfig.EnableTrustedProxyCheck = true
+
 	app := fiber.New(clientConfig)
 	middleware.HandleMiddleware(app)
 	containers := appinit.NewContainer(config.PostgreClient.GormDriver)
@@ -45,15 +46,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	routers.RegisterPatientRoutes(app, containers.PatientService)
+	routers.RegisterPatientRoutes(app, containers.PatientService, containers.JwtManagement)
 	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
 	routers.RegisterLicenseRoutes(app, containers.LicenseService)
 	routers.RegisterEmployeeRoutes(app, containers.EmployeeService)
-	routers.RegisterMedicineRoutes(app, containers.MedicineService)
+	routers.RegisterMedicineRoutes(app, containers.MedContainer.Medicineservices)
 	routers.RegisterAuthRoute(app, containers.AuthService)
 	routers.RegisterPermissionRoutes(app, containers.PermissionService)
-	routers.RegisterDepartmentRoutes(app, containers.DepartmentService)
+	routers.RegisterDepartmentRoutes(app, containers.DepartmentService, containers.JwtManagement)
 	routers.RegisterRoleRoutes(app, containers.RoleService)
+	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
+	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement)
+	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService)
 	err = app.Listen(":9069")
 	if err != nil {
 		log.Fatalf("%v", err)

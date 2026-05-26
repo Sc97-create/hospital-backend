@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"hospital-backend/internal/modules/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +16,7 @@ func NewModuleService(ModuleDb *ModuleDb) *ModuleService {
 
 func (Mod *ModuleService) DefaultModule() error {
 	moduleArr := []Modules{}
-	for _, each := range utils.Modules {
+	for _, each := range ConstModules {
 		moduleArr = append(moduleArr, Modules{
 			ID:        uuid.New().String(),
 			Name:      each,

@@ -2,62 +2,56 @@ package employee
 
 import (
 	"errors"
+	"fmt"
 	"hospital-backend/internal/department"
-	deptUtil "hospital-backend/internal/department/utils"
 	"hospital-backend/internal/email"
 	"hospital-backend/internal/employee/dto"
 	"hospital-backend/internal/employee/utils"
 	"hospital-backend/internal/organisation"
-	"hospital-backend/internal/permissions"
-	"hospital-backend/internal/rolepermissions"
-	rolePermissionUtil "hospital-backend/internal/rolepermissions/utils"
 	"hospital-backend/internal/roles"
-	roleUtil "hospital-backend/internal/roles/utils"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 type EmployeeService struct {
-	DB               *gorm.DB
-	EmpRepo          EmployeeRepository
-	OranisationRepo  organisation.OrganisationRepo
-	RoleDB           *roles.RoleDB
-	DeptDB           *department.DepartmentDB
-	PermDB           *permissions.PermissionDB
-	RolePermissionDB *rolepermissions.RolePermissionDb
+	DB              *gorm.DB
+	EmpRepo         EmployeeRepository
+	OranisationRepo organisation.OrganisationRepo
+	RoleServices    *roles.RoleServices
+	DeptServices    *department.DepartmentService
+	//PermServices    *permissions.PermService
 }
 
-func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleRepo *roles.RoleDB, deptDB *department.DepartmentDB, rolePermissionDB *rolepermissions.RolePermissionDb, permDB *permissions.PermissionDB) *EmployeeService {
-	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleDB: roleRepo, DeptDB: deptDB, RolePermissionDB: rolePermissionDB, PermDB: permDB}
+func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleServices *roles.RoleServices, deptServices *department.DepartmentService) *EmployeeService {
+	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleServices: roleServices, DeptServices: deptServices}
 }
 
 func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id string, err error) {
 	user := new(User)
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := EService.hashPassword(payload.Password)
 	if err != nil {
 		return "", err
 	}
-	err = EService.DB.Transaction(func(tx *gorm.DB) error {
-		user.ID = uuid.New().String()
-		user.OrganisationID = payload.OrganisationID
-		user.Username = payload.UserName
-		user.EmailID = payload.EmailID
-		user.RoleID = payload.RoleID
-		user.DepartmentID = payload.DepartmentID
-		user.PhoneNumber = payload.PhoneNumber
-		user.PasswordHash = string(passwordHash)
-		user.IsActive = true
-		user.CreatedAt = time.Now()
-		user.UpdatedAt = time.Now()
-		err = EService.EmpRepo.Create(tx, user)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+
+	user.ID = uuid.New().String()
+	user.OrganisationID = payload.OrganisationID
+	user.Username = payload.UserName
+	user.EmailID = payload.EmailID
+	user.RoleID = payload.RoleID
+	user.DepartmentID = payload.DepartmentID
+	user.PhoneNumber = payload.PhoneNumber
+	user.PasswordHash = string(passwordHash)
+	user.IsActive = true
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
+	err = EService.EmpRepo.Create(user)
+	if err != nil {
+		return
+	}
 	organisationData, err := EService.OranisationRepo.GetOrganisationByID(payload.OrganisationID)
 	if err != nil {
 		return
@@ -99,51 +93,23 @@ func (Eservice *EmployeeService) FindMany(limit int, pageno int) (u []User, err 
 	return
 }
 func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID string, err error) {
-	user := new(User)
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := Eservice.hashPassword(payload.Password)
 	if err != nil {
 		return
 	}
-	user.ID = uuid.New().String()
-	roleArr := roleUtil.AddDefaultRoles(user.ID)
-	deptArr := deptUtil.AddDefaultDepartment(user.ID)
-	permArr, err := Eservice.PermDB.GetPermissionByName()
+	role, err := Eservice.RoleServices.FindRoleByNames(payload.OrganisationID, roles.DefaultRoleAdmin)
 	if err != nil {
 		return
 	}
-	rolePermissionArr := rolePermissionUtil.AddDefaultRolePermissions(roleArr[0].ID, permArr)
-	err = Eservice.DB.Transaction(func(tx *gorm.DB) error {
-		err = Eservice.RoleDB.BatchInsert(tx, roleArr, 2)
-		if err != nil {
-			return err
-		}
-		err = Eservice.DeptDB.BatchInsert(tx, deptArr, 2)
-		if err != nil {
-			return err
-		}
-		err = Eservice.RolePermissionDB.BatchCreate(tx, rolePermissionArr, 2)
-		if err != nil {
-			return err
-		}
-		user.OrganisationID = payload.OrganisationID
-		user.FirstName = payload.FirstName
-		user.LastName = payload.LastName
-		user.Username = strings.TrimSpace(user.FirstName + " " + user.LastName)
-		user.EmailID = payload.EmailID
-		user.RoleID = roleArr[0].ID
-		user.PasswordHash = string(passwordHash)
-		user.DepartmentID = deptArr[0].ID
-		user.PhoneNumber = payload.PhoneNumber
-		user.OrganisationID = payload.OrganisationID
-		user.IsActive = true
-		user.CreatedAt = time.Now()
-		user.UpdatedAt = time.Now()
-		err = Eservice.EmpRepo.Create(tx, user)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	department, err := Eservice.DeptServices.FindDeptByName(payload.OrganisationID, department.DefaultDeptAdmin)
+	if err != nil {
+		return
+	}
+	user := Eservice.toEmpModel(passwordHash, payload, role.ID, department.ID)
+	err = Eservice.EmpRepo.Create(&user)
+	if err != nil {
+		return
+	}
 	return user.ID, nil
 }
 func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err error) {
@@ -158,7 +124,7 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 	if userData.LastName != payload.LastName {
 		updateUser["last_name"] = payload.LastName
 	}
-	passwordHash, err := utils.HashPassword(payload.Password)
+	passwordHash, err := Eservice.hashPassword(payload.Password)
 	if err != nil {
 		return
 	}
@@ -172,10 +138,54 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 
 }
 
-func (Eservice *EmployeeService) FindDoctors(name string) (u []User, err error) {
-	u, err = Eservice.EmpRepo.ReadDoctors(name)
+func (Eservice *EmployeeService) FindDoctors(search string, organisationID string) (u []User, err error) {
+	query := `
+        SELECT u.*
+        FROM users u
+        JOIN roles ON roles.id = u.role_id
+        WHERE u.organisation_id = $1
+    `
+
+	args := []interface{}{organisationID}
+	idx := 2
+
+	if search != "" {
+		query += fmt.Sprintf(`
+            AND (u.first_name ILIKE $%d OR u.last_name ILIKE $%d)
+        `, idx, idx+1)
+
+		like := "%" + search + "%"
+		args = append(args, like, like)
+		idx += 2
+	}
+	u, err = Eservice.EmpRepo.ReadDoctors(query, args...)
 	if err != nil {
 		return
 	}
 	return
+}
+func (Eservice *EmployeeService) hashPassword(password string) (hashedPwd []byte, err error) {
+	hashedPwd, err = bcrypt.GenerateFromPassword([]byte(password), 8)
+	if err != nil {
+		err = errors.New("something went wrong, please contact administrator")
+		return
+	}
+	return
+}
+func (Eservice *EmployeeService) toEmpModel(passwordHash []byte, payload dto.EmpRequest, roleID string, departmentID string) User {
+	return User{
+		ID:             uuid.NewString(),
+		OrganisationID: payload.OrganisationID,
+		FirstName:      payload.FirstName,
+		LastName:       payload.LastName,
+		Username:       strings.TrimSpace(payload.FirstName + " " + payload.LastName),
+		EmailID:        payload.EmailID,
+		RoleID:         roleID,
+		PasswordHash:   string(passwordHash),
+		DepartmentID:   departmentID,
+		PhoneNumber:    payload.PhoneNumber,
+		IsActive:       true,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
 }

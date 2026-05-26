@@ -4,6 +4,8 @@ import (
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/license"
 	dto "hospital-backend/internal/organisation/DTO"
+	"hospital-backend/internal/permissions"
+	"hospital-backend/internal/rolepermissions"
 	"hospital-backend/internal/roles"
 	"time"
 
@@ -13,39 +15,62 @@ import (
 
 // service should not depend on internal repo field
 type OrganisationService struct {
-	DB               *gorm.DB
-	OrganisationRepo OrganisationRepo
-	LicenseRep       *license.LicenseService
+	DB                    *gorm.DB
+	OrganisationRepo      OrganisationRepo
+	LicenseRep            *license.LicenseService
+	RoleServices          *roles.RoleServices
+	DeptServices          *department.DepartmentService
+	PermService           *permissions.PermService
+	RolePermissionService *rolepermissions.RolePermissionService
 }
 
-func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, license *license.LicenseService) *OrganisationService {
-	return &OrganisationService{DB: db, OrganisationRepo: orgRepo, LicenseRep: license}
+func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, license *license.LicenseService, roleRepo *roles.RoleServices, deptRepo *department.DepartmentService, permServ *permissions.PermService, rolePermissionRepo *rolepermissions.RolePermissionService) *OrganisationService {
+	return &OrganisationService{DB: db, OrganisationRepo: orgRepo, LicenseRep: license, RoleServices: roleRepo, DeptServices: deptRepo, PermService: permServ, RolePermissionService: rolePermissionRepo}
 }
 
-func (OService *OrganisationService) CreateWithLicense(payloadRequest dto.OrganisationPayload) (ID string, departmentID string, roleID string, err error) {
-	organisation := new(Organisation)
-	departmentModel := department.Department{}
-	roleModel := roles.Role{}
+func (OService *OrganisationService) CreateOrganisation(payloadRequest dto.OrganisationPayload) (string, error) {
+	organisation := OService.createOrgModel(payloadRequest)
+	modules, permissions, err := OService.PermService.FindMany()
+	if err != nil {
+		return "", err
+	}
+	err = OService.DB.Transaction(func(tx *gorm.DB) error {
+		if err := OService.OrganisationRepo.Create(tx, organisation); err != nil {
+			return err
+		}
+		if err := OService.LicenseRep.CreateLicenseSrv(tx, organisation.OrganisationName, 6, organisation.ID, "month", time.Now()); err != nil {
+			return err
+		}
+		roles, err := OService.RoleServices.InsertMany(tx, organisation.ID)
+		if err != nil {
+			return err
+		}
+		if err := OService.DeptServices.InsertMany(tx, organisation.ID); err != nil {
+			return err
+		}
+		if err := OService.RolePermissionService.InsertMany(tx, roles, permissions, modules, organisation.ID); err != nil {
+			return err
+		}
+
+		//getpermissions
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return organisation.ID, nil
+}
+func (Oservice *OrganisationService) createOrgModel(payloadReq dto.OrganisationPayload) Organisation {
+	var organisation Organisation
 	organisation.ID = uuid.NewString()
-	organisation.OrganisationName = payloadRequest.OrganisationName
-	organisation.LegalEntityName = payloadRequest.LegalEntityName
-	organisation.HospitalType = payloadRequest.HospitalType
+	organisation.OrganisationName = payloadReq.OrganisationName
+	organisation.LegalEntityName = payloadReq.LegalEntityName
+	organisation.HospitalType = payloadReq.HospitalType
 	organisation.CreatedAt = time.Now()
 	organisation.UpdatedAt = time.Now()
 	organisation.Code = uuid.NewString()
-	err = OService.DB.Transaction(func(tx *gorm.DB) error {
-		err := OService.OrganisationRepo.Create(tx, organisation)
-		if err != nil {
-			return err
-		}
-		err = OService.LicenseRep.CreateLicenseSrv(tx, organisation.OrganisationName, 6, organisation.ID, "month", time.Now())
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	return organisation.ID, departmentModel.ID, roleModel.ID, nil
+	return organisation
 }
 func (OService *OrganisationService) UpdateOrganisationLoc(payloadReques dto.OrganisationPayload) (err error) {
 	organisation := new(Organisation)
@@ -62,7 +87,7 @@ func (OService *OrganisationService) UpdateOrganisationLoc(payloadReques dto.Org
 	}
 	return
 }
-func (Oservice *OrganisationService) GetByID(organisationID string) (*Organisation, error) {
+func (Oservice *OrganisationService) GetByID(organisationID string) (Organisation, error) {
 	Organisation, err := Oservice.OrganisationRepo.GetOrganisationByID(organisationID)
 	if err != nil {
 		return Organisation, err

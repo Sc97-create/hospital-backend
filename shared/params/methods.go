@@ -12,7 +12,7 @@ func (p *Payload) Getstring(key string) (value string, err error) {
 		}
 
 	}
-	err = errors.New("not a string type")
+	err = errors.New("required payload is missing")
 	return "", err
 }
 func (p *Payload) GetObject(key string) (*Payload, error) {
@@ -40,9 +40,15 @@ func (p *Payload) GetChildren(key string) ([]*Payload, error) {
 	return nil, err
 }
 func (p *Payload) GetStringArray(key string) ([]string, error) {
+	var strArray []string
 	if val, ok := p.Param[key]; ok {
-		if s, ok := val.([]string); ok {
-			return s, nil
+		if s, ok := val.([]interface{}); ok {
+			for _, each := range s {
+				if str, ok := each.(string); ok {
+					strArray = append(strArray, str)
+				}
+			}
+			return strArray, nil
 		}
 	}
 	err := errors.New("not a valid type")
