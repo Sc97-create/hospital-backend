@@ -12,8 +12,6 @@ type KeyPath string
 const (
 	AccessTokenExpiresAt  ExpiresAt = 15
 	RefreshTokenExpiresAt ExpiresAt = 7
-	PrivateKeyPath        KeyPath   = "C:/Users/sachin/Hospital-backend/config/keys/jwt_private.pem"
-	PublicKeyPath         KeyPath   = "C:/Users/sachin/Hospital-backend/config/keys/jwt_public.pem"
 )
 
 type RefreshToken struct {

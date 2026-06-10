@@ -1,7 +1,9 @@
 package migration
 
 import (
-	"hospital-backend/config"
+	"hospital-backend/database"
+	"hospital-backend/internal/admins"
+	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/bedmanagement"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
@@ -19,59 +21,67 @@ import (
 )
 
 func Migrate() (err error) {
-	err = config.PostgreClient.AutoMigrate(&organisation.Organisation{})
+	err = database.PostgreClient.AutoMigrate(&organisation.Organisation{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return
 	}
-	err = config.PostgreClient.AutoMigrate(&license.License{})
+	err = database.PostgreClient.AutoMigrate(&license.License{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return
 	}
-	err = config.PostgreClient.AutoMigrate(&employee.User{})
+	err = database.PostgreClient.AutoMigrate(&employee.User{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return
 	}
-	err = config.PostgreClient.AutoMigrate(&jwt.RefreshToken{})
+	err = database.PostgreClient.AutoMigrate(&jwt.RefreshToken{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return
 	}
-	err = config.PostgreClient.AutoMigrate(&patient.Patient{})
+	err = database.PostgreClient.AutoMigrate(&patient.Patient{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&department.Department{})
+	err = database.PostgreClient.AutoMigrate(&department.Department{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&roles.Role{})
+	err = database.PostgreClient.AutoMigrate(&roles.Role{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&permissions.Permission{})
+	err = database.PostgreClient.AutoMigrate(&permissions.Permission{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&rolepermissions.RolePermission{})
+	err = database.PostgreClient.AutoMigrate(&rolepermissions.RolePermission{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&prescription.Prescription{})
+	err = database.PostgreClient.AutoMigrate(&prescription.Prescription{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = config.PostgreClient.AutoMigrate(&modules.Modules{})
+	err = database.PostgreClient.AutoMigrate(&modules.Modules{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = bedmanagement.Migrate(config.PostgreClient)
+	err = bedmanagement.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = medmigration.Automigrate(config.PostgreClient)
+	err = medmigration.Automigrate(database.PostgreClient)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = appointments.AutoMigrate(database.PostgreClient)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&admins.OrganisationSchedule{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

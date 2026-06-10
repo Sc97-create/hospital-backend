@@ -181,3 +181,63 @@
       # for series appointments => fetch it from appointment_series, get start date, end date and based on that create appointments, if daily then add date
       # if weekly then start date, end date and write logic for weekly
       # if monthly same take start date and end date and write logic for monthly
+## clinic timings module
+  ## db schema
+  ## api calls
+  ## 
+  {
+    id
+    start_time
+    end_time
+    leave_days
+    organisation_id
+    created_at
+    updated_at
+  }
+
+
+  ## compliance
+  # HIPAA, HL7, and GDPR
+  # health education
+  # Pay-Per-Use Model
+  # for fertility, skin based issue and mental health we can introduce telehealth as well
+  # sending medicine on mobile no, by creating appointment through video call
+  # connecting ayurvedic doctors and prescribing home medicines
+
+appointment preview
+
+
+  #
+  Patient Information
+  patient_name
+  age
+  gender
+  mobile_number
+  last_visit
+  total_visit
+  #
+  #
+  Assigned Doctor
+  department
+  visit type
+  schedule date and time
+  slot duration
+  #
+  #
+  medicine history
+  created_at
+  id
+  diagnosis
+  prescription
+
+  view_details=> 
+  #
+
+  `
+ query:= `select a.appointment_code, a.id as appointment_id,a.start_time,a.end_time,a.appointment_date, pa.name, pa.age,pa.gender,pa.mobile_number, pa.last_visit,pr.created_at, pr.medicines as medicines from appointemnts as a
+ join patients as pa on a.patient_id=p.id
+ join users as u on a.doctor_id,u.id
+ join departments as d on a.department_id=d.id
+ join prescriptions as pr on a.prescription_id=p.id
+ where organisation_id = $1
+  `

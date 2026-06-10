@@ -1,9 +1,17 @@
 package config
 
-import (
-	"hospital-backend/pkg/db"
-)
+type AppEnv string
 
 var (
-	PostgreClient db.Postgre
+	ConfigLocal AppEnv = "local"
+	ConfigProd  AppEnv = "prod"
+	ConfigStg   AppEnv = "stg"
 )
+
+type Config struct {
+	AppEnv         string
+	ServerPort     string
+	DatabaseURL    string
+	PrivateKeyPath string
+	PublicKeyPath  string
+}

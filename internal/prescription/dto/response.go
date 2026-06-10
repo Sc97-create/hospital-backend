@@ -51,3 +51,15 @@ type PrescriptionListItem struct {
 	CreatedAt    time.Time `json:"created_at"`
 	Status       string    `json:"status"`
 }
+type PrescriptionPatientResponse struct {
+	DoctorName string    `json:"doctor_name"`
+	IssuedAt   time.Time `json:"issued_at"`
+	Medicines  any       `json:"medicines"`
+	Reason     string    `json:"reason"`
+}
+type Response struct {
+	Data    any    `json:"data"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Total   int    `json:"total"`
+}
