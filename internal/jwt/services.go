@@ -6,7 +6,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"hospital-backend/config"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,10 +17,11 @@ import (
 
 type JwtService struct {
 	RefreshtokenRepo RefreshtokenRepo
+	Cfg              *config.Config
 }
 
-func NewJwtService(refreshRepo RefreshtokenRepo) *JwtService {
-	return &JwtService{RefreshtokenRepo: refreshRepo}
+func NewJwtService(refreshRepo RefreshtokenRepo, cfg *config.Config) *JwtService {
+	return &JwtService{RefreshtokenRepo: refreshRepo, Cfg: cfg}
 }
 
 func (j *JwtService) InsertRefreshToken(token string, expiry time.Time, userID string) error {
@@ -161,7 +164,12 @@ func (j *JwtService) toRefreshTokenModel(token string, id string, userID string,
 	return &refreshToken, nil
 }
 func (j *JwtService) token(claims jwt.RegisteredClaims) (string, error) {
-	privateKey, err := j.getPrivateKey(PrivateKeyPath)
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	privateKeypath := filepath.Join(dir, j.Cfg.PrivateKeyPath)
+	privateKey, err := j.getPrivateKey(KeyPath(privateKeypath))
 	if err != nil {
 		return "", err
 	}
@@ -217,7 +225,12 @@ func (j *JwtService) checkRefreshToken(refreshToken *RefreshToken, userID string
 	return
 }
 func (j *JwtService) getPublickey() (*ecdsa.PublicKey, error) {
-	key, err := os.ReadFile(string(PublicKeyPath))
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	publicPath := filepath.Join(dir, j.Cfg.PublicKeyPath)
+	key, err := os.ReadFile(publicPath)
 	if err != nil {
 		return nil, err
 	}

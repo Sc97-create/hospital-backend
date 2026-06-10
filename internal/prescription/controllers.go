@@ -27,6 +27,7 @@ type IPrescriptionController interface {
 	FindMany(c *fiber.Ctx) error
 	FindPrescriptionByID(c *fiber.Ctx) error
 	UpdateStatus(c *fiber.Ctx) error
+	FindPrescriptionByPatientID(c *fiber.Ctx) error
 }
 
 func (PresC *PrescriptionController) CreatePrescription(c *fiber.Ctx) error {
@@ -35,7 +36,7 @@ func (PresC *PrescriptionController) CreatePrescription(c *fiber.Ctx) error {
 		return err
 	}
 	requestmap := dto.CreatePrescriptionRequest{}
-	requestmap.PatientID, err = payload.Getstring("patient_id")
+	requestmap.AppointmentID, err = payload.Getstring("appointment_id")
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
@@ -66,8 +67,8 @@ func (PresC *PrescriptionController) CreatePrescription(c *fiber.Ctx) error {
 func (Presc *PrescriptionController) toMedicineArray(medicine []*params.Payload) []dto.MedicineArray {
 	var medicineArray []dto.MedicineArray
 	for _, each := range medicine {
-
 		MedicineID, _ := each.Getstring("medicine_id")
+		MedicineName, _ := each.Getstring("medicine_name")
 		DurationDay, _ := each.Getfloat("duration")
 		DurationType, _ := each.Getstring("duration_type")
 		Quantity, _ := each.Getint("quantity")
@@ -79,6 +80,7 @@ func (Presc *PrescriptionController) toMedicineArray(medicine []*params.Payload)
 		dosage, _ := each.Getstring("dosage")
 		medicineArray = append(medicineArray, dto.MedicineArray{
 			MedicineID:      MedicineID,
+			MedicineName:    MedicineName,
 			DurationDay:     DurationDay,
 			DurationType:    DurationType,
 			Quantity:        Quantity,
@@ -121,6 +123,7 @@ func (Presc *PrescriptionController) UpdatePrescription(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
+
 	medicineArr, err := payload.GetChildren("medicine_array")
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
@@ -162,7 +165,11 @@ func (PresC *PrescriptionController) UpdateStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
-	err = PresC.PService.UpdateStatus(prescriptionID)
+	appointmentID, err := payload.Getstring("appointment_id")
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	err = PresC.PService.UpdateStatus(prescriptionID, appointmentID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
@@ -170,5 +177,33 @@ func (PresC *PrescriptionController) UpdateStatus(c *fiber.Ctx) error {
 	response.Code = "200"
 	response.Message = "prescription status updated successfully"
 	response.Data = dto.Data{ID: prescriptionID}
+	return c.Status(200).JSON(response)
+}
+func (PresC *PrescriptionController) GetPrescriptionByPatientID(c *fiber.Ctx) error {
+	payload, err := params.New(c)
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	var reqmodel dto.PresPatients
+	reqmodel.PatientID, err = payload.Getstring("patient_id")
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	reqmodel.Pageno, err = payload.Getfloat("page_no")
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	reqmodel.Limit, err = payload.Getfloat("limit")
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	reqmodel.OrganisationID, err = payload.Getstring("organisation_id")
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	response, err := PresC.PService.GetPrescriptionByPatientID(reqmodel)
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
 	return c.Status(200).JSON(response)
 }

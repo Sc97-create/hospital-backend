@@ -14,6 +14,7 @@ type Prescription struct {
 	ID              string       `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey;column:id"`
 	Code            string       `json:"code" gorm:"column:code"`
 	PatientID       string       `json:"patient_id" gorm:"type:uuid;column:patient_id"`
+	AppointmentID   string       `json:"appointment_id" gorm:"type:uuid"`
 	PrescribedBy    string       `json:"prescribed_by" gorm:"type:uuid;column:prescribed_by"`
 	OrganisationID  string       `json:"organisation_id" gorm:"type:uuid;column:organisation_id"`
 	Status          Status       `json:"status" gorm:"column:status"`

@@ -1,6 +1,8 @@
 package routers
 
 import (
+	"hospital-backend/internal/admins"
+	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/bedmanagement"
 	bedcontroller "hospital-backend/internal/bedmanagement/controllers"
@@ -135,6 +137,7 @@ func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.Prescripti
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
 	prescriptionGrp.Patch("/update", prescriptionController.UpdatePrescription)
 	prescriptionGrp.Get("/getprescriptionbyid/:prescription_id", prescriptionController.FindPrescriptionByID)
+	prescriptionGrp.Get("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionByPatientID)
 	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
 }
 func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
@@ -143,4 +146,23 @@ func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
 	supplierController := medicine.NewSupplierController(service)
 	supplierGrp.Get("/getSupplierByID", supplierController.GetSupplierByID)
 	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
+}
+func RegisterAppointments(app *fiber.App, service *appointments.AppointmentService) {
+	version := getVersion(app)
+	appointmentGrp := version.Group("appointment")
+	appointmentController := appointments.NewAppointmentController(service)
+	appointmentGrp.Post("/create", appointmentController.CreateAppointment)
+	appointmentGrp.Get("/getTimeSlots", appointmentController.GetSlots)
+	appointmentGrp.Post("/getappointmentbyOrgID", appointmentController.FindManyByOrganisationID)
+	appointmentGrp.Get("/getAppointmentsPreview", appointmentController.FindAppointmentsPreview)
+	appointmentGrp.Patch("/updateStatus", appointmentController.UpdateStatus)
+	appointmentGrp.Post("/getappointmentByPatientID", appointmentController.GetAppointmentByPatientID)
+}
+func RegisterOrgSchedule(app *fiber.App, service *admins.OrganisationScheduleService) {
+	version := getVersion(app)
+	admingrp := version.Group("admins")
+	orgSched := admingrp.Group("organisationSchedule")
+	orgSchedController := admins.NewOrgSchedController(service)
+	orgSched.Post("/create", orgSchedController.Create)
+
 }

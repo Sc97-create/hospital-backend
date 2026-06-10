@@ -52,4 +52,6 @@ type Patient struct {
 	CreatedAt      time.Time                 `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt      time.Time                 `json:"updated_at" gorm:"autoUpdateTime"`
 	Address        string                    `json:"address" gorm:"type:varchar(500)"`
+	TotalVisit     int                       `json:"total_visit"`
+	LastVisit      time.Time                 `json:"last_visit" gorm:"type:timestamp"`
 }
