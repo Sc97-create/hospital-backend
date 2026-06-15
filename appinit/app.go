@@ -12,6 +12,7 @@ import (
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine/medcontainer"
 	"hospital-backend/internal/modules"
+	notificationcontainer "hospital-backend/internal/notifications/notificationcontianer"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/permissions"
@@ -40,6 +41,7 @@ type Container struct {
 	MedContainer           *medcontainer.MedContainer
 	AppointmentContainer   *appointments.AppntmentContainer
 	OrganisationSchedule   *admins.OrganisationScheduleService
+	NotificationContainer  *notificationcontainer.NotificationContainer
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
@@ -68,12 +70,13 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	authService := authentication.NewService(*authenticationRepo, *jwtService)
 	licenseService := license.NewLicenseService(*licenseRepo)
 	prescriptionRepo := prescription.NewPrescriptionDB(db)
-
 	organisationSchedule := admins.NewCommonDB(db)
 	orgschedSrv := admins.NewOrganisationScheduleService(organisationSchedule)
-	appointmentSrv := appointments.AppointmentContainers(db, *orgschedSrv)
+	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
+	appointmentSrv := appointments.AppointmentContainers(db, *orgschedSrv, notificationContainer.Service)
 	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice)
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
+
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
@@ -90,5 +93,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		PrescriptionManagement: prescriptionService,
 		AppointmentContainer:   appointmentSrv,
 		OrganisationSchedule:   orgschedSrv,
+		NotificationContainer:  notificationContainer,
 	}
 }

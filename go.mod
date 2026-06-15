@@ -1,6 +1,6 @@
 module hospital-backend
 
-go 1.23.7
+go 1.25.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.9
@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/viper v1.21.0
+	github.com/wneessen/go-mail v0.7.3
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
 
@@ -26,7 +27,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 )
 
@@ -45,7 +46,7 @@ require (
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/crypto v0.37.0
 	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.1
 )

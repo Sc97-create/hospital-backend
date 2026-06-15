@@ -1,11 +1,14 @@
 package appointments
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hospital-backend/internal/admins"
 	admindto "hospital-backend/internal/admins/dto"
 	"hospital-backend/internal/appointments/dto"
+	notificationdto "hospital-backend/internal/notifications/dto"
+	"hospital-backend/internal/notifications/service"
 	"strings"
 	"time"
 
@@ -26,10 +29,11 @@ type AppointmentService struct {
 	Db                   *gorm.DB
 	Repository           AppointmentRepository
 	OrganisationSchedule *admins.OrganisationScheduleService
+	NotificationServ     *service.Notificationservice
 }
 
-func NewAppointmentService(db *gorm.DB, repository AppointmentRepository, organisationSchedule *admins.OrganisationScheduleService) *AppointmentService {
-	return &AppointmentService{Db: db, Repository: repository, OrganisationSchedule: organisationSchedule}
+func NewAppointmentService(db *gorm.DB, repository AppointmentRepository, organisationSchedule *admins.OrganisationScheduleService, notificationServ *service.Notificationservice) *AppointmentService {
+	return &AppointmentService{Db: db, Repository: repository, OrganisationSchedule: organisationSchedule, NotificationServ: notificationServ}
 }
 
 // delete appointments handle seperately
@@ -52,8 +56,53 @@ func (s *AppointmentService) CreateApptmnt(requestPayload dto.NewApptmnt) (resp 
 	resp.ID = appointmentModel.ID
 	resp.Message = AppointmentCreated
 	resp.Code = StatusOk
+	data, err := s.GetNotificationDetails(appointmentModel.ID)
+	if err != nil {
+		return
+	}
+	var notificationRequest notificationdto.CreateRequest
+	notificationRequest.Data = data
+	notificationRequest.NotificationType = AppointmentCreatedEvent
+	ctx := context.Background()
+	s.NotificationServ.Create(ctx, notificationRequest)
 	return
 }
+func (s *AppointmentService) GetNotificationDetails(appointmentID string) (map[string]interface{}, error) {
+	query := `select a.appointment_date,a.start_time,
+	a.end_time,a.appointment_code,u.username as doctor_name,p.name as patient_name,
+	p.email_id as patient_email_id,p.uh_id as patient_code,p.id as patient_id,a.organisation_id,o.hospital_name
+	from appointments a
+	join organisations o
+	on a.organisation_id=o.id
+	join patients p
+	on a.patient_id=p.id
+	join users u
+	on a.doctor_id=u.id
+	where a.id = $1`
+	notificationData, err := s.Repository.GetNotificationsDetails(query, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	return notificationData, nil
+}
+
+// func (s *AppointmentService) formatNotificationData(data map[string]interface{}) dto.NotificationModel {
+// 	var notificationData dto.NotificationModel
+
+// 	appointmentDate, _ := data["appointment_date"].(time.Time)
+// 	startTime, _ := data["start_time"].(time.Time)
+// 	endTime, _ := data["end_time"].(time.Time)
+
+// 	notificationData.AppointmentCode, _ = data["appointment_code"].(string)
+// 	notificationData.AppointmentDate = appointmentDate.Format("02 Jan 2006")
+// 	notificationData.AppointmentTime = fmt.Sprintf("%s - %s", startTime.Format("03:04 PM"), endTime.Format("03:04 PM"))
+// 	notificationData.DoctorName, _ = data["doctor_name"].(string)
+// 	notificationData.HospitalName, _ = data["hospital_name"].(string)
+// 	notificationData.PatientName, _ = data["patient_name"].(string)
+
+// 	return notificationData
+
+// }
 func (s *AppointmentService) toApptmntModel(reqpayload dto.NewApptmnt, osID string) Appointment {
 	var model Appointment
 	model.ID = uuid.New().String()
@@ -449,6 +498,7 @@ func (s *AppointmentService) toAppointmentPreview(data map[string]interface{}) d
 	medicines, _ := data["medicines"].([]map[string]interface{})
 	response.DepartmentName, _ = data["department_name"].(string)
 	response.SlotDuration, _ = data["slot_duration"].(int64)
+	response.Status = string(s.findStatus(response.Status, response.EndTime, response.AppointmentDate))
 	response.Medicines = len(medicines)
 	return response
 }
