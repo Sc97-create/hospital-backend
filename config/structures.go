@@ -28,10 +28,10 @@ type NotificationConfig struct {
 	RetryBackoff int // in minutes
 }
 type NotificationTemplateFilepath struct {
-	Patientcreated      string
-	PatientUpdated      string
-	Appointmentcreated  string
-	AppointmentUpdated  string
+	Patientcreated     string
+	PatientUpdated     string
+	Appointmentcreated string
+	//AppointmentUpdated  string
 	PrescriptionCreated string
 	MedicationAdherence string
 	FollowUpReminder    string

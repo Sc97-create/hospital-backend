@@ -5,6 +5,7 @@ import (
 	"hospital-backend/internal/notifications"
 	"hospital-backend/internal/notifications/dto"
 	"hospital-backend/internal/notifications/repository"
+	"log"
 	"time"
 )
 
@@ -18,6 +19,7 @@ func NewWorker(repo repository.Repository, factory *notifications.Factory) *Work
 }
 
 func (w *Worker) Start(ctx context.Context) {
+	log.Println("ticker is running every minute")
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
@@ -36,14 +38,14 @@ func (w *Worker) process(ctx context.Context) {
 		return
 	}
 	for _, n := range notificationList {
-		sender, err := w.factory.Get(n.Channel)
+		sender, err := w.factory.Get(n.ProviderPayload.Channel)
 		if err != nil {
 			continue
 		}
 		err = sender.Send(ctx, dto.Request{
-			Recipient: n.ID,
+			Recipient: n.ProviderPayload.RecipientEmail,
 			Subject:   n.NotificationType,
-			Content:   n.Content,
+			Content:   n.ProviderPayload.Content,
 		})
 		if err != nil {
 			nextRetry := time.Now().Add(15 * time.Minute)
@@ -51,5 +53,6 @@ func (w *Worker) process(ctx context.Context) {
 			continue
 		}
 		_ = w.repo.MarkSent(ctx, n.ID)
+		// add to notification attempts
 	}
 }

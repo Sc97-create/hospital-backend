@@ -63,6 +63,7 @@ func (s *AppointmentService) CreateApptmnt(requestPayload dto.NewApptmnt) (resp 
 	var notificationRequest notificationdto.CreateRequest
 	notificationRequest.Data = data
 	notificationRequest.NotificationType = AppointmentCreatedEvent
+	notificationRequest.Subject = AppointmentCreateSubject
 	ctx := context.Background()
 	s.NotificationServ.Create(ctx, notificationRequest)
 	return
@@ -70,7 +71,7 @@ func (s *AppointmentService) CreateApptmnt(requestPayload dto.NewApptmnt) (resp 
 func (s *AppointmentService) GetNotificationDetails(appointmentID string) (map[string]interface{}, error) {
 	query := `select a.appointment_date,a.start_time,
 	a.end_time,a.appointment_code,u.username as doctor_name,p.name as patient_name,
-	p.email_id as patient_email_id,p.uh_id as patient_code,p.id as patient_id,a.organisation_id,o.hospital_name
+	p.email_id as patient_email_id,p.uh_id as patient_code,p.id as patient_id,a.organisation_id,o.organisation_name as hospital_name
 	from appointments a
 	join organisations o
 	on a.organisation_id=o.id

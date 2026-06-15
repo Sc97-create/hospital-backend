@@ -24,7 +24,7 @@ func NewNotificationService(repo repository.Repository, render *render.HTMLRende
 
 func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest) error {
 	notificationdata := s.parseeventdata(data.Data)
-	subject, content, err := s.renderer.Render(data.NotificationType, notificationdata)
+	content, err := s.renderer.Render(data.NotificationType, notificationdata)
 	if err != nil {
 		return err
 	}
@@ -33,14 +33,17 @@ func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest
 		OrganisationID:   notificationdata.OrganisationID,
 		PatientID:        notificationdata.PatientID,
 		NotificationType: data.NotificationType,
-		Channel:          notifications.ChannelType(notifications.EmailChannel),
-		Content:          content,
-		Status:           notifications.NotificationStatus(notifications.PendingStatus),
-		RetryCount:       0,
-		Subject:          subject,
-		NextRetryAt:      time.Now(),
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		ProviderPayload: notifications.PPayload{
+			Channel:        notifications.ChannelType(notifications.EmailChannel),
+			Subject:        data.Subject,
+			RecipientEmail: notificationdata.PatientEmail,
+			Content:        content,
+		},
+		Status:      notifications.NotificationStatus(notifications.PendingStatus),
+		RetryCount:  0,
+		NextRetryAt: time.Now(),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
 	return s.repo.Create(ctx, notification)
@@ -59,6 +62,8 @@ func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 		notificationData.HospitalName, _ = v["hospital_name"].(string)
 		notificationData.PatientName, _ = v["patient_name"].(string)
 		notificationData.PatientEmail, _ = v["patient_email_id"].(string)
+		notificationData.PatientID, _ = v["patient_id"].(string)
+		notificationData.OrganisationID, _ = v["organisation_id"].(string)
 	}
 	return notificationData
 }
