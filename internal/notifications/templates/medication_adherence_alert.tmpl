@@ -1,15 +1,15 @@
-Dear {{patient_name}},
+Dear {{.PatientName}},
 
 Your consultation has been completed and the prescription has been generated.
 
-Appointment Code: {{appointment_code}}
-Consultation Date: {{consulted_on}}
-Doctor: Dr. {{doctor_name}}
+Appointment Code: {{.AppointmentCode}}
+Consultation Date: {{.ConsultedOn}}
+Doctor: Dr. {{.DoctorName}}
 
 Prescription Summary:
-{{prescription_summary}}
+{{.PrescriptionSummary}}
 
 Please follow the prescribed medication schedule.
 
 Thank you,
-{{hospital_name}}
+{{.HospitalName}}

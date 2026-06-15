@@ -18,7 +18,11 @@ type Repository interface {
 }
 
 func (d Db) Create(ctx context.Context, n *notifications.Notification) error {
-	return d.DB.WithContext(ctx).Create(n).Error
+	err := d.DB.WithContext(ctx).Create(n).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d Db) GetPending(ctx context.Context, limit int) ([]notifications.Notification, error) {

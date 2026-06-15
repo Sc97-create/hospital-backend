@@ -27,8 +27,9 @@ func Load() (*Config, error) {
 		port = "8080"
 	}
 	appointmentcreated := viper.GetString("APPOINTMENT_CREATED")
-	appointmentupdated := viper.GetString("APPOINTMENT_UPDATED")
+	//appointmentupdated := viper.GetString("APPOINTMENT_UPDATED")
 	patientcreated := viper.GetString("PATIENT_CREATED")
+	patientupdated := viper.GetString("PATIENT_UPDATED")
 	appointmentreminder := viper.GetString("APPOINTMENT_REMINDER")
 	prescriptioncreated := viper.GetString("PRESCRIPTION_CREATED")
 	paymentrecieved := viper.GetString("PAYMENT_RECIEVED")
@@ -46,14 +47,15 @@ func Load() (*Config, error) {
 		PrivateKeyPath: viper.GetString("PRIVATE_KEY_PATH"),
 		PublicKeyPath:  viper.GetString("PUBLIC_KEY_PATH"),
 		TemplatePath: NotificationTemplateFilepath{
-			Appointmentcreated:  appointmentcreated,
-			AppointmentUpdated:  appointmentupdated,
+			Appointmentcreated: appointmentcreated,
+			//AppointmentUpdated:  appointmentupdated,
 			Patientcreated:      patientcreated,
 			PaymentRecieved:     paymentrecieved,
 			FollowUpReminder:    follwupReminder,
 			MedicationAdherence: medicineadherence,
 			PrescriptionCreated: prescriptioncreated,
 			AppointmentReminder: appointmentreminder,
+			PatientUpdated:      patientupdated,
 		},
 		NotificationConfig: NotificationConfig{
 			SMTPHost:     smtpHost,

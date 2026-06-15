@@ -64,21 +64,21 @@ func createFilepath(templatePath config.NotificationTemplateFilepath) map[string
 	}
 
 	filemap[getlastkey(templatePath.Appointmentcreated)] = filepath.Join(dir, templatePath.Appointmentcreated)
-	filemap[getlastkey(templatePath.AppointmentUpdated)] = filepath.Join(dir, templatePath.AppointmentUpdated)
+	//filemap[getlastkey(templatePath.AppointmentUpdated)] = filepath.Join(dir, templatePath.AppointmentUpdated)
 	filemap[getlastkey(templatePath.Patientcreated)] = filepath.Join(dir, templatePath.Patientcreated)
 	filemap[getlastkey(templatePath.PatientUpdated)] = filepath.Join(dir, templatePath.PatientUpdated)
 	filemap[getlastkey(templatePath.PrescriptionCreated)] = filepath.Join(dir, templatePath.PrescriptionCreated)
 	filemap[getlastkey(templatePath.MedicationAdherence)] = filepath.Join(dir, templatePath.MedicationAdherence)
 	filemap[getlastkey(templatePath.FollowUpReminder)] = filepath.Join(dir, templatePath.FollowUpReminder)
-	filemap[getlastkey(templatePath.PaymentRecieved)] = filepath.Join(dir, templatePath.PaymentRecieved)
+	//filemap[getlastkey(templatePath.PaymentRecieved)] = filepath.Join(dir, templatePath.PaymentRecieved)
 
 	return filemap
 }
-func (r *HTMLRenderer) Render(notificationType string, data any) (string, string, error) {
+func (r *HTMLRenderer) Render(notificationType string, data any) (string, error) {
 
 	tmpl, ok := r.templates[notificationType]
 	if !ok {
-		return "", "", fmt.Errorf(
+		return "", fmt.Errorf(
 			"template not found: %s",
 			notificationType,
 		)
@@ -87,10 +87,8 @@ func (r *HTMLRenderer) Render(notificationType string, data any) (string, string
 	var buf bytes.Buffer
 
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	subject := r.subjects[notificationType]
-
-	return subject, buf.String(), nil
+	return buf.String(), nil
 }
