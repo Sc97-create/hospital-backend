@@ -1,11 +1,13 @@
 package patient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hospital-backend/internal/patient/dto"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -173,4 +175,98 @@ func (p *PatientService) formatWaitingTime(lastVisit time.Time) string {
 	// Less than 60 minutes
 	return fmt.Sprintf("%.0f mins", minutes)
 
+}
+
+// UpdatePatientSrv updates patient information with dynamic query generation
+func (p *PatientService) UpdatePatientSrv(ctx context.Context, payload dto.UpdatePatientInfo) error {
+
+	// Fetch existing patient
+	existingPatient, err := p.PRepo.GetPatientByID(ctx, payload.PatientID, payload.OrganisationID)
+	if err != nil {
+		return fmt.Errorf("patient not found: %w", err)
+	}
+
+	// Initialize dynamic query generation variables
+	baseQuery := `UPDATE patients SET `
+	var setClauses []string
+	var args []interface{}
+	argPos := 1
+
+	// Compare and build SET clauses for each field
+	if existingPatient.Name != payload.Name && payload.Name != "" {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argPos))
+		args = append(args, payload.Name)
+		argPos++
+	}
+
+	if existingPatient.Age != 0 && strconv.Itoa(existingPatient.Age) != payload.Age && payload.Age != "" {
+		age, err := strconv.Atoi(payload.Age)
+		if err == nil && age > 0 {
+			setClauses = append(setClauses, fmt.Sprintf("age = $%d", argPos))
+			args = append(args, age)
+			argPos++
+		}
+	}
+
+	if existingPatient.Gender != payload.Gender && payload.Gender != "" {
+		setClauses = append(setClauses, fmt.Sprintf("gender = $%d", argPos))
+		args = append(args, payload.Gender)
+		argPos++
+	}
+
+	if existingPatient.Weight != 0 && payload.Weight != "" {
+		weight, err := strconv.ParseFloat(payload.Weight, 64)
+		if err == nil && weight > 0 {
+			setClauses = append(setClauses, fmt.Sprintf("weight = $%d", argPos))
+			args = append(args, int(weight))
+			argPos++
+		}
+	}
+
+	if existingPatient.EmailID != payload.EmailID && payload.EmailID != "" {
+		setClauses = append(setClauses, fmt.Sprintf("email_id = $%d", argPos))
+		args = append(args, payload.EmailID)
+		argPos++
+	}
+
+	if existingPatient.MobileNumber != payload.MobileNumber && payload.MobileNumber != "" {
+		setClauses = append(setClauses, fmt.Sprintf("mobile_number = $%d", argPos))
+		args = append(args, payload.MobileNumber)
+		argPos++
+	}
+
+	if existingPatient.BloodGroup != payload.BloodGroup && payload.BloodGroup != "" {
+		setClauses = append(setClauses, fmt.Sprintf("blood_group = $%d", argPos))
+		args = append(args, payload.BloodGroup)
+		argPos++
+	}
+
+	if existingPatient.Address != payload.Address && payload.Address != "" {
+		setClauses = append(setClauses, fmt.Sprintf("address = $%d", argPos))
+		args = append(args, payload.Address)
+		argPos++
+	}
+
+	// Always update the updated_at timestamp
+	setClauses = append(setClauses, "updated_at = NOW()")
+
+	// Check if there are any fields to update (besides updated_at)
+	if len(setClauses) == 1 {
+		return errors.New("no fields updated")
+	}
+
+	// Build final query
+	baseQuery += strings.Join(setClauses, ", ")
+	baseQuery += fmt.Sprintf(` WHERE id = $%d AND organisation_id = $%d`, argPos, argPos+1)
+
+	// Append WHERE clause arguments
+	args = append(args, payload.PatientID, payload.OrganisationID)
+
+	// Execute update query
+	err = p.PRepo.UpdatePatient(ctx, baseQuery, args)
+	if err != nil {
+		return fmt.Errorf("failed to update patient: %w", err)
+	}
+
+	return nil
 }

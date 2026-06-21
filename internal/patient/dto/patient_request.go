@@ -36,3 +36,18 @@ type PatientListResponse struct {
 	Total int64             `json:"total"`
 	Code  int               `json:"code"`
 }
+
+// create updatePatient model same as patient info just including organisation id and patient id
+type UpdatePatientInfo struct {
+	UserID         string `json:"user_id"`
+	Name           string `json:"name"`
+	Age            string `json:"age"`
+	Weight         string `json:"weight"`
+	Gender         string `json:"gender"`
+	EmailID        string `json:"email_id"`
+	MobileNumber   string `json:"mobile_number"`
+	BloodGroup     string `json:"blood_group"`
+	Address        string `json:"address"`
+	OrganisationID string `json:"organisation_id"`
+	PatientID      string `json:"patient_id"`
+}

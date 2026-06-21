@@ -89,6 +89,7 @@ func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService, jwts
 	patientGroup.Post("/addGeneralInfo", patientManagement.AddGeneralInfoHandler)
 	patientGroup.Get("/getPatients", patientManagement.Find)
 	patientGroup.Get("/getpatientByID/:patientID", patientManagement.GetPatientByID)
+	patientGroup.Patch("/updatePatient", patientManagement.UpdatePatient) //make it patch
 
 	//patientGroup.Post("/getPatients", patientManagement.PatientHandler)
 }

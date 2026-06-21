@@ -1,10 +1,14 @@
 package patient
 
+import "context"
+
 type PatientRepository interface {
 	Create(*Patient) error
 	ReadMany(limit int, offset int, organisationID string) ([]Patient, error)
 	ReadOne(patientID string) (Patient, error)
 	Count(organisationID string) (int64, error)
+	GetPatientByID(ctx context.Context, patientID string, organisationID string) (*Patient, error)
+	UpdatePatient(ctx context.Context, query string, args []interface{}) error
 }
 
 func (p *PatientRepo) Create(record *Patient) error {
@@ -36,4 +40,22 @@ func (p *PatientRepo) Count(organisationID string) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+func (p *PatientRepo) GetPatientByID(ctx context.Context, patientID string, organisationID string) (*Patient, error) {
+	var patient Patient
+	err := p.db.WithContext(ctx).
+		Where("id = ? AND organisation_id = ?", patientID, organisationID).
+		First(&patient).
+		Error
+	if err != nil {
+		return nil, err
+	}
+	return &patient, nil
+}
+
+func (p *PatientRepo) UpdatePatient(ctx context.Context, query string, args []interface{}) error {
+	return p.db.WithContext(ctx).
+		Exec(query, args...).
+		Error
 }

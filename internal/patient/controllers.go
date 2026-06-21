@@ -13,6 +13,7 @@ type IPatientController interface {
 	AddGeneralInfoHandler(c *fiber.Ctx) (err error)
 	Find(c *fiber.Ctx) (err error)
 	GetPatientByID(c *fiber.Ctx) (err error)
+	UpdatePatient(c *fiber.Ctx) (err error)
 }
 type PatientController struct {
 	PatientService *PatientService
@@ -128,4 +129,47 @@ func (p *PatientController) Find(c *fiber.Ctx) (err error) {
 	}
 	return
 
+}
+
+// UpdatePatient handles the PUT request to update patient information
+func (p *PatientController) UpdatePatient(c *fiber.Ctx) (err error) {
+
+	var payloadModel dto.UpdatePatientInfo
+	params, err := params.New(c)
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+	}
+
+	payloadModel.Name, _ = params.Getstring("name")
+
+	payloadModel.Age, _ = params.Getstring("age")
+
+	payloadModel.Weight, _ = params.Getstring("weight")
+
+	payloadModel.Gender, _ = params.Getstring("gender")
+
+	payloadModel.EmailID, _ = params.Getstring("email_id")
+
+	payloadModel.MobileNumber, _ = params.Getstring("mobile_number")
+
+	payloadModel.OrganisationID, _ = params.Getstring("organisation_id")
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+	}
+	payloadModel.PatientID, err = params.Getstring("patient_id")
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+	}
+
+	// Call service to update patient
+	err = p.PatientService.UpdatePatientSrv(c.Context(), payloadModel)
+	if err != nil {
+		return errwrap.Wrap(err, c, 409)
+	}
+
+	res := make(map[string]interface{})
+	res["message"] = "patient updated successfully"
+	res["patient_id"] = payloadModel.PatientID
+	res["code"] = 200
+	return c.Status(200).JSON(res)
 }
