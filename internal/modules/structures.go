@@ -3,7 +3,7 @@ package modules
 import "time"
 
 type Modules struct {
-	ID        string    `json:"id" gorm:"primaryKey"`
+	ID        string    `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	Name      string    `json:"name" gorm:"unique"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`

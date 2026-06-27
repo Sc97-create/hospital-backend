@@ -2,8 +2,6 @@ package permissions
 
 import (
 	"hospital-backend/internal/modules"
-	"hospital-backend/internal/permissions/dto"
-	"hospital-backend/internal/permissions/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,7 +18,7 @@ func NewService(PermRepo PermissionRepo, ModuleDb *modules.ModuleDb) *PermServic
 func (PermSer *PermService) DefaultPerm() error {
 	now := time.Now()
 	permArr := []Permission{}
-	for _, name := range utils.AdminPermArr {
+	for _, name := range AdminPermArr {
 		permArr = append(permArr, Permission{
 			ID:        uuid.NewString(),
 			Name:      name,
@@ -33,8 +31,8 @@ func (PermSer *PermService) DefaultPerm() error {
 		return err
 	}
 	return nil
-}
-func (PermSer *PermService) FindMany() ([]dto.ModuleResponse, []dto.PermissionResponse, error) {
+} // need to hit when main is called
+func (PermSer *PermService) FindMany() ([]modules.Modules, []Permission, error) {
 	permissions, err := PermSer.PermissionRepo.FindMany()
 	if err != nil {
 		return nil, nil, err
@@ -43,19 +41,19 @@ func (PermSer *PermService) FindMany() ([]dto.ModuleResponse, []dto.PermissionRe
 	if err != nil {
 		return nil, nil, err
 	}
-	moduleResp := []dto.ModuleResponse{}
-	permissionResp := []dto.PermissionResponse{}
-	for _, each := range modules {
-		moduleResp = append(moduleResp, dto.ModuleResponse{
-			ID:   each.ID,
-			Name: each.Name,
-		})
-	}
-	for _, each := range permissions {
-		permissionResp = append(permissionResp, dto.PermissionResponse{
-			ID:   each.ID,
-			Name: each.Name,
-		})
-	}
-	return moduleResp, permissionResp, nil
+	// moduleResp := []dto.ModuleResponse{}
+	// permissionResp := []dto.PermissionResponse{}
+	// for _, each := range modules {
+	// 	moduleResp = append(moduleResp, dto.ModuleResponse{
+	// 		ID:   each.ID,
+	// 		Name: each.Name,
+	// 	})
+	// }
+	// for _, each := range permissions {
+	// 	permissionResp = append(permissionResp, dto.PermissionResponse{
+	// 		ID:   each.ID,
+	// 		Name: each.Name,
+	// 	})
+	// }
+	return modules, permissions, nil
 }

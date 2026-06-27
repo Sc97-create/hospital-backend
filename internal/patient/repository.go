@@ -2,8 +2,9 @@ package patient
 
 type PatientRepository interface {
 	Create(*Patient) error
-	ReadMany(limit int, offset int) ([]Patient, error)
+	ReadMany(limit int, offset int, organisationID string) ([]Patient, error)
 	ReadOne(patientID string) (Patient, error)
+	Count(organisationID string) (int64, error)
 }
 
 func (p *PatientRepo) Create(record *Patient) error {
@@ -13,8 +14,9 @@ func (p *PatientRepo) Create(record *Patient) error {
 	}
 	return nil
 }
-func (p *PatientRepo) ReadMany(limit int, offset int) (patients []Patient, err error) {
-	err = p.db.Find(&patients, "limit ? offset ?", limit, offset).Error
+func (p *PatientRepo) ReadMany(limit int, offset int, organisationID string) (patients []Patient, err error) {
+	query := `select id,uh_id,name,gender,age,weight,mobile_number,email_id,last_visit_date,blood_group,status from patients where organisation_id=? limit ? offset ?`
+	err = p.db.Raw(query, organisationID, limit, offset).Scan(&patients).Error
 	if err != nil {
 		return
 	}
@@ -26,4 +28,12 @@ func (p *PatientRepo) ReadOne(id string) (patient Patient, err error) {
 		return
 	}
 	return
+}
+func (p *PatientRepo) Count(organisationID string) (int64, error) {
+	var count int64
+	err := p.db.Model(&Patient{}).Where("organisation_id=?", organisationID).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }

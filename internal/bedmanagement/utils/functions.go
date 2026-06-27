@@ -24,13 +24,27 @@ func GenerateRoomNumber(prefix string, totalfloors int, roomperfloor int, starti
 	}
 	return roomnumbermap
 }
-func GenerateBeds(bedsperroom int) []string {
+func GenerateBeds(bedsperroom int, roomtypename string) []string {
 	var beds []string
-
 	for i := 1; i <= bedsperroom; i++ {
-		bednumber := fmt.Sprintf("B%02d", i)
+		//concate with room_type name
+		bednumber := fmt.Sprintf("%s-B%02d", roomtypename[:2], i)
 		beds = append(beds, bednumber)
 	}
-
 	return beds
+}
+func CalculateSkip(offset string, limit string) (int, int) {
+	offsetInt, err := strconv.Atoi(offset)
+	if err != nil {
+		return 0, 0
+	}
+	limitInt, err := strconv.Atoi(limit)
+	if err != nil {
+		return 0, 0
+	}
+	var skip int
+	if offsetInt != 0 {
+		skip = (offsetInt - 1) * limitInt
+	}
+	return skip, limitInt
 }

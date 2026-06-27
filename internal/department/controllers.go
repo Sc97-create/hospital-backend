@@ -6,7 +6,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func FindMany(c *fiber.Ctx, service *DepartmentService) error {
+type DepartmentControllers interface {
+	FindMany(c *fiber.Ctx) error
+}
+type DepartmentController struct {
+	DepartmentService *DepartmentService
+}
+
+func NewDepartmentControllerInterface(departmentService *DepartmentService) *DepartmentController {
+	return &DepartmentController{DepartmentService: departmentService}
+}
+
+func (d *DepartmentController) FindMany(c *fiber.Ctx) error {
 	payload := dto.FindManyRequest{}
 	if err := c.QueryParser(&payload); err != nil {
 		return err
@@ -15,7 +26,7 @@ func FindMany(c *fiber.Ctx, service *DepartmentService) error {
 		payload.Page = 1
 	}
 	offset := payload.Limit * (payload.Page - 1)
-	department, err := service.FindMany(payload.Limit, offset)
+	department, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
 	if err != nil {
 		return err
 	}
