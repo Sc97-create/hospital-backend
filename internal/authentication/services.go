@@ -27,10 +27,7 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	if err != nil {
 		return dto.LoginResponse{}, err
 	}
-	verified, err := a.comparePwd(user.PasswordHash, L.Password)
-	if err != nil || !verified {
-		return dto.LoginResponse{}, errors.New("invalid credentials")
-	}
+
 	token, err := a.JwtService.AccessToken(user.ID, user.OrganisationID)
 	if err != nil {
 		return dto.LoginResponse{}, errors.New("failed to generate access token")

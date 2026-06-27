@@ -14,14 +14,15 @@ import (
 )
 
 type PrescriptionService struct {
-	DB                 *gorm.DB
-	prescriptionRepo   PrescriptionRepositoryInterface
-	medicineService    *medicine.MedicineService
-	appointmentService *appointments.AppointmentService
+	DB                      *gorm.DB
+	prescriptionRepo        PrescriptionRepositoryInterface
+	medicineService         *medicine.MedicineService
+	appointmentService      *appointments.AppointmentService
+	prescriptionItemService *PrescriptionItemServ
 }
 
-func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService) *PrescriptionService {
-	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment}
+func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService, prescriptionItemServ *PrescriptionItemServ) *PrescriptionService {
+	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ}
 }
 
 func (p *PrescriptionService) CreatePrescription(requestdto dto.CreatePrescriptionRequest) (string, error) {
@@ -33,15 +34,23 @@ func (p *PrescriptionService) CreatePrescription(requestdto dto.CreatePrescripti
 	}
 	requestdto.PatientID = appointmentModel.PatientID
 	prescription = p.createRequest(requestdto)
-	err = p.prescriptionRepo.CreatePrescription(prescription)
+	tx := p.DB.Begin()
+	err = p.prescriptionRepo.CreatePrescription(tx, prescription)
 	if err != nil {
+		tx.Rollback()
 		return "", err
 	}
+	// with transaction needs to be done
+	err = p.prescriptionItemService.AddItems(tx, requestdto.MedicineArray, prescription.ID, prescription.PrescribedBy)
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+	tx.Commit()
 
 	return prescription.ID, nil
 }
 func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionRequest) Prescription {
-	medicines := p.toMedicineList(requestdto.MedicineArray)
 	return Prescription{
 		ID:             uuid.NewString(),
 		Code:           p.generateCode(),
@@ -50,31 +59,12 @@ func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionReq
 		PrescribedBy:   requestdto.PrescribedBy,
 		OrganisationID: requestdto.OrganisationID,
 		AppointmentID:  requestdto.AppointmentID,
-		Medicines:      medicines,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
 }
-func (p *PrescriptionService) toMedicineList(medicine []dto.MedicineArray) []Medicines {
-	var medicines MedicineList
-	//need to calculate quantity for each medicine
-	for _, each := range medicine {
-		var freq Freq
-		freq.Morning = each.Morning
-		freq.Afternoon = each.Afternoon
-		freq.Night = each.Night
-		medicines = append(medicines, Medicines{
-			MedicineID:      each.MedicineID,
-			DurationDay:     each.DurationDay,
-			DurationType:    each.DurationType,
-			Quantity:        each.Quantity,
-			MedicineType:    each.MedicineType,
-			FoodInstruction: each.FoodInstruction,
-			Frequency:       freq,
-			Dosage:          each.Dosage,
-		})
-	}
-	return medicines
+func (p *PrescriptionService) AddPrescriptionItems(payload dto.UpdateRequest) (err error) {
+	return p.prescriptionItemService.AddItems(p.DB, payload.MedicineArr, payload.PrescriptionID, payload.UserID)
 }
 func (p *PrescriptionService) generateCode() string {
 	date := time.Now().Format("060102") // YYMMDD
@@ -87,67 +77,13 @@ func (p *PrescriptionService) FindMany(limit int, offset int, organisationID str
 	if err != nil {
 		return
 	}
-	totalInt, err = p.prescriptionRepo.Count(organisationID)
-	if err != nil {
-		return
-	}
+	// totalInt, err = p.prescriptionRepo.Count(organisationID)
+	// if err != nil {
+	// 	return
+	// }
 	return prescription, totalInt, nil
 }
-func (p *PrescriptionService) UpdatePrescription(requestdto dto.UpdateRequest) error {
 
-	query := `SELECT medicines,id FROM prescriptions WHERE id = $1`
-	presc, err := p.prescriptionRepo.FindPrescriptionByID(query, requestdto.PrescriptionID)
-	if err != nil {
-		return err
-	}
-	medArr := p.appendtoexistingarray(presc.Medicines, requestdto.MedicineArr)
-	var updatePrescription Prescription
-	updatePrescription.Medicines = medArr
-	updatePrescription.UpdatedAt = time.Now()
-	updatePrescription.ID = requestdto.PrescriptionID
-	err = p.prescriptionRepo.UpdatePrescription(updatePrescription)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-func (p *PrescriptionService) appendtoexistingarray(medicinearr MedicineList, newMedicine []dto.MedicineArray) MedicineList {
-	medicine := p.toMedicineList(newMedicine)
-	medicinearr = append(medicinearr, medicine...)
-	return medicinearr
-}
-func (p *PrescriptionService) FindPrescriptionByID(id string, limit int, offset int) ([]dto.MedicineResponse, int, time.Time, error) {
-	query := `SELECT id,medicines,created_at FROM prescriptions WHERE id = $1`
-	prescription, err := p.prescriptionRepo.FindPrescriptionByID(query, id)
-	if err != nil {
-		return nil, 0, time.Time{}, err
-	}
-	totalCount := len(prescription.Medicines)
-
-	// Apply pagination to the medicines slice
-	start := commonfunctions.Getskip(limit, offset)
-	if start > totalCount {
-		start = totalCount
-	}
-	end := start + limit
-	if end > totalCount || limit == 0 {
-		end = totalCount
-	}
-
-	paginatedMedicines := prescription.Medicines[start:end]
-
-	medicinelist := p.getMedicines(paginatedMedicines)
-	medids := p.getMedicineIDS(medicinelist)
-	medicines, err := p.medicineService.FindNamesByIds(medids)
-	if err != nil {
-		return nil, 0, prescription.CreatedAt, err
-	}
-	medicinemap := p.mapMedicineNametoID(medicines)
-	medicinelist = p.mapMedicineIDtoName(medicinemap, medicinelist)
-
-	return medicinelist, totalCount, prescription.CreatedAt, nil
-}
 func (p *PrescriptionService) mapMedicineNametoID(medicines []medicine.Medicine) map[string]string {
 	medicine_map := make(map[string]string)
 	for _, each := range medicines {
@@ -155,25 +91,7 @@ func (p *PrescriptionService) mapMedicineNametoID(medicines []medicine.Medicine)
 	}
 	return medicine_map
 }
-func (p *PrescriptionService) getMedicines(med MedicineList) []dto.MedicineResponse {
-	var medicines []dto.MedicineResponse
-	for _, each := range med {
-		freq := p.tofreqResponse(each.Frequency)
-		medicines = append(medicines, dto.MedicineResponse{
-			MedicineID:      each.MedicineID,
-			MedicineName:    each.MedicineName,
-			Frequency:       freq,
-			Quantity:        each.Quantity,
-			DurationDay:     each.DurationDay,
-			DurationType:    each.DurationType,
-			TabletForm:      each.TabletForm,
-			FoodInstruction: each.FoodInstruction,
-			MedicineType:    each.MedicineType,
-			Dosage:          each.Dosage,
-		})
-	}
-	return medicines
-}
+
 func (p *PrescriptionService) tofreqResponse(freq Freq) dto.Freq {
 	return dto.Freq{
 		Morning:   freq.Morning,

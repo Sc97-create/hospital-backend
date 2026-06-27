@@ -26,10 +26,11 @@ func NewMedicineService(db *gorm.DB, Mrepo MedicineRepository, SMed SMedicineInv
 
 func (MService *MedicineService) CreateMedicine(MedicinePayload dto.RequestPayload) error {
 	MedicinePayload.InvoiceDate = time.Now()
-	medicines := MService.toMedicine(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID)
-	medicineInventory := MService.toMedicineInventory(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID, MedicinePayload.SupplierID)
-	medicineMvmt := MService.toMedicineMvmt(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID)
 	purchaseEntry := MService.toPurchaseEntry(MedicinePayload)
+	medicines := MService.toMedicine(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID)
+	medicineInventory := MService.toMedicineInventory(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID, MedicinePayload.SupplierID, purchaseEntry.ID)
+	medicineMvmt := MService.toMedicineMvmt(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID)
+
 	//get supplier details by supplier id
 	supplier, err := MService.Supplier.GetSupplierByID(MedicinePayload.SupplierID)
 	if err != nil {
@@ -66,6 +67,11 @@ func (Mservice *MedicineService) toPurchaseEntry(payload dto.RequestPayload) *MP
 	purchaseEntry.InvoiceNumber = payload.InvoiceNo
 	purchaseEntry.InvoiceDate = payload.InvoiceDate
 	purchaseEntry.SupplierID = payload.SupplierID
+	purchaseEntry.OrganisationID = payload.OrganisationID
+	if payload.PaymentDueDate == "" {
+		purchaseEntry.PaymentDueDate, _ = time.Parse(time.RFC3339, payload.PaymentDueDate)
+	}
+	purchaseEntry.PaymentDueDate = time.Now()
 	return &purchaseEntry
 }
 func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID string, organisationID string) []MedicineStockMovements {
@@ -77,10 +83,10 @@ func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID 
 		medMvmt.MedicineInventoryID = each.MedInventoryID
 		medMvmt.OrganisationID = organisationID
 		medMvmt.MovementType = Purchase
-		medMvmt.QtyChanged = int(each.Quantity)
+		medMvmt.QtyChanged = each.PurchaseQtyBoxes * each.UnitPerBoxes
 		medMvmt.CreatedBy = userID
 		medMvmt.SourceType = PurchaseEntry
-		medMvmt.UnitPriceAtTimeOfMvmt = each.PurchasePrice
+		medMvmt.UnitPriceAtTimeOfMvmt = each.SellingPrice / float64(each.UnitPerBoxes)
 		MedMvmt = append(MedMvmt, medMvmt)
 	}
 	return MedMvmt
@@ -88,6 +94,9 @@ func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID 
 func (Mservice *MedicineService) toMedicine(med []dto.MedicineInfo, userID string, organisationID string) []Medicine {
 	var Medicines []Medicine
 	for _, each := range med {
+		if !each.Add {
+			continue
+		}
 		var medicine Medicine
 		medicine.ID = each.MedicineID
 		medicine.Code = Mservice.createCode(MedicineCodePrefix)
@@ -97,6 +106,9 @@ func (Mservice *MedicineService) toMedicine(med []dto.MedicineInfo, userID strin
 		medicine.CreatedAt = time.Now()
 		medicine.CreatedBy = userID
 		medicine.OrganisationID = organisationID
+		medicine.HSNCode = each.HsnCode
+		medicine.ReorderLevel = each.ReorderLevel
+		medicine.MaxStockTarget = each.MaxStockTarget
 		Medicines = append(Medicines, medicine)
 	}
 	return Medicines
@@ -104,24 +116,35 @@ func (Mservice *MedicineService) toMedicine(med []dto.MedicineInfo, userID strin
 func (Mservice *MedicineService) createCode(prefix CodePrefix) string {
 	return fmt.Sprintf("%s-%d", prefix, rand.Intn(9000)+1000)
 }
-func (Mservice *MedicineService) toMedicineInventory(med []dto.MedicineInfo, userID string, organisationID string, supplierID string) []MedicineInventory {
+func (Mservice *MedicineService) toMedicineInventory(med []dto.MedicineInfo, userID string, organisationID string, supplierID string, purchaseEntryID string) []MedicineInventory {
 	var MedInventorys []MedicineInventory
+
 	for _, each := range med {
 		var MedInventory MedicineInventory
 		MedInventory.ID = each.MedInventoryID
 		MedInventory.MedicineID = each.MedicineID
-		MedInventory.BatchNo = Mservice.createCode(BatchCodePrefix)
-		MedInventory.ExpiresAt = each.ExpiryDate
-		MedInventory.PurchaseQty = int(each.Quantity)
+		MedInventory.BatchNo = each.BatchNumber
+
 		MedInventory.SupplierID = supplierID
 		MedInventory.OrganisationID = organisationID
+		MedInventory.PurchaseEntryID = purchaseEntryID
+		MedInventory.PurchaseQtyBoxes = each.PurchaseQtyBoxes
+		MedInventory.UnitsPerBox = each.UnitPerBoxes
+		MedInventory.ExpiresAt, _ = time.Parse(time.RFC3339, each.ExpiryDate)
+		MedInventory.ShelfLocation = each.ShelfLocation
+		MedInventory.CurrentStockUnits = each.PurchaseQtyBoxes * each.UnitPerBoxes
 		MedInventory.CreatedAt = time.Now()
 		MedInventory.CreatedBy = userID
 		MedInventory.Pricing.PurchasePrice = each.PurchasePrice
+		if each.SellingPrice == 0 {
+			MedInventory.Pricing.SellingPrice = each.MRP
+		}
 		MedInventory.Pricing.SellingPrice = each.SellingPrice
 		MedInventory.Pricing.MRP = each.MRP
 		MedInventory.Pricing.Discount = each.Discount
 		MedInventory.Pricing.DiscountType = "amount"
+		MedInventory.Pricing.UnitPrice = each.MRP / float64(each.UnitPerBoxes)
+		MedInventory.Pricing.TotalPrice = (each.PurchasePrice - each.Discount) * float64(each.PurchaseQtyBoxes)
 		MedInventorys = append(MedInventorys, MedInventory)
 	}
 	return MedInventorys

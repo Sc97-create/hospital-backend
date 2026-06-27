@@ -40,9 +40,9 @@ type FindPrescriptionByIDResponse struct {
 	Message string                           `json:"message"`
 }
 type FindPrescriptionByIDResponseData struct {
-	MedicineResponse []MedicineResponse `json:"medicines"`
-	TotalCount       int                `json:"total_count"`
-	CreatedAt        time.Time          `json:"created_at"`
+	MedicineResponse any       `json:"medicines"`
+	TotalCount       int       `json:"total_count"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 type PrescriptionListItem struct {
 	ID           string    `json:"id"`

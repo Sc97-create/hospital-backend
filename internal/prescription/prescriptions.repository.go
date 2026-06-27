@@ -16,21 +16,22 @@ func NewPrescriptionDB(db *gorm.DB) *PrescriptionDB {
 }
 
 type PrescriptionRepositoryInterface interface {
-	CreatePrescription(prescription Prescription) error
+	CreatePrescription(db *gorm.DB, prescription Prescription) error
 	GetPrescriptionByID(id string) (*Prescription, error)
 	GetPrescriptionsByPatientID(query string, cond ...any) ([]MixPrescriptionData, error)
 	GetPrescriptionByPatientIDCount(cond ...any) (count int64, err error)
 	GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error)
-	UpdatePrescription(prescription Prescription) error
+	//UpdatePrescription(prescription Prescription) error
 	DeletePrescription(id string) error
 	FindMany(limit int, offset int, organisationID string) ([]dto.PrescriptionListItem, error)
 	FindPrescriptionByID(query string, id string) (presc Prescription, err error)
 	UpdateStatus(db *gorm.DB, status Status, prescriptionID string) (err error)
+
 	Count(organisationID string) (int64, error)
 }
 
-func (pdb *PrescriptionDB) CreatePrescription(prescription Prescription) error {
-	return pdb.db.Create(&prescription).Error
+func (pdb *PrescriptionDB) CreatePrescription(db *gorm.DB, prescription Prescription) error {
+	return db.Create(&prescription).Error
 }
 
 func (pdb *PrescriptionDB) GetPrescriptionByID(id string) (*Prescription, error) {
@@ -52,9 +53,9 @@ func (pdb *PrescriptionDB) GetPrescriptionsByDoctorID(doctorID string) ([]Prescr
 	return prescriptions, err
 }
 
-func (pdb *PrescriptionDB) UpdatePrescription(prescription Prescription) error {
-	return pdb.db.Exec("update prescriptions set medicines = ? , updated_at = ? where id = ?", prescription.Medicines, prescription.UpdatedAt, prescription.ID).Error
-}
+// func (pdb *PrescriptionDB) UpdatePrescription(prescription Prescription) error {
+// 	return pdb.db.Exec("update prescriptions set medicines = ? , updated_at = ? where id = ?", prescription.Medicines, prescription.UpdatedAt, prescription.ID).Error
+// }
 
 func (pdb *PrescriptionDB) DeletePrescription(id string) error {
 	return pdb.db.Delete(&Prescription{}, "id = ?", id).Error
