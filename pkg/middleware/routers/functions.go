@@ -129,16 +129,18 @@ func RegisterMedicineRoutes(app *fiber.App, service *medicine.MedicineService) {
 	medicineGrp.Get("/GetMedicines", medicineController.GetAllHandler)
 	medicineGrp.Get("/searchMedicine", medicineController.SearchMedicine)
 }
-func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.PrescriptionService) {
+func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.PrescriptionService, pitemService *prescription.PrescriptionItemServ) {
 	version := getVersion(app)
 	prescriptionGrp := version.Group("prescription")
-	prescriptionController := prescription.NewPrescriptionController(service)
+
+	prescriptionController := prescription.NewPrescriptionController(service, pitemService)
 	prescriptionGrp.Post("/create", prescriptionController.CreatePrescription)
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
-	prescriptionGrp.Patch("/update", prescriptionController.UpdatePrescription)
-	prescriptionGrp.Get("/getprescriptionbyid/:prescription_id", prescriptionController.FindPrescriptionByID)
+	prescriptionGrp.Patch("/updatePrescriptions", prescriptionController.AddPrescriptionItems)
+	prescriptionGrp.Get("/getprescriptionbyPid", prescriptionController.FindPrescriptionByID)
 	prescriptionGrp.Post("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionByPatientID)
 	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
+	prescriptionGrp.Get("getMedicineInfo/:prescription_id", prescriptionController.FindMedicineDetInfo)
 }
 func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
 	version := getVersion(app)

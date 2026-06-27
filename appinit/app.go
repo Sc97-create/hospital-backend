@@ -37,6 +37,7 @@ type Container struct {
 	RoleService            *roles.RoleServices
 	BedManagement          *bedmanagement.BedContainer
 	JwtManagement          *jwtAuth.JwtService
+	PrescriptionItems      *prescription.PrescriptionItemServ
 	PrescriptionManagement *prescription.PrescriptionService
 	MedContainer           *medcontainer.MedContainer
 	AppointmentContainer   *appointments.AppntmentContainer
@@ -74,7 +75,9 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	orgschedSrv := admins.NewOrganisationScheduleService(organisationSchedule)
 	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
 	appointmentSrv := appointments.AppointmentContainers(db, *orgschedSrv, notificationContainer.Service)
-	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice)
+	prescriptionItemServ := prescription.NewPrescriptionItemService(prescriptionRepo)
+	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice, prescriptionItemServ)
+
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
 
 	return &Container{
@@ -94,5 +97,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		AppointmentContainer:   appointmentSrv,
 		OrganisationSchedule:   orgschedSrv,
 		NotificationContainer:  notificationContainer,
+		PrescriptionItems:      prescriptionItemServ,
 	}
 }

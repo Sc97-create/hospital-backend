@@ -66,6 +66,10 @@ func Migrate() (err error) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+	err = database.PostgreClient.AutoMigrate(&prescription.PrescriptionItems{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
 	err = database.PostgreClient.AutoMigrate(&modules.Modules{})
 	if err != nil {
 		log.Fatalf("%v", err)

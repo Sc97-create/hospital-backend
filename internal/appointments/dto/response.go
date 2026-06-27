@@ -28,8 +28,8 @@ type Response struct {
 type AppointmentList struct {
 	AppointmentID   string    `json:"appointment_id"`
 	AppointmentCode string    `json:"appointment_code"`
-	StartTime       time.Time `json:"start_time"`
-	EndTime         time.Time `json:"end_time"`
+	StartTime       string    `json:"start_time"`
+	EndTime         string    `json:"end_time"`
 	Next            bool      `json:"next"`
 	PatientName     string    `json:"patient_name"`
 	MobileNo        string    `json:"mobile_no"`
@@ -41,8 +41,8 @@ type AppointmentList struct {
 type AppointmentDetails struct {
 	AppointmentID   string    `json:"appointment_id"`
 	AppointmentCode string    `json:"appointment_code"`
-	StartTime       time.Time `json:"start_time"`
-	EndTime         time.Time `json:"end_time"`
+	StartTime       string    `json:"start_time"`
+	EndTime         string    `json:"end_time"`
 	PatientName     string    `json:"patient_name"`
 	MobileNo        string    `json:"mobile_no"`
 	DoctorName      string    `json:"doctor_name"`
@@ -60,7 +60,7 @@ type PatAppointment struct {
 	AppointmentID   string    `json:"appointment_id"`
 	AppointmentCode string    `json:"appointment_code"`
 	AppointmentDate time.Time `json:"appointment_date"`
-	StartTime       time.Time `json:"start_time"`
+	StartTime       string    `json:"start_time"`
 	Status          string    `json:"status"`
 	DoctorName      string    `json:"doctor_name"`
 	DepartmentName  string    `json:"department_name"`

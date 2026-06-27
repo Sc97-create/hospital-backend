@@ -22,4 +22,7 @@ type Medicine struct {
 	UpdatedAt      time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 	CreatedBy      string    `json:"created_by" gorm:"type:uuid;not null"`
 	OrganisationID string    `json:"organisation_id" gorm:"type:uuid;not null"`
+	HSNCode        string    `json:"hsn_code" gorm:"type:text"`
+	ReorderLevel   int       `json:"reorder_level" gorm:"type:int;not null;default:50"`     // Trigger threshold in individual units (tablets)
+	MaxStockTarget int       `json:"max_stock_target" gorm:"type:int;not null;default:200"` // Target stock in individual units (tablets)
 }

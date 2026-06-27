@@ -47,7 +47,6 @@ func (s *AppointmentService) CreateApptmnt(requestPayload dto.NewApptmnt) (resp 
 	if err != nil {
 		return dto.NewApptmntResp{}, err
 	}
-
 	appointmentModel := s.toApptmntModel(requestPayload, orgSchedResp.ID)
 	err = s.Repository.Create(&appointmentModel)
 	if err != nil {
@@ -105,6 +104,7 @@ func (s *AppointmentService) GetNotificationDetails(appointmentID string) (map[s
 
 // }
 func (s *AppointmentService) toApptmntModel(reqpayload dto.NewApptmnt, osID string) Appointment {
+	//append appointment date with start and end time
 	var model Appointment
 	model.ID = uuid.New().String()
 	model.DoctorID = reqpayload.DoctorID
@@ -113,15 +113,22 @@ func (s *AppointmentService) toApptmntModel(reqpayload dto.NewApptmnt, osID stri
 	model.CreatedAt = time.Now()
 	model.SeriesID = reqpayload.SeriesID
 	model.Status = StatusScheduled
+	model.CreatedBy = reqpayload.UserID
+	model.VisitType = reqpayload.ReasonForVisit
+	model.AppointmentDate, _ = time.Parse(time.DateOnly, reqpayload.AppointmentDate)
 	model.StartTime, _ = time.Parse(time.RFC3339, reqpayload.StartTime)
 	model.EndTime, _ = time.Parse(time.RFC3339, reqpayload.EndTime)
-	model.CreatedBy = reqpayload.UserID
-	model.AppointmentDate, _ = time.Parse(time.DateOnly, reqpayload.AppointmentDate)
-	model.VisitType = reqpayload.ReasonForVisit
 	model.AppointmentCode = s.generateAppointmentCode()
 	model.ScheduleID = osID
 	return model
 
+}
+func (s *AppointmentService) appendAppointmentDate(appointmentdate string, tstartTime time.Time, tendtime time.Time) (time.Time, time.Time) {
+	tAppointmentDate, _ := time.Parse(time.DateOnly, appointmentdate)
+	location, _ := time.LoadLocation("Asia/Kolkata")
+	dbstarttime := time.Date(tAppointmentDate.Year(), tAppointmentDate.Month(), tAppointmentDate.Day(), tstartTime.Hour(), tstartTime.Minute(), tstartTime.Second(), tstartTime.Nanosecond(), location)
+	dbendtime := time.Date(tAppointmentDate.Year(), tAppointmentDate.Month(), tAppointmentDate.Day(), tendtime.Hour(), tendtime.Minute(), tendtime.Second(), tendtime.Nanosecond(), location)
+	return dbstarttime, dbendtime
 }
 func (s *AppointmentService) generateAppointmentCode() string {
 	currentDate := time.Now().Format("20060102")
@@ -243,35 +250,38 @@ func (s *AppointmentService) checkIfSlotAvailable(appointments []Appointment, sc
 func (s *AppointmentService) createSlots(schedule admindto.GetResponse, date string) ([]Slot, error) {
 	slotDuration := time.Duration(schedule.Slotduration) * time.Minute
 	var slots []Slot
-	slotStart := schedule.Starttime
-	if schedule.Endtime.Before(schedule.Starttime) {
+	scheduleStart := s.normalizeTimeOfDay(schedule.Starttime)
+	scheduleEnd := s.normalizeTimeOfDay(schedule.Endtime)
+	breakstartTime := s.normalizeTimeOfDay(schedule.BreakStarttime)
+	breakendtime := s.normalizeTimeOfDay(schedule.BreakEndtime)
+	if scheduleEnd.Before(scheduleStart) {
 		return nil, errors.New("schedule end time must be after start time")
 	}
 	currentTime := time.Now()
 	currentDate := currentTime.Format(time.DateOnly)
 	now := s.normalizeTimeOfDay(currentTime)
 	if currentDate == date {
-		if !now.Before(schedule.Endtime) {
+		if !now.Before(scheduleEnd) {
 			return []Slot{}, nil
 		}
-		if now.After(slotStart) {
-			slotStart = now
+		if now.After(scheduleStart) {
+			scheduleStart = now
 		}
 	}
 
 	for {
-		slotEnd := slotStart.Add(slotDuration)
-		if slotEnd.After(schedule.Endtime) {
+		slotEnd := scheduleStart.Add(slotDuration)
+		if slotEnd.After(scheduleEnd) {
 			break
 		}
 
-		if s.timesOverlap(slotStart, slotEnd, schedule.BreakStarttime, schedule.BreakEndtime) {
-			slotStart = schedule.BreakEndtime.Add(defaultBuffer)
+		if s.timesOverlap(scheduleStart, slotEnd, breakstartTime, breakendtime) {
+			scheduleStart = breakendtime.Add(defaultBuffer)
 			continue
 		}
-
-		slots = append(slots, Slot{Start: slotStart, End: slotEnd, Allow: true})
-		slotStart = slotEnd.Add(defaultBuffer)
+		dbstarttime, dbendtime := s.appendAppointmentDate(date, scheduleStart, slotEnd)
+		slots = append(slots, Slot{Start: dbstarttime, End: dbendtime, Allow: true})
+		scheduleStart = slotEnd.Add(defaultBuffer)
 	}
 
 	return slots, nil
@@ -280,9 +290,7 @@ func (s *AppointmentService) createSlots(schedule admindto.GetResponse, date str
 func (s *AppointmentService) isSlotOccupied(slot Slot, appointments []Appointment) bool {
 
 	for _, eachAppointment := range appointments {
-		appointmentStart := s.normalizeTimeOfDay(eachAppointment.StartTime)
-		appointmentEnd := s.normalizeTimeOfDay(eachAppointment.EndTime)
-		if s.timesOverlap(slot.Start, slot.End, appointmentStart, appointmentEnd) {
+		if s.timesOverlap(slot.Start, slot.End, eachAppointment.StartTime, eachAppointment.EndTime) {
 			return true
 		}
 	}
@@ -290,7 +298,7 @@ func (s *AppointmentService) isSlotOccupied(slot Slot, appointments []Appointmen
 }
 
 func (s *AppointmentService) normalizeTimeOfDay(value time.Time) time.Time {
-	return time.Date(0, 1, 1, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC)
+	return time.Date(0, 1, 1, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.Local)
 }
 
 func (s *AppointmentService) timesOverlap(startA, endA, startB, endB time.Time) bool {
@@ -403,15 +411,15 @@ func (s *AppointmentService) toAppointmentList(data []map[string]interface{}) []
 		singleResp.PatientName, _ = each["patient_name"].(string)
 		singleResp.DoctorName, _ = each["doctor_name"].(string)
 		singleResp.MobileNo, _ = each["mobile_number"].(string)
-		singleResp.StartTime, _ = each["start_time"].(time.Time)
-		singleResp.EndTime, _ = each["end_time"].(time.Time)
-
+		starttime, _ := each["start_time"].(time.Time)
+		endtime, _ := each["end_time"].(time.Time)
+		singleResp.StartTime, singleResp.EndTime = s.formatSEtime(starttime, endtime)
 		singleResp.AppointmentDate, _ = each["appointment_date"].(time.Time)
 		if i == 0 {
 			singleResp.Next = true
 		}
 		singleResp.VisitType, _ = each["visit_type"].(string)
-		singleResp.Status = string(s.findStatus(status, singleResp.EndTime, singleResp.AppointmentDate))
+		singleResp.Status = string(s.findStatus(status, endtime, singleResp.AppointmentDate))
 		response = append(response, singleResp)
 	}
 	return response
@@ -427,8 +435,8 @@ func (s *AppointmentService) findStatus(status string, endtime time.Time, appoin
 	}
 	//if appointmentdate is equal to currentdate, then check
 	currenttime := time.Now()
-	todayDate := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), 0, 0, 0, 0, time.UTC)
-	todayendtime := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), endtime.Hour(), endtime.Minute(), endtime.Second(), endtime.Nanosecond(), time.UTC)
+	todayDate := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), 0, 0, 0, 0, time.Local)
+	todayendtime := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), endtime.Hour(), endtime.Minute(), endtime.Second(), endtime.Nanosecond(), time.Local)
 	if appointmentdate == todayDate {
 		if currenttime.After(todayendtime) {
 			return StatusReschedule
@@ -485,8 +493,8 @@ func (s *AppointmentService) toAppointmentPreview(data map[string]interface{}) d
 	var response dto.AppointmentDetails
 	response.AppointmentID, _ = data["appointment_id"].(string)
 	response.AppointmentCode, _ = data["appointment_code"].(string)
-	response.StartTime, _ = data["start_time"].(time.Time)
-	response.EndTime, _ = data["end_time"].(time.Time)
+	starttime, _ := data["start_time"].(time.Time)
+	endtime, _ := data["end_time"].(time.Time)
 	response.AppointmentDate, _ = data["appointment_date"].(time.Time)
 	response.PatientName, _ = data["name"].(string)
 	response.MobileNo, _ = data["mobile_number"].(string)
@@ -499,7 +507,8 @@ func (s *AppointmentService) toAppointmentPreview(data map[string]interface{}) d
 	medicines, _ := data["medicines"].([]map[string]interface{})
 	response.DepartmentName, _ = data["department_name"].(string)
 	response.SlotDuration, _ = data["slot_duration"].(int64)
-	response.Status = string(s.findStatus(response.Status, response.EndTime, response.AppointmentDate))
+	response.StartTime, response.EndTime = s.formatSEtime(starttime, endtime)
+	response.Status = string(s.findStatus(response.Status, endtime, response.AppointmentDate))
 	response.Medicines = len(medicines)
 	return response
 }
@@ -560,12 +569,14 @@ func (s *AppointmentService) toPatientAppntment(appointments []map[string]interf
 		eachAppointment.AppointmentID, _ = each["appointment_id"].(string)
 		eachAppointment.AppointmentCode, _ = each["appointment_code"].(string)
 		eachAppointment.AppointmentDate, _ = each["appointment_date"].(time.Time)
-		eachAppointment.StartTime, _ = each["start_time"].(time.Time)
+		starttime, _ := each["start_time"].(time.Time)
+		endtime, _ := each["end_time"].(time.Time)
+		eachAppointment.StartTime, _ = s.formatSEtime(starttime, endtime)
 		eachAppointment.DepartmentName, _ = each["name"].(string)
 		eachAppointment.DoctorName, _ = each["username"].(string)
 		eachAppointment.Status, _ = each["status"].(string)
 		eachAppointment.VisitType, _ = each["visit_type"].(string)
-		endtime, _ := each["end_time"].(time.Time)
+
 		eachAppointment.Status = string(s.findStatus(eachAppointment.Status, endtime, eachAppointment.AppointmentDate))
 		patAppointment = append(patAppointment, eachAppointment)
 	}
@@ -606,4 +617,9 @@ func (s *AppointmentService) buidPatientAppntmentFilter(reqModel dto.PatientAppn
 	baseQuery += fmt.Sprintf(" limit $%d offset $%d", argsPos, argsPos+1)
 	args = append(args, dblimit, dbpageno)
 	return baseQuery, args
+}
+func (s *AppointmentService) formatSEtime(start time.Time, end time.Time) (string, string) {
+	startimeStr := start.Format("03:04 PM")
+	endtimeStr := end.Format("03:04 PM")
+	return startimeStr, endtimeStr
 }

@@ -8,6 +8,7 @@ type MedicineRepository interface {
 	FindMany(query string, args ...any) ([]Medicine, error)
 	Update(id string, update map[string]interface{}) error
 	FindNamesByIds([]string) ([]Medicine, error)
+	GetMedicineByID(medicineID string) (medicine Medicine, err error)
 }
 
 func (MRepo *MedicineRepo) CreateInBatches(db *gorm.DB, M []Medicine) (err error) {
@@ -41,6 +42,13 @@ func (Mrepo *MedicineRepo) Update(id string, updates map[string]interface{}) (er
 }
 func (MRepo *MedicineRepo) FindNamesByIds(ids []string) (Med []Medicine, err error) {
 	err = MRepo.db.Model(&Medicine{}).Select("id,name").Where("id IN ?", ids).Find(&Med).Error
+	if err != nil {
+		return
+	}
+	return
+}
+func (MRepo *MedicineRepo) GetMedicineByID(medicineID string) (medicine Medicine, err error) {
+	err = MRepo.db.Where("id=?", medicineID).First(&medicine).Error
 	if err != nil {
 		return
 	}

@@ -64,7 +64,7 @@ func main() {
 	routers.RegisterDepartmentRoutes(app, containers.DepartmentService, containers.JwtManagement)
 	routers.RegisterRoleRoutes(app, containers.RoleService)
 	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
-	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement)
+	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems)
 	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)

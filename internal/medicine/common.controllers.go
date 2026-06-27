@@ -99,6 +99,7 @@ func (MedCo *MedicineController) AddMedicine(c *fiber.Ctx) (err error) {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
+	reqPayload.PaymentDueDate, _ = payload.Getstring("payment_due_date")
 	reqPayload.OrganisationID, err = payload.Getstring("organisation_id")
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -128,22 +129,31 @@ func (Medco *MedicineController) toMedicineInfo(medicineArray []*params.Payload)
 	for _, medicine := range medicineArray {
 		var medInfo dto.MedicineInfo
 		medicineID, _ := medicine.Getstring("medicine_id")
-		medInfo.MedicineID = uuid.NewString()
-		if medicineID != "" {
-			medInfo.MedicineID = medicineID
+		medInfo.MedicineID = medicineID
+		if medicineID == "" {
+			medInfo.MedicineID = uuid.NewString()
+			medInfo.Add = true
 		}
-
 		medInfo.MedInventoryID = uuid.NewString()
 		medInfo.Name, _ = medicine.Getstring("name")
 		medInfo.Form, _ = medicine.Getstring("form")
 		medInfo.Strength, _ = medicine.Getstring("strength")
-		medInfo.BatchNumber, _ = medicine.Getstring("batch_number")
-		medInfo.ExpiryDate, _ = medicine.GetTime("expiry_date")
+		medInfo.BatchNumber, _ = medicine.Getstring("batch_no")
+		medInfo.ExpiryDate, _ = medicine.Getstring("expiry_date")
 		medInfo.Quantity, _ = medicine.Getfloat("quantity")
 		medInfo.MRP, _ = medicine.Getfloat("mrp")
 		medInfo.Discount, _ = medicine.Getfloat("discount")
 		medInfo.PurchasePrice, _ = medicine.Getfloat("purchase_price")
 		medInfo.SellingPrice, _ = medicine.Getfloat("selling_price")
+		if medInfo.SellingPrice == 0 {
+			medInfo.SellingPrice = medInfo.MRP
+		}
+		medInfo.HsnCode, _ = medicine.Getstring("hsn_code")
+		medInfo.ReorderLevel, _ = medicine.Getint("reorder_level")
+		medInfo.MaxStockTarget, _ = medicine.Getint("max_stock_target")
+		medInfo.PurchaseQtyBoxes, _ = medicine.Getint("purchase_qty_boxes")
+		medInfo.UnitPerBoxes, _ = medicine.Getint("units_per_box")
+		medInfo.ShelfLocation, _ = medicine.Getstring("shelf_location")
 		medicineInfos = append(medicineInfos, medInfo)
 	}
 	return medicineInfos, nil
