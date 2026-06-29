@@ -16,4 +16,8 @@ type NotificationModel struct {
 	PatientEmail    string `json:"patient_email_id"`
 	PatientID       string `json:"patient_id"`
 	OrganisationID  string `json:"organisation_id"`
+	PaymentLink     string `json:"payment_link"`
+	Amount          string `json:"amount"`
+	Currency        string `json:"currency"`
+	ExpiresAt       string `json:"expires_at"`
 }

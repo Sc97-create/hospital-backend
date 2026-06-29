@@ -12,6 +12,7 @@ type PrescItemsRepo interface {
 	//UpdatePrescriptionItem(medicine PrescriptionItems) (err error)
 	GetTotalCountByPrescID(prescriptionID string) (int64, error)
 	FindMedicineInfoByPID(ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
+	GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error)
 }
 
 func (pdb *PrescriptionDB) AddItems(db *gorm.DB, medicine []PrescriptionItems) error {
@@ -43,4 +44,12 @@ func (pdb *PrescriptionDB) FindMedicineInfoByPID(ctx context.Context, query stri
 		return nil, err
 	}
 	return medicineInfo, nil
+}
+func (pdb *PrescriptionDB) GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error) {
+	var prescriptionItems []PrescriptionItems
+	err := pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Select("id", "medicine_id", "quantity").Find(&prescriptionItems).Error
+	if err != nil {
+		return nil, err
+	}
+	return prescriptionItems, nil
 }

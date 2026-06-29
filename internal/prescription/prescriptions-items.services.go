@@ -159,3 +159,18 @@ WHERE pI.prescription_id = $1;
 	return medicineDet, nil
 
 }
+func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {
+	prescriptionItems, err := p.PrescRepo.GetQtyInfoByMed(prescriptionID)
+	if err != nil {
+		return nil, err
+	}
+	prescriptionMap := make(map[string]dto.PrescriptionQtyInfo)
+	for _, each := range prescriptionItems {
+		var eachPrescription dto.PrescriptionQtyInfo
+		eachPrescription.MedicineID = each.MedicineID
+		eachPrescription.Quantity = each.Quantity
+		eachPrescription.PrescriptionID = each.ID
+		prescriptionMap[each.MedicineID] = eachPrescription
+	}
+	return prescriptionMap, nil
+}
