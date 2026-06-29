@@ -262,3 +262,157 @@ invoice example lifecycle
 
                 Update Invoice
 
+
+
+flow diagram of how payment processes
+
+                        HTTP Handler
+                             │
+                             ▼
+                     Payment Service
+                             │
+        ┌────────────────────┴───────────────────┐
+        │                                        │
+ Payment Repository                    Provider Factory
+        │                                        │
+        ▼                                        ▼
+ PostgreSQL                            PaymentProvider Interface
+                                                │
+                   ┌────────────────────────────┴───────────────────────────┐
+                   ▼                            ▼                           ▼
+              RazorpayProvider          CashfreeProvider             StripeProvider
+
+
+
+for payment webhook event
+
+post => /webhook
+x-signature => webhook-signature
+how to verify webhook
+create expected signature
+webhook-secret + webhook_payload
+
+
+payment.captured
+  type=> 
+  ```json
+  upi
+  {
+  "entity": "event",
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "event": "payment.captured",
+  "contains": [
+    "payment"
+  ],
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_DESyzxuld02Zul",
+        "entity": "payment",
+        "amount": 100,
+        "currency": "<currency>",
+        "base_amount": 100,
+        "status": "captured",
+        "order_id": "order_DESxiijbl9xjDB",
+        "invoice_id": null,
+        "international": false,
+        "method": "upi",
+        "amount_refunded": 0,
+        "amount_transferred": 0,
+        "refund_status": null,
+        "captured": true,
+        "description": null,
+        "card_id": null,
+        "bank": null,
+        "wallet": null,
+        "vpa": "gaurav.kumar@upi",
+        "email": "<email>",
+        "contact": "<phone>",
+        "notes": [],
+        "fee": 2,
+        "tax": 0,
+        "error_code": null,
+        "error_description": null,
+        "error_source": null,
+        "error_step": null,
+        "error_reason": null,
+        "acquirer_data": {
+          "rrn": "0125836177"
+        },
+        "created_at": 1567675356,
+        "upi": {
+          "payer_account_type": "credit_card",
+          "vpa": "gaurav.kumar@upi",
+          "flow": "intent"
+        }
+      }
+    }
+  },
+  "created_at": 1567675356
+}
+
+Card
+
+{
+  "account_id": "acc_BFQ7uQEaa7j2z7",
+  "contains": [
+    "payment"
+  ],
+  "created_at": 1691735748,
+  "entity": "event",
+  "event": "payment.captured",
+  "payload": {
+    "payment": {
+      "entity": {
+        "acquirer_data": {
+          "auth_code": "828553",
+          "rrn": "322206890934"
+        },
+        "amount": 100,
+        "amount_refunded": 0,
+        "amount_transferred": 0,
+        "bank": null,
+        "captured": true,
+        "card": {
+          "emi": false,
+          "entity": "card",
+          "id": "card_DESp9fNnu0RoNc",
+          "iin": "999999",
+          "international": false,
+          "issuer": null,
+          "last4": "0153",
+          "name": "<name>",
+          "network": "Visa",
+          "sub_type": "business",
+          "type": "debit"
+        },
+        "card_id": "card_DESp9fNnu0RoNc",
+        "contact": "<phone>",
+        "created_at": 1567674797,
+        "currency": "INR",
+        "description": null,
+        "email": "<email>",
+        "entity": "payment",
+        "error_code": "",
+        "error_description": "",
+        "error_reason": null,
+        "error_source": null,
+        "error_step": null,
+        "fee": null,
+        "id": "pay_DESp9bgForNoUd",
+        "international": false,
+        "invoice_id": null,
+        "method": "card",
+        "notes": [],
+        "order_id": "order_DESoU0U4ikYA19",
+        "refund_status": null,
+        "status": "captured",
+        "tax": null,
+        "token_id": "token_MOfFlFTC1CBDOi",
+        "vpa": null,
+        "wallet": null
+      }
+    }
+  }
+}
+```

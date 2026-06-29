@@ -35,6 +35,7 @@ func Load() (*Config, error) {
 	paymentrecieved := viper.GetString("PAYMENT_RECIEVED")
 	medicineadherence := viper.GetString("MEDICINE_ADHERENCE")
 	follwupReminder := viper.GetString("FOLLOW_UP_REMINDER")
+	paymentLinkGenerated := viper.GetString("PAYMENT_LINK_GENERATED")
 	smtpHost := viper.GetString("SMTP_HOST")
 	smtpPassword := viper.GetString("SMTP_PASSWORD")
 	smtpPort := viper.GetInt("SMTP_PORT")
@@ -49,13 +50,14 @@ func Load() (*Config, error) {
 		TemplatePath: NotificationTemplateFilepath{
 			Appointmentcreated: appointmentcreated,
 			//AppointmentUpdated:  appointmentupdated,
-			Patientcreated:      patientcreated,
-			PaymentRecieved:     paymentrecieved,
-			FollowUpReminder:    follwupReminder,
-			MedicationAdherence: medicineadherence,
-			PrescriptionCreated: prescriptioncreated,
-			AppointmentReminder: appointmentreminder,
-			PatientUpdated:      patientupdated,
+			Patientcreated:       patientcreated,
+			PaymentRecieved:      paymentrecieved,
+			FollowUpReminder:     follwupReminder,
+			MedicationAdherence:  medicineadherence,
+			PrescriptionCreated:  prescriptioncreated,
+			AppointmentReminder:  appointmentreminder,
+			PatientUpdated:       patientupdated,
+			PaymentLinkGenerated: paymentLinkGenerated,
 		},
 		NotificationConfig: NotificationConfig{
 			SMTPHost:     smtpHost,

@@ -15,6 +15,7 @@ import (
 	notificationcontainer "hospital-backend/internal/notifications/notificationcontianer"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
+	"hospital-backend/internal/payments/paymentcontainer"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/rolepermissions"
@@ -43,6 +44,7 @@ type Container struct {
 	AppointmentContainer   *appointments.AppntmentContainer
 	OrganisationSchedule   *admins.OrganisationScheduleService
 	NotificationContainer  *notificationcontainer.NotificationContainer
+	PaymentContainer       *paymentcontainer.PaymentContainer
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
@@ -79,7 +81,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice, prescriptionItemServ)
 
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
-
+	paymentcontainer := paymentcontainer.NewContainer(db, *cfg)
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
@@ -98,5 +100,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		OrganisationSchedule:   orgschedSrv,
 		NotificationContainer:  notificationContainer,
 		PrescriptionItems:      prescriptionItemServ,
+		PaymentContainer:       paymentcontainer,
 	}
 }

@@ -16,6 +16,17 @@ type Config struct {
 	PublicKeyPath      string
 	NotificationConfig NotificationConfig
 	TemplatePath       NotificationTemplateFilepath
+	RazorPayClient     RazorPayClient
+}
+type RazorPayClient struct {
+	CallbackUrl   string
+	RPayConfig    RazorpayConfig
+	WebhookSecret string
+}
+type RazorpayConfig struct {
+	BaseUrl   string
+	ApiKey    string
+	ApiSecret string
 }
 
 type NotificationConfig struct {
@@ -32,9 +43,10 @@ type NotificationTemplateFilepath struct {
 	PatientUpdated     string
 	Appointmentcreated string
 	//AppointmentUpdated  string
-	PrescriptionCreated string
-	MedicationAdherence string
-	FollowUpReminder    string
-	PaymentRecieved     string
-	AppointmentReminder string
+	PrescriptionCreated  string
+	MedicationAdherence  string
+	FollowUpReminder     string
+	PaymentRecieved      string
+	AppointmentReminder  string
+	PaymentLinkGenerated string
 }

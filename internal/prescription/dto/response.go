@@ -64,3 +64,8 @@ type Response struct {
 	Message string `json:"message"`
 	Total   int    `json:"total"`
 }
+type PrescriptionQtyInfo struct {
+	PrescriptionID string `json:"prescription_id"`
+	Quantity       int    `json:"quantity"`
+	MedicineID     string `json:"medicine_id"`
+}

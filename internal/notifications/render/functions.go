@@ -70,6 +70,7 @@ func createFilepath(templatePath config.NotificationTemplateFilepath) map[string
 	filemap[getlastkey(templatePath.PrescriptionCreated)] = filepath.Join(dir, templatePath.PrescriptionCreated)
 	filemap[getlastkey(templatePath.MedicationAdherence)] = filepath.Join(dir, templatePath.MedicationAdherence)
 	filemap[getlastkey(templatePath.FollowUpReminder)] = filepath.Join(dir, templatePath.FollowUpReminder)
+	filemap[getlastkey(templatePath.PaymentLinkGenerated)] = filepath.Join(dir, templatePath.PaymentLinkGenerated)
 	//filemap[getlastkey(templatePath.PaymentRecieved)] = filepath.Join(dir, templatePath.PaymentRecieved)
 
 	return filemap
