@@ -1,0 +1,26 @@
+package constants
+
+const (
+	StatusPending                   = "pending"
+	StatusCompleted                 = "completed"
+	StatusCancelled                 = "cancelled"
+	StatusExpired                   = "expired"
+	StatusFailed                    = "failed"
+	ProviderNameRazorpay     string = "razorpay"
+	ProviderNameCashfree     string = "cashfree"
+	ProviderNameStripe       string = "stripe"
+	IndCurrnecy              string = "INR"
+	PaymentLinkPaid          string = "payment_link.paid"
+	PaymentLinkCancelled     string = "payment_link.cancelled"
+	PaymentLinkExpired       string = "payment_link.expired"
+	PaymentLinkCreated       string = "payment_link.created"
+	PaymentLinkUpdated       string = "payment_link.updated"
+	PaymentLinkDeleted       string = "payment_link.deleted"
+	PaymentLinkFailed        string = "payment_link.failed"
+	PaymentLinkSuccess       string = "payment_link.success"
+	StatusFullyDispensed     string = "fully_dispensed"
+	StatusPartiallyDispensed string = "partially_dispensed"
+	StatusPartiallyPaid      string = "partially_paid"
+	InvoicePaid              string = "paid"
+	InvoiceUnpaid            string = "unpaid"
+)
