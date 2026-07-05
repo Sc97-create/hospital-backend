@@ -45,3 +45,14 @@ type MedicineInfo struct {
 	ReorderLevel     int     `json:"reorder_level"`
 	MaxStockTarget   int     `json:"max_stock_target"`
 }
+type MedicineStockMovementRequest struct {
+	MedicineInventoryID   string  `json:"medicine_inventory_id"`
+	MedicineID            string  `json:"medicine_id"`
+	OrganisationID        string  `json:"organisation_id"`
+	MovementType          string  `json:"movement_type"`
+	QtyChanged            int     `json:"qty_changed"`
+	CreatedBy             string  `json:"created_by"`
+	SourceType            string  `json:"source_type"`
+	UnitPriceAtTimeOfMvmt float64 `json:"unit_price_at_time_of_mvmt"`
+	BalanceAfterMvmt      int     `json:"balance_after_mvmt"`
+}

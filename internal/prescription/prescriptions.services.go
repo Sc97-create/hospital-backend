@@ -77,10 +77,10 @@ func (p *PrescriptionService) FindMany(limit int, offset int, organisationID str
 	if err != nil {
 		return
 	}
-	// totalInt, err = p.prescriptionRepo.Count(organisationID)
-	// if err != nil {
-	// 	return
-	// }
+	totalInt, err = p.prescriptionRepo.Count(organisationID)
+	if err != nil {
+		return
+	}
 	return prescription, totalInt, nil
 }
 
@@ -116,7 +116,7 @@ func (p *PrescriptionService) getMedicineIDS(med []dto.MedicineResponse) []strin
 	}
 	return medids
 }
-func (p *PrescriptionService) UpdateStatus(prescriptionID string, appointmentID string) error {
+func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointmentID string) error {
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
 		err := p.appointmentService.Repository.UpdateStatus(tx, appointments.StatusCompleted, appointmentID)
 		if err != nil {
@@ -137,53 +137,110 @@ func (p *PrescriptionService) UpdateStatus(prescriptionID string, appointmentID 
 func (p *PrescriptionService) GetPrescriptionByPatientID(reqmodel dto.PresPatients) (dto.Response, error) {
 	dblimit, dbskip := p.parsePagination(reqmodel.Limit, reqmodel.Pageno)
 	query := `SELECT
-    p.id,
-    p.created_at,
-    p.medicines,
-    u.username AS doctor_name
+    p.id AS prescription_id,
+    p.created_at AS prescription_created_at,
+    u.username AS doctor_name,
+    COALESCE(
+        (
+            SELECT json_agg(
+                json_build_object(
+                    'prescription_item_id', pi.id,
+                    'medicine_id', pi.medicine_id,
+                    'medicine_name', m.name,
+                    'medicine_form', m.form,
+                    'medicine_strength', m.strength,
+                    'frequency', pi.frequency,
+                    'duration_day', pi.duration_day,
+                    'duration_type', pi.duration_type,
+                    'food_instruction', pi.food_instruction,
+                    'quantity', pi.quantity
+                ) ORDER BY pi.created_at
+            )
+            FROM prescription_items pi
+            JOIN medicines m ON m.id = pi.medicine_id
+            WHERE pi.prescription_id = p.id
+        ),
+        '[]'::json
+    ) AS prescription_item_list
 FROM prescriptions p
-JOIN users u
-    ON p.prescribed_by = u.id
-WHERE p.patient_id = $1
+JOIN users u ON u.id = p.prescribed_by
+WHERE p.appointment_id = $1
   AND p.organisation_id = $2
 ORDER BY p.created_at ASC
 LIMIT $3
-OFFSET $4;`
-	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByPatientID(query, reqmodel.PatientID, reqmodel.OrganisationID, dblimit, dbskip)
+OFFSET $4`
+
+	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByAppointmentID(query, reqmodel.OrganisationID, dblimit, dbskip)
 	if err != nil {
 		return dto.Response{}, err
 	}
-	PresResponse := p.toPrescriptionResponse(prescriptions)
-	totalCount, err := p.prescriptionRepo.GetPrescriptionByPatientIDCount(reqmodel.PatientID, reqmodel.OrganisationID)
+	presResponse := p.toAppointmentPrescriptionResponse(prescriptions)
+	totalCount, err := p.prescriptionRepo.GetPrescriptionByAppointmentIDCount(reqmodel.AppointmentID, reqmodel.OrganisationID)
 	if err != nil {
 		return dto.Response{}, err
 	}
 	var response dto.Response
-	response.Data = PresResponse
+	response.Data = presResponse
 	response.Total = int(totalCount)
 	response.Code = "200"
 	response.Message = "fetched data successfully"
 	return response, nil
 }
-func (p *PrescriptionService) toPrescriptionResponse(Prescription []MixPrescriptionData) []dto.PrescriptionPatientResponse {
-	var PrescriptionResponse []dto.PrescriptionPatientResponse
-	for _, each := range Prescription {
-		var eachPrescription dto.PrescriptionPatientResponse
-		eachPrescription.PrescriptionID = each.ID
-		eachPrescription.DoctorName = each.DoctorName
-		eachPrescription.IssuedAt = each.CreatedAt
-		eachPrescription.Medicines = each.Medicines
-		eachPrescription.Reason = each.Reason
-		PrescriptionResponse = append(PrescriptionResponse, eachPrescription)
+
+func (p *PrescriptionService) toAppointmentPrescriptionResponse(prescriptions []PrescriptionAppointmentData) []dto.AppointmentPrescriptionResponse {
+	responses := make([]dto.AppointmentPrescriptionResponse, 0, len(prescriptions))
+	for _, each := range prescriptions {
+		items := make([]dto.AppointmentPrescriptionItem, 0, len(each.PrescriptionItemList))
+		for _, item := range each.PrescriptionItemList {
+			items = append(items, dto.AppointmentPrescriptionItem{
+				PrescriptionItemID: item.PrescriptionItemID,
+				PrescriptionID:     item.PrescriptionID,
+				MedicineID:         item.MedicineID,
+				MedicineName:       item.MedicineName,
+				MedicineForm:       item.MedicineForm,
+				MedicineStrength:   item.MedicineStrength,
+				Frequency:          p.tofreqResponse(item.Frequency),
+				DurationDay:        item.DurationDay,
+				DurationType:       item.DurationType,
+				FoodInstruction:    item.FoodInstruction,
+				Quantity:           item.Quantity,
+			})
+		}
+		responses = append(responses, dto.AppointmentPrescriptionResponse{
+			PrescriptionID:    each.PrescriptionID,
+			IssuedAt:          each.PrescriptionCreatedAt,
+			DoctorName:        each.DoctorName,
+			PrescriptionItems: items,
+		})
 	}
-	return PrescriptionResponse
+	return responses
 }
+
 func (p *PrescriptionService) parsePagination(limit float64, pageno float64) (int, int) {
 	numLimit := int(limit)
-	numpageno := int(pageno)
-	skip := 0
-	if numpageno != 0 {
-		skip = (numpageno - 1) * numLimit
+	if numLimit <= 0 {
+		numLimit = 10
 	}
+	numpageno := int(pageno)
+	if numpageno <= 0 {
+		numpageno = 1
+	}
+	skip := (numpageno - 1) * numLimit
 	return numLimit, skip
+}
+func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
+	var Pstatus Status
+	switch status {
+	case "fully_dispensed":
+		Pstatus = StatusFullyDispensed
+	case "partially_dispensed":
+		Pstatus = StatusPartiallyDispensed
+	default:
+		return fmt.Errorf("invalid status")
+	}
+	err := p.prescriptionRepo.UpdateStatus(tx, Pstatus, prescriptionID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

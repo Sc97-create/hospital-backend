@@ -30,7 +30,7 @@ type IPrescriptionController interface {
 	FindPrescriptionByID(c *fiber.Ctx) error
 	UpdateStatus(c *fiber.Ctx) error
 	FindMedicineDetInfo(c *fiber.Ctx) error
-	DispenseMedicine(c *fiber.Ctx) error
+	//DispenseMedicine(c *fiber.Ctx) error
 	//FindPrescriptionByPatientID(c *fiber.Ctx) error
 }
 
@@ -154,7 +154,7 @@ func (PresC *PrescriptionController) UpdateStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	err = PresC.PService.UpdateStatus(prescriptionID, appointmentID)
+	err = PresC.PService.UpdateManualStatus(prescriptionID, appointmentID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
@@ -170,7 +170,7 @@ func (PresC *PrescriptionController) GetPrescriptionByPatientID(c *fiber.Ctx) er
 		return wrapError.Wrap(err, c, 409)
 	}
 	var reqmodel dto.PresPatients
-	reqmodel.PatientID, err = payload.Getstring("patient_id")
+	reqmodel.AppointmentID, err = payload.Getstring("appointment_id")
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
@@ -248,103 +248,4 @@ func (Presc *PrescriptionController) FindMedicineDetInfo(c *fiber.Ctx) (err erro
 	response.Code = "200"
 
 	return c.Status(200).JSON(response)
-}
-func (Presc *PrescriptionController) DispenseMedicine(c *fiber.Ctx) (err error) {
-	payload, err := params.New(c)
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	var requestPayload dto.DispensePayload
-	requestPayload.PrescriptionID, err = payload.Getstring("prescription_id")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.CashierID, err = payload.Getstring("cashier_id")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.SupplierID, err = payload.Getstring("supplier_id")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.OrganisationID, err = payload.Getstring("organisation_id")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.PatientID, err = payload.Getstring("patient_id")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.PaymentMode, err = payload.Getstring("payment_mode")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	financials, err := payload.GetObject("financials")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.Financials, err = Presc.tomapfinancedto(financials)
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	dispenseItems, err := payload.GetChildren("dispensed_items")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	requestPayload.DispensedItems, err = Presc.tomapDispense(dispenseItems)
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-
-	return
-}
-func (Presc *PrescriptionController) tomapfinancedto(finance *params.Payload) (dto.FinancialsDTO, error) {
-	var financePayload dto.FinancialsDTO
-	var err error
-	financePayload.DiscountAmount, err = finance.Getfloat("discount_amount")
-	if err != nil {
-		return dto.FinancialsDTO{}, err
-	}
-	financePayload.SubtotalAmount, err = finance.Getfloat("subtotal_amount")
-	if err != nil {
-		return dto.FinancialsDTO{}, err
-	}
-	financePayload.TaxAmount, err = finance.Getfloat("tax_amount")
-	if err != nil {
-		return dto.FinancialsDTO{}, err
-	}
-	financePayload.TotalAmountPaid, err = finance.Getfloat("total_amount_paid")
-	if err != nil {
-		return dto.FinancialsDTO{}, err
-	}
-	return financePayload, nil
-}
-func (Presc *PrescriptionController) tomapDispense(dispensedItems []*params.Payload) ([]dto.DispensedItemDTO, error) {
-	var dispensePayload []dto.DispensedItemDTO
-	var err error
-	for _, each := range dispensedItems {
-		var eachMedicinedata dto.DispensedItemDTO
-		eachMedicinedata.BatchID, err = each.Getstring("batch_id")
-		if err != nil {
-			continue
-		}
-		eachMedicinedata.MedicineID, err = each.Getstring("medicine_id")
-		if err != nil {
-			return nil, err
-		}
-		eachMedicinedata.ComputedItemTotal, err = each.Getfloat("computed_item_total") // need validation from baackend
-		if err != nil {
-			return nil, err
-		}
-		eachMedicinedata.QuantitySoldUnits, err = each.Getint("quantity_sold_units") // required to send notification
-		if err != nil {
-			return nil, err
-		}
-		eachMedicinedata.UnitPriceCharged, err = each.Getfloat("unit_price_chared")
-		if err != nil {
-			return nil, err
-		}
-		dispensePayload = append(dispensePayload, eachMedicinedata)
-	}
-	return dispensePayload, nil
 }

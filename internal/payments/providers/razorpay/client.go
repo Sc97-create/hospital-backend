@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hospital-backend/internal/payments/dto"
+	"io"
 	"net/http"
 )
 
@@ -23,15 +24,36 @@ func (c *RazorpayConfig) CreatePaymentLink(ctx context.Context, req createPaymen
 	if err != nil {
 		return dto.CreatePaymentResponse{}, err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.SetBasicAuth(c.ApiKey, c.ApiSecret)
+
+	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return dto.CreatePaymentResponse{}, err
 	}
 	defer resp.Body.Close()
-	var response dto.CreatePaymentResponse
-	err = json.NewDecoder(resp.Body).Decode(&response)
+
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return dto.CreatePaymentResponse{}, err
 	}
-	return response, nil
+	if resp.StatusCode >= http.StatusBadRequest {
+		return dto.CreatePaymentResponse{}, fmt.Errorf("razorpay payment link failed: %s", string(respBody))
+	}
+
+	var razorResp paymentLinkResponse
+	if err := json.Unmarshal(respBody, &razorResp); err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+
+	return dto.CreatePaymentResponse{
+		PaymentLinkID: razorResp.ID,
+		PaymentURL:    razorResp.ShortURL,
+		ReferenceID:   razorResp.ReferenceID,
+	}, nil
 }

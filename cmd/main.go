@@ -68,6 +68,7 @@ func main() {
 	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
+	routers.RegisterBillingRoutes(app, containers.BillingService)
 	err = app.Listen(fmt.Sprintf(":%s", cfg.ServerPort))
 	if err != nil {
 		log.Fatalf("%v", err)

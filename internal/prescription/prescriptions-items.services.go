@@ -3,6 +3,7 @@ package prescription
 import (
 	"context"
 	"hospital-backend/internal/prescription/dto"
+	"hospital-backend/pkg/constants"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string,
 		pItem.Quantity = s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType)
 		pItem.BalanceAfterDispense = 0
 		pItem.PrescriptionID = pID
-		pItem.Status = StatusPending
+		pItem.Status = constants.StatusPending
 		pItem.CreatedAt = time.Now()
 		pItem.CreatedBy = userID
 		prescItems = append(prescItems, pItem)
@@ -170,7 +171,23 @@ func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[stri
 		eachPrescription.MedicineID = each.MedicineID
 		eachPrescription.Quantity = each.Quantity
 		eachPrescription.PrescriptionID = each.ID
+		eachPrescription.BalanceAfterDispense = each.BalanceAfterDispense
 		prescriptionMap[each.MedicineID] = eachPrescription
 	}
 	return prescriptionMap, nil
+}
+func (p *PrescriptionItemServ) UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error {
+	query := "UPDATE prescription_items SET balance_after_dispense = balance_after_dispense + ? WHERE id = ?"
+	return p.PrescRepo.UpdateDispenseItemQty(tx, query, prescriptionItemID, dispensedQty)
+}
+func (p *PrescriptionItemServ) UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error {
+	var item PrescriptionItems
+	item.ID = prescriptionItemID
+	item.Status = status
+	item.UpdatedAt = time.Now()
+	err := p.PrescRepo.UpdatePrescriptionItemStatus(tx, item)
+	if err != nil {
+		return err
+	}
+	return nil
 }

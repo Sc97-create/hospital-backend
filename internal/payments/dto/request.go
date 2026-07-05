@@ -11,8 +11,8 @@ type CreatePaymentCommand struct {
 	Source      string  `json:"source"`
 	Channel     string  `json:"channel"`
 	Amount      float64 `json:"amount"`
-	PaymentID   string  `json:"payment_id"`
-	//Currency    string
+	ReferenceID string  `json:"reference_id"` // invoice code sent to Razorpay as reference_id
+	Currency    string
 	Customer    CustomerInfo
 	Description string
 	ExpiresAt   time.Time
@@ -27,9 +27,10 @@ type CustomerInfo struct {
 	Mobile string
 }
 type CreatePaymentResponse struct {
-	RequestPayload map[string]interface{} `json:"request_payload"`
-	PaymentID      string                 `json:"payment_id"`
-	PaymentURL     string                 `json:"payment_url"`
+	RequestPayload map[string]interface{} `json:"request_payload,omitempty"`
+	PaymentLinkID  string                 `json:"payment_link_id"` // Razorpay plink_xxx
+	PaymentURL     string                 `json:"payment_url"`     // Razorpay short_url
+	ReferenceID    string                 `json:"reference_id"`
 }
 
 type GetPaymentRequest struct {
@@ -49,4 +50,25 @@ type UpdatePaymentRequest struct {
 type UpdatePaymentResponse struct {
 	PaymentID  string `json:"payment_id"`
 	PaymentURL string `json:"payment_url"`
+}
+
+// payments/dto/request.go
+type ParsedWebhookEvent struct {
+	EventType         string  // e.g. "payment_link.paid"
+	ProviderEventID   string  // razorpay account_id or similar
+	ProviderLinkID    string  // plink_xxx
+	ProviderOrderID   string  // order_xxx
+	ProviderPaymentID string  // pay_xxx
+	ReferenceID       string  // your invoice code
+	AmountPaid        float64 // in rupees (divide by 100)
+	AmountTransferred float64
+	PaymentStatus     string // "captured", "failed", etc.
+	PaymentLinkStatus string // "paid", "cancelled", etc.
+	PayerVPA          string
+	PayerAccountType  string
+	PaymentError      *string
+	PaymentErrorCode  *string
+	RawPayload        []byte // full raw JSON for storage
+	PaidAt            time.Time
+	AcceptPartial     bool
 }

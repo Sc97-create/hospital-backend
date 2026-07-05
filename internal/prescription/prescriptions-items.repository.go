@@ -13,6 +13,8 @@ type PrescItemsRepo interface {
 	GetTotalCountByPrescID(prescriptionID string) (int64, error)
 	FindMedicineInfoByPID(ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
 	GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error)
+	UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error
+	UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error
 }
 
 func (pdb *PrescriptionDB) AddItems(db *gorm.DB, medicine []PrescriptionItems) error {
@@ -47,9 +49,23 @@ func (pdb *PrescriptionDB) FindMedicineInfoByPID(ctx context.Context, query stri
 }
 func (pdb *PrescriptionDB) GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error) {
 	var prescriptionItems []PrescriptionItems
-	err := pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Select("id", "medicine_id", "quantity").Find(&prescriptionItems).Error
+	err := pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Select("id", "medicine_id", "quantity", "balance_after_dispense").Find(&prescriptionItems).Error
 	if err != nil {
 		return nil, err
 	}
 	return prescriptionItems, nil
+}
+func (pdb *PrescriptionDB) UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error {
+	err := tx.Raw(query, prescriptionItemID, dispensedQty).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (pdb *PrescriptionDB) UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error {
+	err := tx.Model(&PrescriptionItems{}).Where("id=?", item.ID).Updates(item).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }

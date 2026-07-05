@@ -6,6 +6,7 @@ import (
 	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/bedmanagement"
+	"hospital-backend/internal/billing"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	jwtAuth "hospital-backend/internal/jwt"
@@ -45,6 +46,7 @@ type Container struct {
 	OrganisationSchedule   *admins.OrganisationScheduleService
 	NotificationContainer  *notificationcontainer.NotificationContainer
 	PaymentContainer       *paymentcontainer.PaymentContainer
+	BillingService         *billing.InvoiceServ
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
@@ -82,6 +84,9 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
 	paymentcontainer := paymentcontainer.NewContainer(db, *cfg)
+	billingRepo := billing.NewDB(db)
+	billingItemServ := billing.NewInvoiceItemServ(billingRepo)
+	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService)
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
@@ -101,5 +106,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		NotificationContainer:  notificationContainer,
 		PrescriptionItems:      prescriptionItemServ,
 		PaymentContainer:       paymentcontainer,
+		BillingService:         billingService,
 	}
 }

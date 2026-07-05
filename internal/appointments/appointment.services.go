@@ -466,7 +466,6 @@ func (s *AppointmentService) GetAppointmentPreview(organisationID string, appoin
     pa.gender,
     pa.mobile_number,
     pr.created_at,
-    pr.medicines,
 	d.name as department_name,
 	os.slot_duration
 FROM appointments AS a

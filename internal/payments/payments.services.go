@@ -4,6 +4,7 @@ import (
 	"context"
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
+	"hospital-backend/pkg/constants"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,7 @@ func NewPaymentsService(db *gorm.DB, paymentsRepository IPaymentsRepository, pay
 
 func (p *PaymentsService) StorePaymentandNotifyUser(paymentReq dto.CreatePaymentCommand) (paymentRespone dto.CreatePaymentResponse, err error) {
 
-	provider, err := p.PaymentFactory.GetProvider(ProviderNameRazorpay)
+	provider, err := p.PaymentFactory.GetProvider(constants.ProviderNameRazorpay)
 	if err != nil {
 		return
 	}
@@ -43,8 +44,7 @@ func (p *PaymentsService) StorePaymentandNotifyUser(paymentReq dto.CreatePayment
 		tx.Rollback()
 		return
 	}
-	//create payment attempt for history
-	err = p.PaymentAttempt.CreateAttempt(tx, paymentReq.PaymentID, paymentRespone, providerName)
+	err = p.PaymentAttempt.CreateAttempt(tx, paymentModel.ID, paymentRespone, providerName)
 	if err != nil {
 		tx.Rollback()
 		return
@@ -59,7 +59,7 @@ func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Pa
 	payment.Channel = paymentReq.Channel
 	payment.Source = paymentReq.Source
 	payment.CreatedAt = time.Now()
-	payment.Currency = IndCurrnecy
+	payment.Currency = constants.IndCurrnecy
 	//payment.ExpiresAt = paymentReq.ExpiresAt
 	payment.InvoiceID = paymentReq.InvoiceID
 	payment.PatientID = paymentReq.PatientID
@@ -68,14 +68,7 @@ func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Pa
 	//payment.Status = StatusPending
 	return payment
 }
-func (p *PaymentsService) ProcessWebhook(payload []byte, signature string, provider string) (bool, error) {
-	gateway, err := p.PaymentFactory.GetProvider(provider)
-	if err != nil {
-		return false, err
-	}
-	isverified, err := gateway.VerifySignature(payload, signature)
-	if err != nil || !isverified {
-		return false, err
-	}
-	return false, nil
+
+func (p *PaymentsService) FindInvoiceByPaymentAttempt(query string, args ...interface{}) (Payments, error) {
+	return p.PaymentsRepository.FindInvoiceByPaymentAttempt(query, args...)
 }

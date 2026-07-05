@@ -59,8 +59,8 @@ func createFilepath(templatePath config.NotificationTemplateFilepath) map[string
 		return nil
 	}
 	getlastkey := func(path string) string {
-		value := strings.Split(path, "\\")
-		return strings.TrimSuffix(value[len(value)-1], ".tmpl")
+		normalizedPath := filepath.FromSlash(path)
+		return strings.TrimSuffix(filepath.Base(normalizedPath), ".tmpl")
 	}
 
 	filemap[getlastkey(templatePath.Appointmentcreated)] = filepath.Join(dir, templatePath.Appointmentcreated)

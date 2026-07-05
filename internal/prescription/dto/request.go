@@ -33,7 +33,7 @@ type UpdateRequest struct {
 	UserID         string          `json:"user_id"`
 }
 type PresPatients struct {
-	PatientID      string  `json:"patient_id"`
+	AppointmentID  string  `json:"appointment_id"`
 	OrganisationID string  `json:"organisation_id"`
 	Limit          float64 `json:"limit"`
 	Pageno         float64 `json:"page_no"`

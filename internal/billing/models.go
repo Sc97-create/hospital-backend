@@ -18,13 +18,15 @@ type Invoice struct {
 	UpdatedAt      time.Time `json:"updated_at" gorm:"autoCreateTime"`
 }
 type InvoiceItem struct {
-	ID            string    `json:"id" gorm:"type:uuid;not null;primaryKey"`
-	InvoiceID     string    `json:"invoice_id" gorm:"type:uuid; not null"`
-	MedicineID    string    `json:"medicine_id" gorm:"type:uuid;not null"`
-	BatchNo       string    `json:"batch_no" gorm:"not null"`
-	SubtotalPrice float64   `json:"sub_total_price" gorm:"numeric(10,2);not null"`
-	TotalPrice    float64   `json:"total_price" gorm:"numeric(10,2);not null"`
-	DispensedQty  int       `json:"dispensed_qty" gorm:"default:0;"`
-	Pendingqty    int       `json:"pending_qty" gorm:"default:0;"`
-	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
+	ID                  string    `json:"id" gorm:"type:uuid;not null;primaryKey"`
+	InvoiceID           string    `json:"invoice_id" gorm:"type:uuid;not null"`
+	MedicineID          string    `json:"medicine_id" gorm:"type:uuid;not null"`
+	MedicineInventoryID string    `json:"medicine_inventory_id" gorm:"type:uuid;not null"`
+	PrescriptionItemID  string    `json:"prescription_item_id" gorm:"type:uuid"`
+	BatchNo             string    `json:"batch_no" gorm:"not null"`
+	SubtotalPrice       float64   `json:"sub_total_price" gorm:"numeric(10,2);not null"`
+	TotalPrice          float64   `json:"total_price" gorm:"numeric(10,2);not null"`
+	DispensedQty        int       `json:"dispensed_qty" gorm:"default:0;"`
+	Pendingqty          int       `json:"pending_qty" gorm:"default:0;"`
+	CreatedAt           time.Time `json:"created_at" gorm:"autoCreateTime"`
 }

@@ -14,10 +14,12 @@ import (
 	"hospital-backend/internal/notifications"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
+	"hospital-backend/internal/payments"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/rolepermissions"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/types"
 	"log"
 )
 
@@ -95,6 +97,14 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 	}
 	err = database.PostgreClient.AutoMigrate(&notifications.NotificationAttempts{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&types.MedicineStockMovements{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = payments.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

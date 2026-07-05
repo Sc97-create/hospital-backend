@@ -25,46 +25,33 @@ type InvoiceServ struct {
 func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS *payments.PaymentsService, items *InvoiceItemServ, patientServ *patient.PatientService) *InvoiceServ {
 	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ}
 }
-func (IService *InvoiceServ) CreatePaymentLink(reqPayload dto.CheckoutReq) (bool, error) {
+func (IService *InvoiceServ) CreatePaymentLink(reqPayload dto.CheckoutReq) (string, error) {
 	invoice := IService.toInvoiceModel(reqPayload)
 	tx := IService.db.Begin()
 	err := IService.InvRepo.CreateInvoice(tx, invoice)
 	if err != nil {
 		tx.Rollback()
-		return false, err
+		return "", err
 	}
 	err = IService.InoviceItemS.addInvoiceItems(tx, reqPayload.PrescriptionID, invoice.ID, reqPayload.DispensedItems)
 	if err != nil {
 		tx.Rollback()
-		return false, err
+		return "", err
 	}
 	tx.Commit()
 	patientInfo, err := IService.PatientServ.FindOne(reqPayload.PatientID)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	paymentDto := IService.toPaymentlinkModel(reqPayload, patientInfo, invoice.ID, invoice.InvoiceCode)
 	paymentResponse, err := IService.PaymentServ.StorePaymentandNotifyUser(paymentDto)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if paymentResponse.PaymentURL != "" {
-		return true, nil
+		return paymentResponse.PaymentURL, nil
 	}
-
-	//sub-total-amount correctness calculation
-	//total-amount correctness calculation
-	//total quantity prescribed and given is well within limit
-	//paymentmode is given or no, since it acts as channel
-	// batchno and supplier_id items are given w.r.t to this check that
-	//total should be > 0
-	// emailid and phonenumber provided for patient
-	// paymentmode is cash then what needs to be done
-	//need to send details needed for notification
-	// need to import invoice-item service to insert dispenseitem data
-	//import payment service to store payment and notify user
-
-	return false, nil
+	return paymentResponse.PaymentURL, nil
 }
 func (IService *InvoiceServ) toInvoiceModel(payload dto.CheckoutReq) Invoice {
 	var invoice Invoice
@@ -97,11 +84,14 @@ func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patient
 	paymentdto.Source = Source
 	paymentdto.InitiatedBy = payload.CashierID
 	paymentdto.PatientID = patientInfo.PatientID
-	paymentdto.PaymentID = invoiceCode
+	paymentdto.ReferenceID = invoiceCode
 	paymentdto.InvoiceID = invoiceID
 	return paymentdto
 
 }
 func (IService *InvoiceServ) createCode() string {
 	return fmt.Sprintf("%s-%d", InvPrefix, rand.Intn(9000)+1000)
+}
+func (IService *InvoiceServ) updateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error {
+	return IService.InvRepo.UpdateInvoiceStatus(tx, invoiceID, status)
 }

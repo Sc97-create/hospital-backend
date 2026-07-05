@@ -51,6 +51,25 @@ type PrescriptionListItem struct {
 	CreatedAt    time.Time `json:"created_at"`
 	Status       string    `json:"status"`
 }
+type AppointmentPrescriptionResponse struct {
+	PrescriptionID    string                        `json:"prescription_id"`
+	IssuedAt          time.Time                     `json:"issued_at"`
+	DoctorName        string                        `json:"doctor_name"`
+	PrescriptionItems []AppointmentPrescriptionItem `json:"prescription_items"`
+}
+type AppointmentPrescriptionItem struct {
+	PrescriptionItemID string  `json:"prescription_item_id"`
+	PrescriptionID     string  `json:"prescription_id"`
+	MedicineID         string  `json:"medicine_id"`
+	MedicineName       string  `json:"medicine_name"`
+	MedicineForm       string  `json:"medicine_form"`
+	MedicineStrength   string  `json:"medicine_strength"`
+	Frequency          Freq    `json:"frequency"`
+	DurationDay        float64 `json:"duration_day"`
+	DurationType       string  `json:"duration_type"`
+	FoodInstruction    string  `json:"food_instruction"`
+	Quantity           int     `json:"quantity"`
+}
 type PrescriptionPatientResponse struct {
 	PrescriptionID string    `json:"prescription_id"`
 	DoctorName     string    `json:"doctor_name"`
@@ -65,7 +84,8 @@ type Response struct {
 	Total   int    `json:"total"`
 }
 type PrescriptionQtyInfo struct {
-	PrescriptionID string `json:"prescription_id"`
-	Quantity       int    `json:"quantity"`
-	MedicineID     string `json:"medicine_id"`
+	PrescriptionID    string `json:"prescription_id"`
+	Quantity          int    `json:"quantity"`
+	MedicineID        string `json:"medicine_id"`
+	BalanceAfterDispense int `json:"balance_after_dispense"` // total already dispensed so far
 }

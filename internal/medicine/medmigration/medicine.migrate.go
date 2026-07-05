@@ -14,10 +14,7 @@ func Automigrate(db db.Postgre) error {
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&medicine.MedicineStockMovements{})
-	if err != nil {
-		return err
-	}
+
 	err = db.AutoMigrate(&medicine.MPurchaseEntry{})
 	if err != nil {
 		return err

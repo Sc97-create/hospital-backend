@@ -12,4 +12,3 @@ func NewSMedicineInventory(medInventory RMedicineInventory) *SMedicineInventory 
 func (s *SMedicineInventory) CreateMedicineInventory(db *gorm.DB, medicineInventory []MedicineInventory) error {
 	return s.MedInventory.CreateInventoryInBatch(db, medicineInventory)
 }
-func (s *SMedicineInventory) GetMedicineInfobyBatchNo(batchNo string, supplierID string) (err error)

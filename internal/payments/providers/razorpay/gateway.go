@@ -5,10 +5,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"time"
 
-	"hospital-backend/internal/payments"
 	"hospital-backend/internal/payments/dto"
+	"hospital-backend/pkg/constants"
 )
 
 type gateway struct {
@@ -25,7 +27,7 @@ func NewGateway(razorpayClient *RazorpayConfig, callbackUrl string, webhooksecre
 	}}
 }
 func (g *gateway) Name() string {
-	return payments.ProviderNameRazorpay
+	return constants.ProviderNameRazorpay
 }
 
 func (g *gateway) CreatePayment(ctx context.Context, req dto.CreatePaymentCommand) (dto.CreatePaymentResponse, error) {
@@ -67,11 +69,11 @@ func (g *gateway) mapExternalReq(paymentLinkPayload createPaymentLinkRequest) ma
 func (g *gateway) toCreatePaymentLinkRequest(req dto.CreatePaymentCommand) createPaymentLinkRequest {
 	return createPaymentLinkRequest{
 		Amount:                req.Amount,
-		Currency:              payments.IndCurrnecy,
+		Currency:              req.Currency,
 		AcceptPartial:         false,
 		FirstMinPartialAmount: 0,
 		ExpireBy:              0,
-		ReferenceID:           req.PaymentID,
+		ReferenceID:           req.ReferenceID,
 		Description:           req.Description,
 		Customer: customer{
 			Name:   req.Customer.Name,
@@ -95,4 +97,33 @@ func (g *gateway) VerifySignature(payload []byte, signature string) (bool, error
 		return false, errors.New("payment verification failed")
 	}
 	return true, nil
+}
+func (g *gateway) ParseWebhookEvent(payload []byte) (dto.ParsedWebhookEvent, error) {
+	var webhookEvent WebhookEvent
+	err := json.Unmarshal(payload, &webhookEvent)
+	if err != nil {
+		return dto.ParsedWebhookEvent{}, err
+	}
+	dtowebhookevent := g.toParsedWebhookEvent(webhookEvent, payload)
+	return dtowebhookevent, nil
+}
+func (g *gateway) toParsedWebhookEvent(webhookEvent WebhookEvent, payload []byte) dto.ParsedWebhookEvent {
+	return dto.ParsedWebhookEvent{
+		EventType:         webhookEvent.Event,
+		ProviderEventID:   webhookEvent.AccountID,
+		ProviderLinkID:    webhookEvent.Payload.PaymentLink.Entity.ID,
+		ProviderOrderID:   webhookEvent.Payload.Order.Entity.ID,
+		ProviderPaymentID: webhookEvent.Payload.Payment.Entity.ID,
+		ReferenceID:       webhookEvent.Payload.PaymentLink.Entity.ReferenceID,
+		AmountPaid:        float64(webhookEvent.Payload.Payment.Entity.Amount),
+		AmountTransferred: float64(webhookEvent.Payload.Payment.Entity.AmountTransferred),
+		PaymentStatus:     webhookEvent.Payload.Payment.Entity.Status,
+		PaymentLinkStatus: webhookEvent.Payload.PaymentLink.Entity.Status,
+		PayerVPA:          webhookEvent.Payload.Payment.Entity.UPI.VPA,
+		PayerAccountType:  webhookEvent.Payload.Payment.Entity.UPI.PayerAccountType,
+		PaymentError:      webhookEvent.Payload.Payment.Entity.ErrorDescription,
+		PaymentErrorCode:  webhookEvent.Payload.Payment.Entity.ErrorCode,
+		RawPayload:        payload,
+		PaidAt:            time.Unix(int64(webhookEvent.Payload.Payment.Entity.CreatedAt), 0),
+	}
 }

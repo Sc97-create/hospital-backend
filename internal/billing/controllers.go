@@ -64,8 +64,11 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
-	IB.BillingServ.CreatePaymentLink(checkoutReq)
-	return c.JSON(fiber.Map{"message": "stored"})
+	paymentLink, err := IB.BillingServ.CreatePaymentLink(checkoutReq)
+	if err != nil {
+		return wrapErrors.Wrap(err, c, 409)
+	}
+	return c.JSON(fiber.Map{"message": "stored", "payment_link": paymentLink})
 }
 func (IB *Ibilling) tofinancialMap(financials *params.Payload) (dto.Financial, error) {
 	var finance dto.Financial
@@ -94,10 +97,19 @@ func (IB *Ibilling) toDispenseItems(dispenseItems []*params.Payload) ([]dto.Disp
 		if err != nil {
 			return nil, err
 		}
+		item.MedicineInventoryID, err = each.Getstring("medicine_inventory_id")
+		if err != nil {
+			return nil, err
+		}
+		item.PrescriptionItemID, err = each.Getstring("prescription_item_id")
+		if err != nil {
+			return nil, err
+		}
 		item.BatchNo, err = each.Getstring("batch_no")
 		if err != nil {
 			return nil, err
 		}
+		item.CurrentStockUnits, _ = each.Getint("current_stock_units")
 		item.QuantitySoldUnits, _ = each.GetInt64("quantity_sold_units")
 		item.UnitPriceCharged, _ = each.Getfloat("unit_price_charged")
 		item.ComputedItemTotal, _ = each.Getfloat("computed_item_total")

@@ -11,12 +11,15 @@ type CheckoutReq struct {
 	DispensedItems []DispensedItem
 }
 type DispensedItem struct {
-	MedicineID        string  `json:"medicine_id"`
-	BatchNo           string  `json:"batch_no"`
-	QuantitySoldUnits int64   `json:"quantity_sold_units"`
-	UnitPriceCharged  float64 `json:"unit_price_charged"`
-	ComputedItemTotal float64 `json:"computed_item_total"` //subtotal
-	TotalAmount       float64 `json:"total_amount"`        //totalprice
+	MedicineID          string  `json:"medicine_id"`
+	MedicineInventoryID string  `json:"medicine_inventory_id"`
+	PrescriptionItemID  string  `json:"prescription_item_id"`
+	BatchNo             string  `json:"batch_no"`
+	CurrentStockUnits   int     `json:"current_stock_units"`
+	QuantitySoldUnits   int64   `json:"quantity_sold_units"`
+	UnitPriceCharged    float64 `json:"unit_price_charged"`
+	ComputedItemTotal   float64 `json:"computed_item_total"` //subtotal
+	TotalAmount         float64 `json:"total_amount"`        //totalprice
 }
 type Financial struct {
 	SubtotalAmount float64 `json:"sub_total_amount"`

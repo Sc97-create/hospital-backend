@@ -6,6 +6,7 @@ import (
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/bedmanagement"
 	bedcontroller "hospital-backend/internal/bedmanagement/controllers"
+	"hospital-backend/internal/billing"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
@@ -13,6 +14,7 @@ import (
 	"hospital-backend/internal/medicine"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
+	"hospital-backend/internal/payments"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/roles"
@@ -138,7 +140,7 @@ func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.Prescripti
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
 	prescriptionGrp.Patch("/updatePrescriptions", prescriptionController.AddPrescriptionItems)
 	prescriptionGrp.Get("/getprescriptionbyPid", prescriptionController.FindPrescriptionByID)
-	prescriptionGrp.Post("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionByPatientID)
+	prescriptionGrp.Post("/getPrescriptionByAppointmentID", prescriptionController.GetPrescriptionByPatientID)
 	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
 	prescriptionGrp.Get("getMedicineInfo/:prescription_id", prescriptionController.FindMedicineDetInfo)
 }
@@ -167,4 +169,17 @@ func RegisterOrgSchedule(app *fiber.App, service *admins.OrganisationScheduleSer
 	orgSchedController := admins.NewOrgSchedController(service)
 	orgSched.Post("/create", orgSchedController.Create)
 
+}
+func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ) {
+	version := getVersion(app)
+	billingGrp := version.Group("billing")
+	billingController := billing.NewBillingController(service)
+	billingGrp.Post("/create", billingController.Checkout)
+
+}
+func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, webhook *payments.IWebhookService) {
+	version := getVersion(app)
+	paymentGrp := version.Group("payment")
+	paymentController := payments.NewPaymentController(payment, webhook)
+	paymentGrp.Post("/webhook", paymentController.RazorPayWebhook)
 }

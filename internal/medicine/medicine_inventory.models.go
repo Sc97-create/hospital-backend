@@ -1,13 +1,10 @@
 package medicine
 
 import (
-	"database/sql/driver"
-	"encoding/json"
-	"fmt"
+	"hospital-backend/pkg/types"
 	"time"
 )
 
-type MedPricing MedicinePricing
 type MedicineInventory struct {
 	ID             string    `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	MedicineID     string    `json:"medicine_id" gorm:"type:uuid;not null;index"`
@@ -31,47 +28,19 @@ type MedicineInventory struct {
 	ShelfLocation string `json:"shelf_location" gorm:"type:varchar(100);default:'Unassigned'"` // e.g., "Rack 4-A"
 
 	// --- JSONB PRICING STRUCTURE ---
-	Pricing MedicinePricing `json:"medicine_pricing" gorm:"type:jsonb;not null"`
+	Pricing types.Pricing `json:"medicine_pricing" gorm:"type:jsonb;not null"`
 }
 type MixedMedInventory struct {
-	ID                string          `json:"id"`
-	MedicineID        string          `json:"medicine_id"`
-	BatchNo           string          `json:"batch_no"`
-	ExpiresAt         time.Time       `json:"expiry_at"`
-	MedicineName      string          `json:"medicine_name"`
-	MedForm           string          `json:"med_form"`
-	MedicineStrength  string          `json:"medicine_strength"`
-	ShelfLocation     string          `json:"shelf_location"`
-	PurchaseQtyBoxes  int             `json:"purchase_qty_boxes"`
-	UnitsPerBox       int             `json:"units_per_box"`
-	CurrentStockUnits int             `json:"current_stock_units"`
-	Pricing           MedicinePricing `json:"medicine_pricing"`
-}
-
-type MedicinePricing struct {
-	MRP           float64 `json:"mrp" gorm:"type:numeric(10,2);not null"`
-	UnitPrice     float64 `json:"unit_price" gorm:"type:numeric(10,2)"` // mrp / units_per_box  => units_per_box: in one box how many tablets are there; 30/15=2.00
-	Discount      float64 `json:"discount" gorm:"type:numeric(10,2);not null"`
-	PurchasePrice float64 `json:"purchase_price" gorm:"type:numeric(10,2);not null"`
-	SellingPrice  float64 `json:"selling_price" gorm:"type:numeric(10,2);not null"`
-	DiscountType  string  `json:"discount_type" gorm:"type:varchar(10);not null"`
-	TotalPrice    float64 `json:"total_price" gorm:"type:numeric(10,2);not null"` // (purchase_price-discount)*purchase_qty_boxes
-}
-
-func (S *MedPricing) Scan(value interface{}) error {
-	if value == nil {
-		return nil
-	}
-	switch v := value.(type) {
-	case []byte:
-		return json.Unmarshal(v, &S)
-	case string:
-		return json.Unmarshal([]byte(v), &S)
-	default:
-		return fmt.Errorf("unsupported type: %T", v)
-	}
-
-}
-func (S *MedPricing) Value() (driver.Value, error) {
-	return json.Marshal(S)
+	ID                string        `json:"id"`
+	MedicineID        string        `json:"medicine_id"`
+	BatchNo           string        `json:"batch_no"`
+	ExpiresAt         time.Time     `json:"expiry_at"`
+	MedicineName      string        `json:"medicine_name"`
+	MedForm           string        `json:"med_form"`
+	MedicineStrength  string        `json:"medicine_strength"`
+	ShelfLocation     string        `json:"shelf_location"`
+	PurchaseQtyBoxes  int           `json:"purchase_qty_boxes"`
+	UnitsPerBox       int           `json:"units_per_box"`
+	CurrentStockUnits int           `json:"current_stock_units"`
+	Pricing           types.Pricing `json:"medicine_pricing"`
 }

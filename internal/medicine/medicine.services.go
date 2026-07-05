@@ -3,6 +3,7 @@ package medicine
 import (
 	"fmt"
 	"hospital-backend/internal/medicine/dto"
+	"hospital-backend/pkg/types"
 	"math/rand"
 	"strings"
 	"time"
@@ -74,18 +75,18 @@ func (Mservice *MedicineService) toPurchaseEntry(payload dto.RequestPayload) *MP
 	purchaseEntry.PaymentDueDate = time.Now()
 	return &purchaseEntry
 }
-func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID string, organisationID string) []MedicineStockMovements {
-	var MedMvmt []MedicineStockMovements
+func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID string, organisationID string) []types.MedicineStockMovements {
+	var MedMvmt []types.MedicineStockMovements
 	for _, each := range meds {
-		var medMvmt MedicineStockMovements
+		var medMvmt types.MedicineStockMovements
 		medMvmt.ID = uuid.NewString()
 		medMvmt.MedicineID = each.MedicineID
 		medMvmt.MedicineInventoryID = each.MedInventoryID
 		medMvmt.OrganisationID = organisationID
-		medMvmt.MovementType = Purchase
+		medMvmt.MovementType = types.Purchase
 		medMvmt.QtyChanged = each.PurchaseQtyBoxes * each.UnitPerBoxes
 		medMvmt.CreatedBy = userID
-		medMvmt.SourceType = PurchaseEntry
+		medMvmt.SourceType = types.PurchaseEntry
 		medMvmt.UnitPriceAtTimeOfMvmt = each.SellingPrice / float64(each.UnitPerBoxes)
 		MedMvmt = append(MedMvmt, medMvmt)
 	}

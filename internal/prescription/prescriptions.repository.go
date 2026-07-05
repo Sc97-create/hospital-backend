@@ -18,14 +18,14 @@ func NewPrescriptionDB(db *gorm.DB) *PrescriptionDB {
 type PrescriptionRepositoryInterface interface {
 	CreatePrescription(db *gorm.DB, prescription Prescription) error
 	GetPrescriptionByID(id string) (*Prescription, error)
-	GetPrescriptionsByPatientID(query string, cond ...any) ([]MixPrescriptionData, error)
-	GetPrescriptionByPatientIDCount(cond ...any) (count int64, err error)
+	GetPrescriptionsByAppointmentID(query string, cond ...any) ([]PrescriptionAppointmentData, error)
+	GetPrescriptionByAppointmentIDCount(cond ...any) (count int64, err error)
 	GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error)
 	//UpdatePrescription(prescription Prescription) error
 	DeletePrescription(id string) error
 	FindMany(limit int, offset int, organisationID string) ([]dto.PrescriptionListItem, error)
 	FindPrescriptionByID(query string, id string) (presc Prescription, err error)
-	UpdateStatus(db *gorm.DB, status Status, prescriptionID string) (err error)
+	UpdateStatus(tx *gorm.DB, status Status, prescriptionID string) (err error)
 
 	Count(organisationID string) (int64, error)
 }
@@ -40,11 +40,14 @@ func (pdb *PrescriptionDB) GetPrescriptionByID(id string) (*Prescription, error)
 	return &prescription, err
 }
 
-func (pdb *PrescriptionDB) GetPrescriptionsByPatientID(query string, cond ...any) ([]MixPrescriptionData, error) {
-	var prescriptions []MixPrescriptionData
+func (pdb *PrescriptionDB) GetPrescriptionsByAppointmentID(query string, cond ...any) ([]PrescriptionAppointmentData, error) {
+	var prescriptions []PrescriptionAppointmentData
 
 	err := pdb.db.Raw(query, cond...).Find(&prescriptions).Error
-	return prescriptions, err
+	if err != nil {
+		return nil, err
+	}
+	return prescriptions, nil
 }
 
 func (pdb *PrescriptionDB) GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error) {
@@ -94,10 +97,10 @@ func (pdb *PrescriptionDB) Count(organisationID string) (int64, error) {
 	err := pdb.db.Model(&Prescription{}).Where("organisation_id = ?", organisationID).Count(&count).Error
 	return count, err
 }
-func (pdb *PrescriptionDB) GetPrescriptionByPatientIDCount(cond ...any) (count int64, err error) {
+func (pdb *PrescriptionDB) GetPrescriptionByAppointmentIDCount(cond ...any) (count int64, err error) {
 	err = pdb.db.
 		Model(&Prescription{}).
-		Where("patient_id = ? AND organisation_id = ?", cond...).
+		Where("appointment_id = ? AND organisation_id = ?", cond...).
 		Count(&count).
 		Error
 	if err != nil {
