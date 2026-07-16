@@ -78,7 +78,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	organisationSchedule := admins.NewCommonDB(db)
 	orgschedSrv := admins.NewOrganisationScheduleService(organisationSchedule)
 	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
-	appointmentSrv := appointments.AppointmentContainers(db, *orgschedSrv, notificationContainer.Service)
+	appointmentSrv := appointments.AppointmentContainers(db, orgschedSrv, notificationContainer.Service)
 	prescriptionItemServ := prescription.NewPrescriptionItemService(prescriptionRepo)
 
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)

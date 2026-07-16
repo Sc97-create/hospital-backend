@@ -8,13 +8,19 @@ import (
 )
 
 type AppntmentContainer struct {
-	Appointmentservice *AppointmentService
+	Db                   *gorm.DB
+	Appointmentservice   *AppointmentService
+	OrganisationSchedule *admins.OrganisationScheduleService
+	NotificationService  *service.Notificationservice
 }
 
-func AppointmentContainers(db *gorm.DB, orgschedule admins.OrganisationScheduleService, notificationServ *service.Notificationservice) *AppntmentContainer {
+func AppointmentContainers(db *gorm.DB, orgschedule *admins.OrganisationScheduleService, notificationServ *service.Notificationservice) *AppntmentContainer {
 	appointmentrepo := NewCommonDB(db)
-	appointmentSrv := NewAppointmentService(db, appointmentrepo, &orgschedule, notificationServ)
+	appointmentSrv := NewAppointmentService(db, appointmentrepo, orgschedule, notificationServ)
 	return &AppntmentContainer{
-		Appointmentservice: appointmentSrv,
+		Db:                   db,
+		Appointmentservice:   appointmentSrv,
+		OrganisationSchedule: orgschedule,
+		NotificationService:  notificationServ,
 	}
 }

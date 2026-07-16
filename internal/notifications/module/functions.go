@@ -26,8 +26,9 @@ func (m *Module) Start(ctx context.Context) {
 
 func New(db *gorm.DB, cfg config.Config) (*Module, error) {
 	subjects := map[string]string{
-		"Patient Created":     "Patient Created",
-		"Appointment Created": "Appointment Created",
+		"Patient Created":      "Patient Created",
+		"Appointment Created":  "Appointment Created",
+		"Prescription Created": "Prescription Created",
 	}
 	renderer, err := render.NewHTMLRenderer(cfg.TemplatePath, subjects)
 	if err != nil {
