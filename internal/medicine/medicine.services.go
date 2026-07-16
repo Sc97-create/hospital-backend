@@ -169,13 +169,13 @@ func (Mservice *MedicineService) GetMany(limit int, pageno int) (Med []Medicine,
 	}
 	return
 }
-func (Mservice *MedicineService) SearchMedicine(name string) ([]Medicine, error) {
+func (Mservice *MedicineService) SearchMedicine(name string) ([]dto.SearchMedicineItem, error) {
 	name = strings.TrimSpace(name)
 
 	query := `
 	($1 = ''
-	OR name ILIKE $2
-	OR code ILIKE $2)
+	OR m.name ILIKE $2
+	OR m.code ILIKE $2)
 `
 
 	// prefix match: starts with the provided name (case-insensitive)
@@ -185,7 +185,7 @@ func (Mservice *MedicineService) SearchMedicine(name string) ([]Medicine, error)
 		name,
 		pattern,
 	}
-	return Mservice.Mrepo.FindMany(query, args...)
+	return Mservice.Mrepo.SearchMedicine(query, args...)
 }
 func (Mservice *MedicineService) FindNamesByIds(ids []string) (Med []Medicine, err error) {
 	Med, err = Mservice.Mrepo.FindNamesByIds(ids)

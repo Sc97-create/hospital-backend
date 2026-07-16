@@ -5,20 +5,21 @@ import (
 )
 
 type CreatePaymentCommand struct {
-	InvoiceID   string  `json:"invoice_id"`
-	PatientID   string  `json:"patient_id"`
-	InitiatedBy string  `json:"initiated_by"`
-	Source      string  `json:"source"`
-	Channel     string  `json:"channel"`
-	Amount      float64 `json:"amount"`
-	ReferenceID string  `json:"reference_id"` // invoice code sent to Razorpay as reference_id
-	Currency    string
-	Customer    CustomerInfo
-	Description string
-	ExpiresAt   time.Time
-	Metadata    map[string]string
-	SendSMS     bool
-	SendEmail   bool
+	InvoiceID      string            `json:"invoice_id"`
+	PatientID      string            `json:"patient_id"`
+	InitiatedBy    string            `json:"initiated_by"`
+	Source         string            `json:"source"`
+	Channel        string            `json:"channel"`
+	Amount         float64           `json:"amount"`
+	ReferenceID    string            `json:"reference_id"` // invoice code sent to Razorpay as reference_id
+	Currency       string            `json:"currency"`
+	Customer       CustomerInfo      `json:"customer"`
+	Description    string            `json:"description"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+	Metadata       map[string]string `json:"metadata"`
+	SendSMS        bool              `json:"send_sms"`
+	SendEmail      bool              `json:"send_email"`
+	PrescriptionID string            `json:"prescription_id"`
 	//CallbackURL string
 }
 type CustomerInfo struct {

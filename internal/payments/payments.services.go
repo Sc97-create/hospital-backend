@@ -4,6 +4,7 @@ import (
 	"context"
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
+	"hospital-backend/internal/prescription"
 	"hospital-backend/pkg/constants"
 	"time"
 
@@ -16,10 +17,11 @@ type PaymentsService struct {
 	PaymentsRepository IPaymentsRepository
 	PaymentFactory     *providers.PaymentFactory
 	PaymentAttempt     *SPaymentAttempts
+	PrescriptionStatus PrescriptionStatusUpdater
 }
 
-func NewPaymentsService(db *gorm.DB, paymentsRepository IPaymentsRepository, paymentfactory *providers.PaymentFactory, paymentAttempt *SPaymentAttempts) *PaymentsService {
-	return &PaymentsService{db: db, PaymentsRepository: paymentsRepository, PaymentFactory: paymentfactory, PaymentAttempt: paymentAttempt}
+func NewPaymentsService(db *gorm.DB, paymentsRepository IPaymentsRepository, paymentfactory *providers.PaymentFactory, paymentAttempt *SPaymentAttempts, prescriptionStatus PrescriptionStatusUpdater) *PaymentsService {
+	return &PaymentsService{db: db, PaymentsRepository: paymentsRepository, PaymentFactory: paymentfactory, PaymentAttempt: paymentAttempt, PrescriptionStatus: prescriptionStatus}
 }
 
 func (p *PaymentsService) StorePaymentandNotifyUser(paymentReq dto.CreatePaymentCommand) (paymentRespone dto.CreatePaymentResponse, err error) {
@@ -49,6 +51,11 @@ func (p *PaymentsService) StorePaymentandNotifyUser(paymentReq dto.CreatePayment
 		tx.Rollback()
 		return
 	}
+	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, string(prescription.StatusPaymentLinkCreated))
+	if err != nil {
+		tx.Rollback()
+		return
+	}
 	tx.Commit()
 	return
 }
@@ -59,7 +66,7 @@ func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Pa
 	payment.Channel = paymentReq.Channel
 	payment.Source = paymentReq.Source
 	payment.CreatedAt = time.Now()
-	payment.Currency = constants.IndCurrnecy
+	payment.Currency = paymentReq.Currency
 	//payment.ExpiresAt = paymentReq.ExpiresAt
 	payment.InvoiceID = paymentReq.InvoiceID
 	payment.PatientID = paymentReq.PatientID

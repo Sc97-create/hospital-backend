@@ -22,9 +22,16 @@ type MedicineArray struct {
 	Dosage          string  `json:"dosage"`
 }
 type FindManyRequest struct {
-	OrganisationID string `json:"organisation_id"`
-	Limit          int    `json:"limit"`
-	Offset         int    `json:"offset"`
+	OrganisationID string `query:"organisation_id"`
+	Limit          int    `query:"limit"`
+	Offset         int    `query:"offset"`
+	Search         string `query:"search"`
+}
+type FindByStatusRequest struct {
+	OrganisationID string `query:"organisation_id"`
+	Status         string `query:"status"`
+	Limit          int    `query:"limit"`
+	Offset         int    `query:"offset"`
 }
 type UpdateRequest struct {
 	PrescriptionID string          `json:"prescription_id"`

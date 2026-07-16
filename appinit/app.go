@@ -67,7 +67,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	ModuleRepo := modules.NewModuleDb(db)
 	moduleService := modules.NewModuleService(ModuleRepo)
 	permService := permissions.NewService(PermissionRepo, ModuleRepo)
-	patientService := patient.NewPatientService(patientRepo)
+
 	rolePermissionRepo := rolepermissions.NewRolePermissionDb(db)
 	rolePermService := rolepermissions.NewRolePermissionService(db, rolePermissionRepo)
 	departmentService := department.NewDepartmentService(DeptRepo)
@@ -80,12 +80,21 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
 	appointmentSrv := appointments.AppointmentContainers(db, *orgschedSrv, notificationContainer.Service)
 	prescriptionItemServ := prescription.NewPrescriptionItemService(prescriptionRepo)
-	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice, prescriptionItemServ)
 
 	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
-	paymentcontainer := paymentcontainer.NewContainer(db, *cfg)
+	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, medicineContainer.Medicineservices, appointmentSrv.Appointmentservice, prescriptionItemServ, notificationContainer.Service, orgService, employeeService)
+	patientService := patient.NewPatientService(patientRepo, orgService, notificationContainer.Service)
 	billingRepo := billing.NewDB(db)
-	billingItemServ := billing.NewInvoiceItemServ(billingRepo)
+	billingItemServ := billing.NewInvoiceItemServ(billingRepo, prescriptionItemServ)
+	fulfillment := newPaymentFulfillment(
+		billingItemServ,
+		billingRepo,
+		medicineContainer.MedInventoryService,
+		medicineContainer.MedMvmtService,
+		prescriptionService,
+		prescriptionItemServ,
+	)
+	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, prescriptionService, fulfillment)
 	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService)
 	return &Container{
 		PatientService:         patientService,

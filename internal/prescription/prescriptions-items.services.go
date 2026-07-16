@@ -21,7 +21,7 @@ func (s *PrescriptionItemServ) AddItems(db *gorm.DB, medicine []dto.MedicineArra
 	prescriptionItems := s.toPrescItems(medicine, prescriptionID, userID)
 	err = s.PrescRepo.AddItems(db, prescriptionItems)
 	if err != nil {
-		return
+		return err
 	}
 	return nil
 }
@@ -38,7 +38,7 @@ func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string,
 		pItem.Frequency.Afternoon = each.Afternoon
 		pItem.DurationDay = each.DurationDay
 		pItem.DurationType = s.parseDurationtype(each.DurationType)
-		pItem.Quantity = s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType)
+		pItem.Quantity = int64(s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType))
 		pItem.BalanceAfterDispense = 0
 		pItem.PrescriptionID = pID
 		pItem.Status = constants.StatusPending
@@ -82,8 +82,9 @@ func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, dur
 	}
 	return qty
 }
-func (s *PrescriptionItemServ) GetPrescriptionsByPID(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
-	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, m.name as medicine_name,m.form as medicine_form,m.strength as medicine_strength 
+func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
+	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, 
+	m.name as medicine_name,m.form as medicine_form, m.strength as medicine_strength 
 	from prescription_items p
 	join medicines m on p.medicine_id = m.id
 	where p.prescription_id = $1
@@ -136,7 +137,8 @@ func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]Medicin
                     minv.current_stock_units,
                     minv.units_per_box,
                     minv.pricing,
-                    minv.shelf_location
+                    minv.shelf_location,
+					minv.supplier_id
                 FROM medicine_inventories minv
                 WHERE minv.medicine_id = m.id
                   AND minv.current_stock_units > 0     
@@ -150,9 +152,7 @@ JOIN prescriptions p ON pI.prescription_id = p.id
 JOIN medicines m ON pI.medicine_id = m.id
 WHERE pI.prescription_id = $1;
 	`
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-	defer cancel()
-	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(ctx, query, prescriptionID)
+	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(context.TODO(), query, prescriptionID)
 	if err != nil {
 		return nil, err
 	}
@@ -190,4 +190,16 @@ func (p *PrescriptionItemServ) UpdateIPrescriptionStatus(tx *gorm.DB, prescripti
 		return err
 	}
 	return nil
+}
+func (p *PrescriptionItemServ) GetPrescriptionItemsByPID(pID string) ([]MixedPrescriptionItem, error) {
+	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type, p.quantity,p.food_instruction,m.id as medicine_id, m.name as medicine_name,m.form as medicine_form,
+	m.strength as medicine_strength 
+	from prescription_items p
+	join medicines m on p.medicine_id = m.id
+	where p.prescription_id = $1`
+	prescriptionItems, err := p.PrescRepo.GetItemsByPrescriptionID(query, pID)
+	if err != nil {
+		return nil, err
+	}
+	return prescriptionItems, nil
 }

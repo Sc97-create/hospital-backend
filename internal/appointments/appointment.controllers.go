@@ -129,6 +129,7 @@ func (A *AppointmentController) FindManyByOrganisationID(c *fiber.Ctx) (err erro
 	reqModel.Date, _ = payload.Getstring("date")
 	reqModel.Status, _ = payload.Getstring("status")
 	reqModel.VisitType, _ = payload.Getstring("visit_type")
+	reqModel.Search, _ = payload.Getstring("search")
 	err = A.validateIDs(reqModel.OrganisationID)
 	if err != nil {
 		return errWrap.Wrap(err, c, 409)

@@ -13,11 +13,11 @@ import (
 
 type InvoiceItemServ struct {
 	InvItemRepo      InvoiceItemRepo
-	PrescriptionItem prescription.PrescriptionItemServ
+	PrescriptionItem *prescription.PrescriptionItemServ
 }
 
-func NewInvoiceItemServ(InvoiceItemRepo InvoiceItemRepo) *InvoiceItemServ {
-	return &InvoiceItemServ{InvItemRepo: InvoiceItemRepo}
+func NewInvoiceItemServ(InvoiceItemRepo InvoiceItemRepo, PrescriptionItem *prescription.PrescriptionItemServ) *InvoiceItemServ {
+	return &InvoiceItemServ{InvItemRepo: InvoiceItemRepo, PrescriptionItem: PrescriptionItem}
 }
 
 func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID string, invoiceID string, invoiceItems []dto.DispensedItem) error {
@@ -32,8 +32,8 @@ func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID st
 		if !ok {
 			return fmt.Errorf("medicine %s not found in prescription", each.MedicineID)
 		}
-		remaining := info.Quantity - info.BalanceAfterDispense
-		if int(each.QuantitySoldUnits) > remaining {
+		remaining := info.Quantity - int64(info.BalanceAfterDispense)
+		if int64(each.QuantitySoldUnits) > remaining {
 			return fmt.Errorf("dispensed qty %d exceeds remaining prescribed qty %d for medicine %s",
 				each.QuantitySoldUnits, remaining, each.MedicineID)
 		}
@@ -64,7 +64,7 @@ func (IItemServ *InvoiceItemServ) toInvoiceItem(prescriptionQtyMap map[string]pr
 		item.PrescriptionItemID = each.PrescriptionItemID
 		item.SubtotalPrice = each.ComputedItemTotal
 		item.TotalPrice = each.TotalAmount
-		item.Pendingqty = prescriptionQtyMap[each.MedicineID].Quantity - int(each.QuantitySoldUnits) // need to take from db
+		item.Pendingqty = int(prescriptionQtyMap[each.MedicineID].Quantity - int64(each.QuantitySoldUnits)) // need to take from db
 		InvoiceItems = append(InvoiceItems, item)
 	}
 	return InvoiceItems

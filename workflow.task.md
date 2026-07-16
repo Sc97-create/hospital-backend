@@ -240,4 +240,13 @@ appointment preview
  join departments as d on a.department_id=d.id
  join prescriptions as pr on a.prescription_id=p.id
  where organisation_id = $1
+
+ 
   `
+  ```json
+  {
+    "prescription_id":"d0c9aee7-2d51-4949-acba-24d81519bfc0","patient_id":"8c030f6d-9d43-4140-9923-a0a5ffa1a5ec","cashier_id":"842950d9-c907-4ce0-953d-7fa608cae28a",
+    "supplier_id":"sample-supplier-id","organisation_id":"ae472600-7ed0-464e-b800-e813f2064581",
+    "financials":{"discount_amount":0,"sub_total_amount":22.4,"tax_amount":1.1199999999999999,"total_amount":23.52},
+    "dispense_items":[{"medicine_id":"43a75235-c7be-435d-96da-448d24c35994","medicine_inventory_id":"a1b2c3d4-1111-2222-3333-444455556666","prescription_item_id":"714ab692-d868-45d9-8958-44612206389e","batch_no":"BAT-3188","current_stock_units":40,"quantity_sold_units":4,"unit_price_charged":2.1,"computed_item_total":8.4,"total_amount":8.4},{"medicine_id":"43a75235-c7be-435d-96da-448d24c35994","medicine_inventory_id":"4efcf266-226f-423e-94b0-68235c023968","prescription_item_id":"9fbff488-3995-4936-8ca7-8debea3e403e","batch_no":"BAT-4029","current_stock_units":150,"quantity_sold_units":7,"unit_price_charged":2,"computed_item_total":14,"total_amount":14}]}
+  ```

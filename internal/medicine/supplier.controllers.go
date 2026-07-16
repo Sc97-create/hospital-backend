@@ -1,6 +1,7 @@
 package medicine
 
 import (
+	"fmt"
 	"hospital-backend/internal/medicine/dto"
 	wrapError "hospital-backend/shared/error"
 	"hospital-backend/shared/params"
@@ -15,6 +16,8 @@ type SupplierController struct {
 type ISupplierController interface {
 	CreateSupplier(c *fiber.Ctx) error
 	GetSupplierByID(c *fiber.Ctx) error
+	GetSupplierByOrgID(c *fiber.Ctx) error
+	GetTotalCount(c *fiber.Ctx) error
 }
 
 func NewSupplierController(SupplierService *SupplierService) *SupplierController {
@@ -82,6 +85,47 @@ func (SController *SupplierController) GetSupplierByID(c *fiber.Ctx) error {
 	resp := make(map[string]interface{})
 	resp["code"] = 200
 	resp["data"] = supplier
+	err = c.JSON(resp)
+	if err != nil {
+		return wrapError.Wrap(err, c, 500)
+	}
+	return nil
+}
+
+func (SController *SupplierController) GetSupplierByOrgID(c *fiber.Ctx) error {
+	organisationID := c.Query("organisation_id")
+	if organisationID == "" {
+		return wrapError.Wrap(fmt.Errorf("organisation_id is required"), c, 400)
+	}
+	limit := c.QueryInt("limit", 10)
+	pageNo := c.QueryInt("page_no", 1)
+	suppliers, total, err := SController.SupplierSrv.GetSupplierByOrgID(organisationID, limit, pageNo)
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	resp := make(map[string]interface{})
+	resp["code"] = 200
+	resp["data"] = suppliers
+	resp["total"] = total
+	err = c.JSON(resp)
+	if err != nil {
+		return wrapError.Wrap(err, c, 500)
+	}
+	return nil
+}
+
+func (SController *SupplierController) GetTotalCount(c *fiber.Ctx) error {
+	organisationID := c.Query("organisation_id")
+	if organisationID == "" {
+		return wrapError.Wrap(fmt.Errorf("organisation_id is required"), c, 400)
+	}
+	total, err := SController.SupplierSrv.GetTotalCount(organisationID)
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	resp := make(map[string]interface{})
+	resp["code"] = 200
+	resp["total"] = total
 	err = c.JSON(resp)
 	if err != nil {
 		return wrapError.Wrap(err, c, 500)

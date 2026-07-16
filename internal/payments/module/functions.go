@@ -13,9 +13,15 @@ import (
 type Module struct {
 	Paymentservice *payments.PaymentsService
 	PaymentAttempt *payments.SPaymentAttempts
+	WebhookService *payments.IWebhookService
 }
 
-func NewModule(db *gorm.DB, cfg config.Config) *Module {
+func NewModule(
+	db *gorm.DB,
+	cfg config.Config,
+	prescriptionStatus payments.PrescriptionStatusUpdater,
+	fulfillment payments.IPaymentFulfillment,
+) *Module {
 	paymentsDB := payments.NewPaymentsDB(db)
 
 	razorpayClient := razorpay.NewClient(
@@ -28,7 +34,7 @@ func NewModule(db *gorm.DB, cfg config.Config) *Module {
 	gateway := providers.NewPaymentFactory(razorpaygateway)
 	paymentAttempts := payments.NewPaymentAttempts(paymentsDB)
 
-	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts)
-
-	return &Module{Paymentservice: paymentsService, PaymentAttempt: paymentAttempts}
+	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts, prescriptionStatus)
+	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment)
+	return &Module{Paymentservice: paymentsService, PaymentAttempt: paymentAttempts, WebhookService: webhookService}
 }

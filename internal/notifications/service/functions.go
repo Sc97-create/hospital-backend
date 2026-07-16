@@ -64,6 +64,56 @@ func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 		notificationData.PatientEmail, _ = v["patient_email_id"].(string)
 		notificationData.PatientID, _ = v["patient_id"].(string)
 		notificationData.OrganisationID, _ = v["organisation_id"].(string)
+		notificationData.PatientCode, _ = v["patient_code"].(string)
+		notificationData.PatientPhone, _ = v["patient_phone"].(string)
+		notificationData.ConsultedOn, _ = v["consulted_on"].(string)
+		notificationData.PrescriptionCode, _ = v["prescription_code"].(string)
+		notificationData.PrescriptionSummary, _ = v["prescription_summary"].(string)
+		notificationData.Medicines = parsePrescriptionMedicines(v["medicines"])
 	}
 	return notificationData
+}
+
+func parsePrescriptionMedicines(raw any) []dto.PrescriptionMedicine {
+	switch medicineList := raw.(type) {
+	case []map[string]interface{}:
+		medicines := make([]dto.PrescriptionMedicine, 0, len(medicineList))
+		for _, med := range medicineList {
+			medicines = append(medicines, dto.PrescriptionMedicine{
+				Name:            mapString(med, "medicine_name"),
+				Form:            mapString(med, "medicine_form"),
+				Strength:        mapString(med, "medicine_strength"),
+				Dosage:          mapString(med, "dosage"),
+				Duration:        mapString(med, "duration"),
+				Quantity:        mapString(med, "quantity"),
+				FoodInstruction: mapString(med, "food_instruction"),
+			})
+		}
+		return medicines
+	case []interface{}:
+		medicines := make([]dto.PrescriptionMedicine, 0, len(medicineList))
+		for _, item := range medicineList {
+			med, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			medicines = append(medicines, dto.PrescriptionMedicine{
+				Name:            mapString(med, "medicine_name"),
+				Form:            mapString(med, "medicine_form"),
+				Strength:        mapString(med, "medicine_strength"),
+				Dosage:          mapString(med, "dosage"),
+				Duration:        mapString(med, "duration"),
+				Quantity:        mapString(med, "quantity"),
+				FoodInstruction: mapString(med, "food_instruction"),
+			})
+		}
+		return medicines
+	default:
+		return nil
+	}
+}
+
+func mapString(data map[string]interface{}, key string) string {
+	value, _ := data[key].(string)
+	return value
 }

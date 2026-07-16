@@ -27,6 +27,7 @@ type IPrescriptionController interface {
 	AddPrescriptionItems(c *fiber.Ctx) error
 	// DeletePrescription(c *fiber.Ctx) error
 	FindMany(c *fiber.Ctx) error
+	FindByStatus(c *fiber.Ctx) error
 	FindPrescriptionByID(c *fiber.Ctx) error
 	UpdateStatus(c *fiber.Ctx) error
 	FindMedicineDetInfo(c *fiber.Ctx) error
@@ -75,16 +76,36 @@ func (PresC *PrescriptionController) FindMany(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
-	prescriptions, totalcount, err := PresC.PService.FindMany(requestmap.Limit, requestmap.Offset, requestmap.OrganisationID)
+	prescriptions, totalcount, err := PresC.PService.FindMany(requestmap.Limit, requestmap.Offset, requestmap.OrganisationID, requestmap.Search)
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
-	var response dto.FindManyResponse
-	response.Code = "200"
-	response.Message = "prescriptions fetched successfully"
-	response.Data = prescriptions
-	response.TotalCount = totalcount
-	return c.Status(200).JSON(response)
+	return c.Status(200).JSON(PresC.toPrescriptionListResponse(prescriptions, totalcount))
+}
+
+func (PresC *PrescriptionController) FindByStatus(c *fiber.Ctx) error {
+	var requestmap dto.FindByStatusRequest
+	err := c.QueryParser(&requestmap)
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	prescriptions, totalcount, err := PresC.PService.FindByStatus(requestmap.Limit, requestmap.Offset, requestmap.OrganisationID, requestmap.Status)
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	return c.Status(200).JSON(PresC.toPrescriptionListResponse(prescriptions, totalcount))
+}
+
+func (PresC *PrescriptionController) toPrescriptionListResponse(prescriptions []dto.PrescriptionListItem, totalCount int64) dto.FindManyResponse {
+	if prescriptions == nil {
+		prescriptions = []dto.PrescriptionListItem{}
+	}
+	return dto.FindManyResponse{
+		Code:       "200",
+		Message:    "prescriptions fetched successfully",
+		Data:       prescriptions,
+		TotalCount: totalCount,
+	}
 }
 
 func (Presc *PrescriptionController) AddPrescriptionItems(c *fiber.Ctx) error {
@@ -129,7 +150,7 @@ func (PresC *PrescriptionController) FindPrescriptionByID(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	medicines, totalCount, err := PresC.PItemService.GetPrescriptionsByPID(prescriptionID, limit, offset)
+	medicines, totalCount, err := PresC.PItemService.GetPrescriptionsByPIDWithLimit(prescriptionID, limit, offset)
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}

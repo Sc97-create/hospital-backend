@@ -10,7 +10,7 @@ import (
 type MedicineList []PrescriptionItems
 type TabletFreq Freq
 type MedBatchList []MedicineBatch
-type PrescriptionItemList []PrescriptionItem
+type PrescriptionItemList []PrescriptionItemResponse
 
 type Prescription struct {
 	ID             string `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey;column:id"`
@@ -38,7 +38,7 @@ type PrescriptionItems struct {
 	PrescriptionID       string    `json:"prescription_id" gorm:"type:uuid;"`
 	MedicineID           string    `json:"medicine_id" gorm:"type:uuid"`
 	Frequency            Freq      `json:"frequency" gorm:"column:frequency;type:jsonb"`
-	Quantity             int       `json:"quantity" gorm:"column:quantity"`
+	Quantity             int64     `json:"quantity" gorm:"column:quantity"`
 	DurationDay          float64   `json:"duration_day" gorm:"column:duration_day"`
 	DurationType         string    `json:"duration_type" gorm:"column:duration_type"`
 	FoodInstruction      string    `json:"food_instruction" gorm:"column:food_instruction"`
@@ -60,15 +60,16 @@ type MixPrescriptionData struct {
 	OrganisationID string `json:"organisation_id"`
 }
 type MixedPrescriptionItem struct {
-	PrescriptionID  string  `json:"prescription_id"`
-	Frequency       Freq    `json:"frequency"`
-	DurationDay     float64 `json:"duration_day"`
-	DurationType    string  `json:"duration_type"`
-	Quantity        int     `json:"quantity"`
-	FoodInstruction string  `json:"food_instruction"`
-	MedicineName    string  `json:"medicine_name"`
-	MedicineForm    string  `json:"medicine_form"`
-	MedicineID      string  `json:"medicine_id"`
+	PrescriptionID   string  `json:"prescription_id"`
+	Frequency        Freq    `json:"frequency"`
+	DurationDay      float64 `json:"duration_day"`
+	DurationType     string  `json:"duration_type"`
+	Quantity         int     `json:"quantity"`
+	FoodInstruction  string  `json:"food_instruction"`
+	MedicineName     string  `json:"medicine_name"`
+	MedicineForm     string  `json:"medicine_form"`
+	MedicineID       string  `json:"medicine_id"`
+	MedicineStrength string  `json:"medicine_strength"`
 }
 type MedicineDetInfo struct {
 	PrescriptionCode      string       `json:"prescription_code"`
@@ -92,7 +93,20 @@ type PrescriptionAppointmentData struct {
 	DoctorName            string               `gorm:"column:doctor_name"`
 	PrescriptionItemList  PrescriptionItemList `gorm:"column:prescription_item_list;type:jsonb"`
 }
-type PrescriptionItem struct {
+
+type PrescriptionNotificationData struct {
+	PrescriptionCode string               `gorm:"column:prescription_code"`
+	ConsultedOn      time.Time            `gorm:"column:consulted_on"`
+	HospitalName     string               `gorm:"column:hospital_name"`
+	DoctorName       string               `gorm:"column:doctor_name"`
+	PatientName      string               `gorm:"column:patient_name"`
+	PatientEmail     string               `gorm:"column:patient_email_id"`
+	PatientCode      string               `gorm:"column:patient_code"`
+	PatientID        string               `gorm:"column:patient_id"`
+	OrganisationID   string               `gorm:"column:organisation_id"`
+	Medicines        PrescriptionItemList `gorm:"column:medicines;type:jsonb"`
+}
+type PrescriptionItemResponse struct {
 	PrescriptionItemID string  `json:"prescription_item_id"`
 	PrescriptionID     string  `json:"prescription_id"`
 	MedicineID         string  `json:"medicine_id"`
@@ -113,6 +127,7 @@ type MedicineBatch struct {
 	UnitsPerBox       int               `json:"units_per_box"`
 	Pricing           DBMedicinePricing `json:"pricing"` // Kept as raw JSONB pricing
 	ShelfLocation     string            `json:"shelf_location"`
+	SupplierID        string            `json:"supplier_id"`
 }
 type DBMedicinePricing struct {
 	MRP              float64 `json:"mrp"`

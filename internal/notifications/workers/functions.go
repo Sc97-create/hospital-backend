@@ -44,7 +44,7 @@ func (w *Worker) process(ctx context.Context) {
 		}
 		err = sender.Send(ctx, dto.Request{
 			Recipient: n.ProviderPayload.RecipientEmail,
-			Subject:   n.NotificationType,
+			Subject:   n.ProviderPayload.Subject,
 			Content:   n.ProviderPayload.Content,
 		})
 		if err != nil {

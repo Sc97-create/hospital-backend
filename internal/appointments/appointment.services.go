@@ -9,6 +9,7 @@ import (
 	"hospital-backend/internal/appointments/dto"
 	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/internal/notifications/service"
+	"hospital-backend/pkg/constants"
 	"strings"
 	"time"
 
@@ -61,8 +62,8 @@ func (s *AppointmentService) CreateApptmnt(requestPayload dto.NewApptmnt) (resp 
 	}
 	var notificationRequest notificationdto.CreateRequest
 	notificationRequest.Data = data
-	notificationRequest.NotificationType = AppointmentCreatedEvent
-	notificationRequest.Subject = AppointmentCreateSubject
+	notificationRequest.NotificationType = constants.AppointmentCreatedEvent
+	notificationRequest.Subject = constants.AppointmentCreateSubject
 	ctx := context.Background()
 	s.NotificationServ.Create(ctx, notificationRequest)
 	return
@@ -308,13 +309,15 @@ func (s *AppointmentService) GetAppointmentsByOrgID(reqModel dto.GetDataReq) ([]
 	dblimit, dbpageno := s.parsepagination(reqModel.Limit, reqModel.PageNo)
 	reqModel.Dblimit = dblimit
 	reqModel.Dbpageno = dbpageno
+	reqModel.Search = strings.TrimSpace(reqModel.Search)
+
 	query, args := s.buildQueryWithFilters(reqModel)
 	data, err := s.Repository.FindManyByOrganisationID(query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
-	countQuery := "SELECT COUNT(*) FROM appointments WHERE organisation_id = $1"
-	total, err := s.Repository.GetTotalAppointmentsByOrgID(countQuery, reqModel.OrganisationID)
+	countQuery, countArgs := s.buildCountQueryWithFilters(reqModel)
+	total, err := s.Repository.GetTotalAppointmentsByOrgID(countQuery, countArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -322,6 +325,54 @@ func (s *AppointmentService) GetAppointmentsByOrgID(reqModel dto.GetDataReq) ([]
 
 	return response, total, nil
 }
+
+func (s *AppointmentService) appendAppointmentFilters(query string, reqModel dto.GetDataReq, args []interface{}, argsPos int) (string, []interface{}, int) {
+	if reqModel.Date != "" {
+		switch reqModel.Date {
+		case Today:
+			query += `
+		AND a.appointment_date >= CURRENT_DATE
+		AND a.appointment_date < CURRENT_DATE + INTERVAL '1 day'
+	`
+		case Tomorrow:
+			query += `
+		AND a.appointment_date >= CURRENT_DATE + INTERVAL '1 day'
+		AND a.appointment_date < CURRENT_DATE + INTERVAL '2 day'`
+		case ThisWeek:
+			query += `
+		AND a.appointment_date >= DATE_TRUNC('week', CURRENT_DATE)
+		AND a.appointment_date < DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '7 days'
+	`
+		case ThisMonth:
+			query += `
+		AND a.appointment_date >= DATE_TRUNC('month', CURRENT_DATE)
+		AND a.appointment_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+	`
+		}
+	}
+	if reqModel.DoctorID != "" {
+		query += fmt.Sprintf(" AND a.doctor_id = $%d", argsPos)
+		args = append(args, reqModel.DoctorID)
+		argsPos++
+	}
+	if reqModel.Status != "" {
+		query += fmt.Sprintf(" AND a.status = $%d", argsPos)
+		args = append(args, reqModel.Status)
+		argsPos++
+	}
+	if reqModel.VisitType != "" {
+		query += fmt.Sprintf(" AND a.visit_type = $%d", argsPos)
+		args = append(args, reqModel.VisitType)
+		argsPos++
+	}
+	if reqModel.Search != "" {
+		query += fmt.Sprintf(" AND (p.name ILIKE $%d OR a.appointment_code ILIKE $%d)", argsPos, argsPos)
+		args = append(args, "%"+reqModel.Search+"%")
+		argsPos++
+	}
+	return query, args, argsPos
+}
+
 func (s *AppointmentService) buildQueryWithFilters(reqModel dto.GetDataReq) (string, []interface{}) {
 	baseQuery := `
 		SELECT
@@ -344,52 +395,23 @@ func (s *AppointmentService) buildQueryWithFilters(reqModel dto.GetDataReq) (str
 		
 	`
 	args := []interface{}{reqModel.OrganisationID}
-	argsPos := 2
-	if reqModel.Date != "" {
-		switch reqModel.Date {
-		case Today:
-			baseQuery += `
-		AND a.appointment_date >= CURRENT_DATE
-		AND a.appointment_date < CURRENT_DATE + INTERVAL '1 day'
-	`
-
-		case Tomorrow:
-			baseQuery += `
-		AND a.appointment_date >= CURRENT_DATE + INTERVAL '1 day'
-		AND a.appointment_date < CURRENT_DATE + INTERVAL '2 day'`
-
-		case ThisWeek:
-			baseQuery += `
-		AND a.appointment_date >= DATE_TRUNC('week', CURRENT_DATE)
-		AND a.appointment_date < DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '7 days'
-	`
-
-		case ThisMonth:
-			baseQuery += `
-		AND a.appointment_date >= DATE_TRUNC('month', CURRENT_DATE)
-		AND a.appointment_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-	`
-		}
-	}
-	if reqModel.DoctorID != "" {
-		baseQuery += fmt.Sprintf(" AND a.doctor_id = $%d", argsPos)
-		args = append(args, reqModel.DoctorID)
-		argsPos++
-	}
-	if reqModel.Status != "" {
-		baseQuery += fmt.Sprintf(" AND a.status = $%d", argsPos)
-		args = append(args, reqModel.Status)
-		argsPos++
-	}
-	if reqModel.VisitType != "" {
-		baseQuery += fmt.Sprintf(" AND a.visit_type = $%d", argsPos)
-		args = append(args, reqModel.VisitType)
-		argsPos++
-	}
+	baseQuery, args, argsPos := s.appendAppointmentFilters(baseQuery, reqModel, args, 2)
 	baseQuery += " ORDER BY a.start_time ASC"
 	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
 	args = append(args, reqModel.Dblimit, reqModel.Dbpageno)
 	return baseQuery, args
+}
+
+func (s *AppointmentService) buildCountQueryWithFilters(reqModel dto.GetDataReq) (string, []interface{}) {
+	countQuery := `
+		SELECT COUNT(*)
+		FROM appointments a
+		JOIN patients p ON a.patient_id = p.id
+		WHERE a.organisation_id = $1
+	`
+	args := []interface{}{reqModel.OrganisationID}
+	countQuery, args, _ = s.appendAppointmentFilters(countQuery, reqModel, args, 2)
+	return countQuery, args
 }
 
 func (s *AppointmentService) parsepagination(limit float64, pageno float64) (int, int) {

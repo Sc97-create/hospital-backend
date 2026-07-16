@@ -138,6 +138,7 @@ func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.Prescripti
 	prescriptionController := prescription.NewPrescriptionController(service, pitemService)
 	prescriptionGrp.Post("/create", prescriptionController.CreatePrescription)
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
+	prescriptionGrp.Get("/getByStatus", prescriptionController.FindByStatus)
 	prescriptionGrp.Patch("/updatePrescriptions", prescriptionController.AddPrescriptionItems)
 	prescriptionGrp.Get("/getprescriptionbyPid", prescriptionController.FindPrescriptionByID)
 	prescriptionGrp.Post("/getPrescriptionByAppointmentID", prescriptionController.GetPrescriptionByPatientID)
@@ -149,6 +150,8 @@ func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
 	supplierGrp := version.Group("supplier")
 	supplierController := medicine.NewSupplierController(service)
 	supplierGrp.Get("/getSupplierByID", supplierController.GetSupplierByID)
+	supplierGrp.Get("/getSupplierByOrgID", supplierController.GetSupplierByOrgID)
+	supplierGrp.Get("/getTotalCount", supplierController.GetTotalCount)
 	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
 }
 func RegisterAppointments(app *fiber.App, service *appointments.AppointmentService) {

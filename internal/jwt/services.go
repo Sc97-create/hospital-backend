@@ -24,12 +24,12 @@ func NewJwtService(refreshRepo RefreshtokenRepo, cfg *config.Config) *JwtService
 	return &JwtService{RefreshtokenRepo: refreshRepo, Cfg: cfg}
 }
 
-func (j *JwtService) InsertRefreshToken(token string, expiry time.Time, userID string) error {
+func (j *JwtService) InsertRefreshToken(token string, expiry time.Time, userID string, refreshID string) error {
 	var refreshToken RefreshToken
 	refreshToken.TokenHash = token
 	refreshToken.UserID = userID
 	refreshToken.ExpiresAt = expiry
-	refreshToken.ID = uuid.NewString()
+	refreshToken.ID = refreshID
 	refreshToken.CreatedAt = time.Now()
 	err := j.RefreshtokenRepo.Insert(&refreshToken)
 	if err != nil {

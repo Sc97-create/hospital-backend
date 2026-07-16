@@ -1,12 +1,19 @@
 package prescription
 
 import (
+	"context"
 	"fmt"
 	"hospital-backend/internal/appointments"
+	"hospital-backend/internal/employee"
 	"hospital-backend/internal/medicine"
+	notificationdto "hospital-backend/internal/notifications/dto"
+	"hospital-backend/internal/notifications/service"
+	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/prescription/dto"
+	"hospital-backend/pkg/constants"
 	"hospital-backend/shared/commonfunctions"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,10 +26,13 @@ type PrescriptionService struct {
 	medicineService         *medicine.MedicineService
 	appointmentService      *appointments.AppointmentService
 	prescriptionItemService *PrescriptionItemServ
+	notificationService     *service.Notificationservice
+	orgService              *organisation.OrganisationService
+	userService             *employee.EmployeeService
 }
 
-func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService, prescriptionItemServ *PrescriptionItemServ) *PrescriptionService {
-	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ}
+func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService, prescriptionItemServ *PrescriptionItemServ, notificationService *service.Notificationservice, orgService *organisation.OrganisationService, userService *employee.EmployeeService) *PrescriptionService {
+	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ, notificationService: notificationService, orgService: orgService, userService: userService}
 }
 
 func (p *PrescriptionService) CreatePrescription(requestdto dto.CreatePrescriptionRequest) (string, error) {
@@ -47,8 +57,81 @@ func (p *PrescriptionService) CreatePrescription(requestdto dto.CreatePrescripti
 		return "", err
 	}
 	tx.Commit()
-
+	//fire and forget
 	return prescription.ID, nil
+}
+func (p *PrescriptionService) getNotificationDetails(prescriptionID string) (map[string]interface{}, error) {
+	query := `
+SELECT
+	p.code AS prescription_code,
+	p.created_at AS consulted_on,
+	p.patient_id,
+	p.organisation_id,
+	o.organisation_name AS hospital_name,
+	u.username AS doctor_name,
+	pa.name AS patient_name,
+	pa.email_id AS patient_email_id,
+	pa.uh_id AS patient_code,
+	COALESCE(
+		(
+			SELECT json_agg(
+				json_build_object(
+					'medicine_name', m.name,
+					'medicine_form', m.form,
+					'medicine_strength', m.strength,
+					'frequency', pi.frequency,
+					'duration_day', pi.duration_day,
+					'duration_type', pi.duration_type,
+					'food_instruction', pi.food_instruction,
+					'quantity', pi.quantity
+				) ORDER BY pi.created_at
+			)
+			FROM prescription_items pi
+			JOIN medicines m ON m.id = pi.medicine_id
+			WHERE pi.prescription_id = p.id
+		),
+		'[]'::json
+	) AS medicines
+FROM prescriptions p
+JOIN organisations o ON o.id = p.organisation_id
+JOIN users u ON u.id = p.prescribed_by
+JOIN patients pa ON pa.id = p.patient_id
+WHERE p.id = $1`
+
+	data, err := p.prescriptionRepo.GetNotificationDetails(query, prescriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.parseNotificationStruct(data), nil
+}
+func (p *PrescriptionService) parseNotificationStruct(data PrescriptionNotificationData) map[string]interface{} {
+	var notificationData = map[string]interface{}{
+		"hospital_name":     data.HospitalName,
+		"doctor_name":       data.DoctorName,
+		"patient_name":      data.PatientName,
+		"patient_email_id":  data.PatientEmail,
+		"patient_code":      data.PatientCode,
+		"consulted_on":      data.ConsultedOn.Format("02 Jan 2006"),
+		"prescription_code": data.PrescriptionCode,
+		"patient_id":        data.PatientID,
+		"organisation_id":   data.OrganisationID,
+		"prescribed_by":     data.DoctorName,
+	}
+	var medicines []map[string]interface{}
+	for _, each := range data.Medicines {
+		medicines = append(medicines, map[string]interface{}{
+			"medicine_name":     each.MedicineName,
+			"medicine_form":     each.MedicineForm,
+			"medicine_strength": each.MedicineStrength,
+			"dosage":            fmt.Sprintf("%.0f-%.0f-%.0f", each.Frequency.Morning, each.Frequency.Afternoon, each.Frequency.Night),
+			"duration":          fmt.Sprintf("%.0f %s", each.DurationDay, each.DurationType),
+			"quantity":          fmt.Sprintf("%d", each.Quantity),
+			"food_instruction":  each.FoodInstruction,
+		})
+	}
+	notificationData["medicines"] = medicines
+	return notificationData
 }
 func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionRequest) Prescription {
 	return Prescription{
@@ -64,24 +147,89 @@ func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionReq
 	}
 }
 func (p *PrescriptionService) AddPrescriptionItems(payload dto.UpdateRequest) (err error) {
-	return p.prescriptionItemService.AddItems(p.DB, payload.MedicineArr, payload.PrescriptionID, payload.UserID)
+	err = p.prescriptionItemService.AddItems(p.DB, payload.MedicineArr, payload.PrescriptionID, payload.UserID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func (p *PrescriptionService) generateCode() string {
 	date := time.Now().Format("060102") // YYMMDD
 	random := rand.Intn(9000) + 1000
 	return fmt.Sprintf("PRX%s%d", date, random)
 }
-func (p *PrescriptionService) FindMany(limit int, offset int, organisationID string) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
+func (p *PrescriptionService) FindMany(limit int, offset int, organisationID string, search string) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
 	skip := commonfunctions.Getskip(limit, offset)
-	prescription, err = p.prescriptionRepo.FindMany(limit, skip, organisationID)
+	search = strings.TrimSpace(search)
+
+	listQuery := `SELECT p.id, p.code, e.username AS prescribed_by, p.patient_id, p.appointment_id, p.created_at, p.status as status
+	FROM prescriptions AS p
+	JOIN users AS e ON p.prescribed_by = e.id
+	WHERE p.organisation_id = ?`
+	listArgs := []interface{}{organisationID}
+
+	countQuery := `SELECT COUNT(*) FROM prescriptions WHERE organisation_id = ?`
+	countArgs := []interface{}{organisationID}
+
+	if search != "" {
+		listQuery += ` AND p.code ILIKE ?`
+		listArgs = append(listArgs, "%"+search+"%")
+		countQuery += ` AND code ILIKE ?`
+		countArgs = append(countArgs, "%"+search+"%")
+	}
+
+	listQuery += ` LIMIT ? OFFSET ?`
+	listArgs = append(listArgs, limit, skip)
+
+	prescription, err = p.prescriptionRepo.FindMany(listQuery, listArgs...)
 	if err != nil {
 		return
 	}
-	totalInt, err = p.prescriptionRepo.Count(organisationID)
+	if prescription == nil {
+		prescription = []dto.PrescriptionListItem{}
+	}
+	totalInt, err = p.prescriptionRepo.Count(countQuery, countArgs...)
 	if err != nil {
 		return
 	}
+
 	return prescription, totalInt, nil
+}
+
+func (p *PrescriptionService) FindByStatus(limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error) {
+	parsedStatus, err := p.parseFilterStatus(status)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	skip := commonfunctions.Getskip(limit, offset)
+	prescriptions, err := p.prescriptionRepo.FindByStatus(organisationID, parsedStatus, limit, skip)
+	if err != nil {
+		return nil, 0, err
+	}
+	if prescriptions == nil {
+		prescriptions = []dto.PrescriptionListItem{}
+	}
+
+	total, err := p.prescriptionRepo.CountByStatus(organisationID, parsedStatus)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return prescriptions, total, nil
+}
+
+func (p *PrescriptionService) parseFilterStatus(status string) (Status, error) {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case string(StatusDraft):
+		return StatusDraft, nil
+	case string(StatusSent):
+		return StatusSent, nil
+	case string(StatusPaymentLinkCreated):
+		return StatusPaymentLinkCreated, nil
+	default:
+		return "", fmt.Errorf("status must be %s, %s, or %s", StatusDraft, StatusSent, StatusPaymentLinkCreated)
+	}
 }
 
 func (p *PrescriptionService) mapMedicineNametoID(medicines []medicine.Medicine) map[string]string {
@@ -128,9 +276,20 @@ func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointm
 		}
 		return nil
 	})
+	//send notification to patient
 	if err != nil {
 		return err
 	}
+	var notificationRequest notificationdto.CreateRequest
+	notifData, err := p.getNotificationDetails(prescriptionID)
+	if err != nil {
+		return err
+	}
+	notificationRequest.Data = notifData
+	notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
+	notificationRequest.Subject = constants.PrescriptionCreatedSubject
+	ctx := context.Background()
+	p.notificationService.Create(ctx, notificationRequest)
 
 	return nil
 }
@@ -231,10 +390,12 @@ func (p *PrescriptionService) parsePagination(limit float64, pageno float64) (in
 func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
 	var Pstatus Status
 	switch status {
-	case "fully_dispensed":
+	case string(StatusFullyDispensed):
 		Pstatus = StatusFullyDispensed
-	case "partially_dispensed":
+	case string(StatusPartiallyDispensed):
 		Pstatus = StatusPartiallyDispensed
+	case string(StatusPaymentLinkCreated):
+		Pstatus = StatusPaymentLinkCreated
 	default:
 		return fmt.Errorf("invalid status")
 	}

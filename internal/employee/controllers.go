@@ -87,27 +87,18 @@ func (e *EmployeeController) FindByID(c *fiber.Ctx) (err error) {
 	return c.Status(200).JSON(fiber.Map{"data": user, "message": "user fetched successfully"})
 }
 func (e *EmployeeController) FindMany(c *fiber.Ctx) (err error) {
-	param, err := params.New(c)
+	limit := c.Query("limit")
+	pageNo := c.Query("page_no")
+	organisationID := c.Query("organisation_id")
+	employees, total, err := e.EmployeeService.FindMany(limit, pageNo, organisationID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	limit, err := param.Getint("limit")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	pageno, err := param.Getint("page_no")
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-
-	users, err := e.EmployeeService.FindMany(limit, pageno)
-	if err != nil {
-		return wrapError.Wrap(err, c, 409)
-	}
-	resp := make(map[string]any)
-	resp["data"] = users
-	resp["code"] = 200
-	err = c.JSON(&resp)
+	var response dto.EmployeeListResponse
+	response.Data = employees
+	response.Total = total
+	response.Code = 200
+	err = c.Status(200).JSON(&response)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}

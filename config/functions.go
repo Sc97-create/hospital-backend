@@ -40,7 +40,14 @@ func Load() (*Config, error) {
 	smtpPassword := viper.GetString("SMTP_PASSWORD")
 	smtpPort := viper.GetInt("SMTP_PORT")
 	smtpUsername := viper.GetString("SMTP_USERNAME")
-
+	razorpayCallbackUrl := viper.GetString("RAZORPAY_CALLBACK_URL")
+	razorpayWebhookSecret := viper.GetString("RAZORPAY_WEBHOOK_SECRET")
+	razorpayApiKey := viper.GetString("RAZORPAY_API_KEY")
+	razorpayApiSecret := viper.GetString("RAZORPAY_API_SECRET")
+	razorpayBaseUrl := viper.GetString("RAZORPAY_BASE_URL")
+	if razorpayBaseUrl == "" {
+		razorpayBaseUrl = "https://api.razorpay.com/v1"
+	}
 	return &Config{
 		AppEnv:         viper.GetString("APP_ENV"),
 		ServerPort:     port,
@@ -64,6 +71,15 @@ func Load() (*Config, error) {
 			SMTPPort:     smtpPort,
 			SMTPUsername: smtpUsername,
 			SMTPPassword: smtpPassword,
+		},
+		RazorPayClient: RazorPayClient{
+			CallbackUrl: razorpayCallbackUrl,
+			RPayConfig: RazorpayConfig{
+				ApiKey:    razorpayApiKey,
+				ApiSecret: razorpayApiSecret,
+				BaseUrl:   razorpayBaseUrl,
+			},
+			WebhookSecret: razorpayWebhookSecret,
 		},
 	}, nil
 }

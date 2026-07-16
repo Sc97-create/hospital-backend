@@ -20,11 +20,11 @@ type IWebhookService struct {
 	PaymentsService   *PaymentsService
 	PaymentAttempts   *SPaymentAttempts
 	PaymentFactory    *providers.PaymentFactory
-	CommonInterface   ICommonInterface
+	Fulfillment       IPaymentFulfillment
 }
 
-func NewWebhookService(db *gorm.DB, webhookRepository IWebhookRepository, paymentsService *PaymentsService, paymentAttempts *SPaymentAttempts, paymentFactory *providers.PaymentFactory, commonInterface ICommonInterface) *IWebhookService {
-	return &IWebhookService{db: db, WebhookRepository: webhookRepository, PaymentsService: paymentsService, PaymentAttempts: paymentAttempts, PaymentFactory: paymentFactory, CommonInterface: commonInterface}
+func NewWebhookService(db *gorm.DB, webhookRepository IWebhookRepository, paymentsService *PaymentsService, paymentAttempts *SPaymentAttempts, paymentFactory *providers.PaymentFactory, fulfillment IPaymentFulfillment) *IWebhookService {
+	return &IWebhookService{db: db, WebhookRepository: webhookRepository, PaymentsService: paymentsService, PaymentAttempts: paymentAttempts, PaymentFactory: paymentFactory, Fulfillment: fulfillment}
 }
 func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provider string) (bool, error) {
 	gateway, err := w.PaymentFactory.GetProvider(provider)
@@ -103,14 +103,14 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			bulkMedicineMvmt = append(bulkMedicineMvmt, eachMedicineMvmt)
 
 			// atomically decrement medicine inventory stock by dispensed qty
-			err = w.CommonInterface.UpdateMedInventoryStock(begin, each.MedicineInventoryID, each.DispensedQty)
+			err = w.Fulfillment.UpdateMedInventoryStock(begin, each.MedicineInventoryID, each.DispensedQty)
 			if err != nil {
 				begin.Rollback()
 				return false, err
 			}
 
 			// increment balance_after_dispense on prescription item
-			err = w.CommonInterface.UpdateDispenseItemQty(begin, each.PrescriptionItemID, each.DispensedQty)
+			err = w.Fulfillment.UpdateDispenseItemQty(begin, each.PrescriptionItemID, each.DispensedQty)
 			if err != nil {
 				begin.Rollback()
 				return false, err
@@ -118,10 +118,10 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			// item-level status: fully or partially dispensed
 			newBalance := each.AlreadyDispensed + each.DispensedQty
 			if newBalance >= each.PrescribedQty {
-				err = w.CommonInterface.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusFullyDispensed)
+				err = w.Fulfillment.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusFullyDispensed)
 			} else {
 				allFullyDispensed = false // at least one item still pending
-				err = w.CommonInterface.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusPartiallyDispensed)
+				err = w.Fulfillment.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusPartiallyDispensed)
 			} // item-level status updated
 			if err != nil {
 				begin.Rollback()
@@ -130,7 +130,7 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 		}
 
 		// bulk insert all stock movement records
-		err = w.CommonInterface.CreateMedicineMvmt(begin, bulkMedicineMvmt)
+		err = w.Fulfillment.CreateMedicineMvmt(begin, bulkMedicineMvmt)
 		if err != nil {
 			begin.Rollback()
 			return false, err
@@ -141,12 +141,12 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 		if allFullyDispensed {
 			prescStatus = constants.StatusFullyDispensed
 		}
-		err = w.CommonInterface.UpdateExtPrescriptionStatus(begin, medicineInventoryDet[0].PrescriptionID, prescStatus)
+		err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, medicineInventoryDet[0].PrescriptionID, prescStatus)
 		if err != nil {
 			begin.Rollback()
 			return false, err
 		}
-		err = w.CommonInterface.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.InvoicePaid)
+		err = w.Fulfillment.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.InvoicePaid)
 		if err != nil {
 			begin.Rollback()
 			return false, err
@@ -161,7 +161,7 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			begin.Rollback()
 			return false, err
 		}
-		err = w.CommonInterface.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.InvoiceUnpaid)
+		err = w.Fulfillment.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.InvoiceUnpaid)
 		if err != nil {
 			begin.Rollback()
 			return false, err
@@ -226,7 +226,7 @@ func (w *IWebhookService) getInvoiceForUpdate(paymentID string) (Payments, error
 }
 func (w *IWebhookService) getMedInventoryForUpdate(invoiceID string) ([]invoiceDto.MedInvoiceItemResponse, error) {
 
-	medicineInventoryDet, err := w.CommonInterface.GetMedicineInventoryDetByInvoiceID(invoiceID)
+	medicineInventoryDet, err := w.Fulfillment.GetMedicineInventoryDetByInvoiceID(invoiceID)
 	if err != nil {
 		return nil, err
 	}

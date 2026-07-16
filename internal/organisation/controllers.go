@@ -78,7 +78,7 @@ func (OC *OrganisationController) UpdateOrganisationLoc(c *fiber.Ctx) (err error
 }
 func (OC *OrganisationController) GetByID(c *fiber.Ctx) (err error) {
 	organisationID := c.Params("organisation_id")
-	organisation, err := OC.Service.GetByID(organisationID)
+	organisation, err := OC.Service.GetOrgByID(organisationID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}

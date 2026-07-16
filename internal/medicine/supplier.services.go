@@ -3,6 +3,7 @@ package medicine
 import (
 	"fmt"
 	"hospital-backend/internal/medicine/dto"
+	"hospital-backend/shared/commonfunctions"
 	"math/rand"
 	"time"
 
@@ -22,6 +23,43 @@ func (SService *SupplierService) CretateSupplier(supplier dto.Supplier) error {
 }
 func (SService *SupplierService) GetSupplierByID(supplierID string) (Supplier, error) {
 	return SService.SupplierRepo.GetSupplierByID(supplierID)
+}
+func (SService *SupplierService) GetSupplierByOrgID(organisationID string, limit int, pageNo int) ([]dto.SupplierListItem, int64, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if pageNo <= 0 {
+		pageNo = 1
+	}
+	offset := commonfunctions.Getskip(limit, pageNo)
+	suppliers, err := SService.SupplierRepo.GetSupplierByOrgID(organisationID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := SService.GetTotalCount(organisationID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return SService.toSupplierList(suppliers), total, nil
+}
+func (SService *SupplierService) GetTotalCount(organisationID string) (int64, error) {
+	return SService.SupplierRepo.CountSupplierByOrgID(organisationID)
+}
+func (SService *SupplierService) toSupplierList(suppliers []Supplier) []dto.SupplierListItem {
+	list := make([]dto.SupplierListItem, 0, len(suppliers))
+	for _, each := range suppliers {
+		list = append(list, dto.SupplierListItem{
+			ID:             each.ID,
+			SupplierCode:   each.SupplierCode,
+			Name:           each.Name,
+			ContactNumber:  each.ContactNumber,
+			Email:          each.Email,
+			PaymentTerms:   string(each.PaymentTerms),
+			SupplierStatus: string(each.SupplierStatus),
+			CreatedAt:      each.CreatedAt.Format("02 Jan 2006"),
+		})
+	}
+	return list
 }
 func (SService *SupplierService) toSupplier(supplier dto.Supplier) Supplier {
 	return Supplier{

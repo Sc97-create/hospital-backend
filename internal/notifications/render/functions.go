@@ -15,38 +15,48 @@ type TemplateConfig struct {
 }
 
 type HTMLRenderer struct {
-	templates map[string]*template.Template
-	subjects  map[string]string
+	templates  map[string]*template.Template
+	subjects   map[string]string
+	withLayout map[string]bool
 }
 
 func NewHTMLRenderer(templatePath config.NotificationTemplateFilepath, subjects map[string]string) (*HTMLRenderer, error) {
 
 	r := &HTMLRenderer{
-		templates: make(map[string]*template.Template),
-		subjects:  subjects,
+		templates:  make(map[string]*template.Template),
+		subjects:   subjects,
+		withLayout: make(map[string]bool),
 	}
 	files := createFilepath(templatePath)
 
+	layoutTemplates := map[string]bool{
+		"appointment_created":  true,
+		"patient_created":      true,
+		"prescription_created": true,
+	}
+
 	for key, file := range files {
+		var (
+			tmpl       *template.Template
+			err        error
+			usesLayout bool
+		)
 
-		// 	if file.IsDir() {
-		// 		continue
-		// 	}
-
-		// 	if filepath.Ext(file.Name()) != ".tmpl" {
-		// 		continue
-		// 	}
-
-		// 	fullPath := filepath.Join(
-		// 		templatePath,
-		// 		file.Name(),
-		// 	)
-
-		tmpl, err := template.ParseFiles(file)
+		if layoutTemplates[key] {
+			layoutPath := filepath.Join(filepath.Dir(file), "layout.tmpl")
+			tmpl, err = template.ParseFiles(layoutPath, file)
+			usesLayout = true
+		} else {
+			tmpl, err = template.ParseFiles(file)
+		}
 		if err != nil {
 			return nil, err
 		}
+
 		r.templates[key] = tmpl
+		if usesLayout {
+			r.withLayout[key] = true
+		}
 	}
 
 	return r, nil
@@ -87,7 +97,13 @@ func (r *HTMLRenderer) Render(notificationType string, data any) (string, error)
 
 	var buf bytes.Buffer
 
-	if err := tmpl.Execute(&buf, data); err != nil {
+	var err error
+	if r.withLayout[notificationType] {
+		err = tmpl.ExecuteTemplate(&buf, "layout", data)
+	} else {
+		err = tmpl.Execute(&buf, data)
+	}
+	if err != nil {
 		return "", err
 	}
 

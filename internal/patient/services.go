@@ -1,9 +1,14 @@
 package patient
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	notificationdto "hospital-backend/internal/notifications/dto"
+	"hospital-backend/internal/notifications/service"
+	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient/dto"
+	"hospital-backend/pkg/constants"
 	"math/rand"
 	"strconv"
 	"time"
@@ -12,13 +17,19 @@ import (
 )
 
 type PatientService struct {
-	PRepo PatientRepository
+	PRepo         PatientRepository
+	OrgService    *organisation.OrganisationService
+	notifications *service.Notificationservice
 }
 
-func NewPatientService(p PatientRepository) *PatientService {
-	return &PatientService{PRepo: p}
+func NewPatientService(p PatientRepository, orgService *organisation.OrganisationService, notifications *service.Notificationservice) *PatientService {
+	return &PatientService{PRepo: p, OrgService: orgService, notifications: notifications}
 }
 func (p *PatientService) CreatePatientSrv(payload dto.PatientInfo) (string, error) {
+	org, err := p.OrgService.GetOrgByID(payload.OrganisationID)
+	if err != nil {
+		return "", err
+	}
 	age, weight, err := p.ValidatePatient(payload)
 	if err != nil {
 		return "", err
@@ -31,7 +42,29 @@ func (p *PatientService) CreatePatientSrv(payload dto.PatientInfo) (string, erro
 	if err != nil {
 		return "", err
 	}
+
+	notificationData, err := p.parseNotificationDetails(patientModel, org)
+	if err != nil {
+		return "", err
+	}
+	patientModel.OrganisationID = org.ID
+	var notificationRequest notificationdto.CreateRequest
+	notificationRequest.Data = notificationData
+	notificationRequest.NotificationType = constants.PatientCreatedEvent
+	notificationRequest.Subject = constants.PatientCreatedSubject
+	ctx := context.Background()
+	p.notifications.Create(ctx, notificationRequest) //fire and forget
 	return patientModel.ID, nil
+}
+func (p *PatientService) parseNotificationDetails(patientModel Patient, orgData organisation.Organisation) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"patient_name":     patientModel.Name,
+		"patient_email_id": patientModel.EmailID,
+		"patient_code":     patientModel.UHID,
+		"patient_id":       patientModel.ID,
+		"organisation_id":  orgData.ID,
+		"hospital_name":    orgData.OrganisationName,
+	}, nil
 }
 func (p *PatientService) ValidatePatient(payload dto.PatientInfo) (int, float64, error) {
 	if payload.Name == "" {

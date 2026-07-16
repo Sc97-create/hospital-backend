@@ -87,7 +87,7 @@ func (OService *OrganisationService) UpdateOrganisationLoc(payloadReques dto.Org
 	}
 	return
 }
-func (Oservice *OrganisationService) GetByID(organisationID string) (Organisation, error) {
+func (Oservice *OrganisationService) GetOrgByID(organisationID string) (Organisation, error) {
 	Organisation, err := Oservice.OrganisationRepo.GetOrganisationByID(organisationID)
 	if err != nil {
 		return Organisation, err

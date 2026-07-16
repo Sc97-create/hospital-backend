@@ -1,5 +1,27 @@
-{{define "content"}}
-<p style="margin:0 0 16px 0;">Dear {{.PatientName}},</p>
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Care Hospital</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f4f6f8; padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="padding:24px 28px; background-color:#2c3e50; color:#ffffff;">
+                <h1 style="margin:0; font-size:20px; font-weight:bold; letter-spacing:0.3px;">
+                  City Care Hospital
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px; color:#333333; font-size:15px; line-height:1.6;">
+                
+<p style="margin:0 0 16px 0;">Dear Ravi Kumar,</p>
 
 <p style="margin:0 0 20px 0;">
   Your consultation has been completed and your prescription has been generated. Please find the details below.
@@ -8,10 +30,10 @@
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f9fafb; border-radius:6px; border:1px solid #eef0f2; margin-bottom:24px;">
   <tr>
     <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px; width:40%;">
-      Prescription Code
+      Appointment Code
     </td>
     <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
-      {{.PrescriptionCode}}
+      APT-1024
     </td>
   </tr>
   <tr>
@@ -19,7 +41,7 @@
       Consultation Date
     </td>
     <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
-      {{.ConsultedOn}}
+      09 Jul 2026
     </td>
   </tr>
   <tr>
@@ -27,7 +49,7 @@
       Doctor
     </td>
     <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
-      Dr. {{.DoctorName}}
+      Dr. Meera Sharma
     </td>
   </tr>
   <tr>
@@ -35,7 +57,7 @@
       Hospital
     </td>
     <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold;">
-      {{.HospitalName}}
+      City Care Hospital
     </td>
   </tr>
 </table>
@@ -53,46 +75,69 @@
     <td style="padding:12px 10px; color:#ffffff; font-size:12px; font-weight:bold;">Qty</td>
     <td style="padding:12px 10px; color:#ffffff; font-size:12px; font-weight:bold;">Instructions</td>
   </tr>
-  {{range .Medicines}}
+  
   <tr style="background-color:#ffffff;">
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#2c3e50; font-size:13px; font-weight:bold;">
-      {{.Name}}
+      Paracetamol
     </td>
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
-      {{.Form}}{{if .Strength}} / {{.Strength}}{{end}}
+      Tablet / 500mg
     </td>
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
-      {{.Dosage}}
+      1-0-1
     </td>
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
-      {{.Duration}}
+      5 days
     </td>
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
-      {{.Quantity}}
+      15
     </td>
     <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
-      {{.FoodInstruction}}
+      After food
     </td>
   </tr>
-  {{else}}
-  <tr>
-    <td colspan="6" style="padding:14px 10px; border-top:1px solid #eef0f2; color:#888888; font-size:13px; text-align:center;">
-      No medicines listed on this prescription.
+  
+  <tr style="background-color:#ffffff;">
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#2c3e50; font-size:13px; font-weight:bold;">
+      Amoxicillin
+    </td>
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
+      Capsule / 250mg
+    </td>
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
+      1-1-1
+    </td>
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
+      7 days
+    </td>
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
+      21
+    </td>
+    <td style="padding:12px 10px; border-top:1px solid #eef0f2; color:#555555; font-size:13px;">
+      Before food
     </td>
   </tr>
-  {{end}}
+  
 </table>
 
-{{if .PrescriptionSummary}}
+
 <p style="margin:20px 0 8px 0; color:#2c3e50; font-size:15px; font-weight:bold;">
   Additional Notes
 </p>
 <p style="margin:0 0 20px 0; color:#555555; font-size:14px; line-height:1.6; background-color:#f9fafb; border-radius:6px; padding:14px 16px; border:1px solid #eef0f2;">
-  {{.PrescriptionSummary}}
+  Take plenty of fluids and rest for 2 days.
 </p>
-{{end}}
+
 
 <p style="margin:20px 0 0 0; color:#666666; font-size:14px;">
   Please follow the prescribed medication schedule and contact the hospital if you have any questions.
 </p>
-{{end}}
+
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

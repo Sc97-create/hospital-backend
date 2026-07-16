@@ -5,6 +5,7 @@ import (
 	"hospital-backend/internal/admins"
 	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/bedmanagement"
+	"hospital-backend/internal/billing"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
@@ -105,6 +106,10 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 	}
 	err = payments.Migrate(database.PostgreClient)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = billing.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

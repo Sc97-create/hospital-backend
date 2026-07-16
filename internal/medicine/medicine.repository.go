@@ -1,11 +1,16 @@
 package medicine
 
-import "gorm.io/gorm"
+import (
+	"hospital-backend/internal/medicine/dto"
+
+	"gorm.io/gorm"
+)
 
 type MedicineRepository interface {
 	CreateInBatches(db *gorm.DB, M []Medicine) (err error)
 	FindOne(id string) (*Medicine, error)
 	FindMany(query string, args ...any) ([]Medicine, error)
+	SearchMedicine(query string, args ...any) ([]dto.SearchMedicineItem, error)
 	Update(id string, update map[string]interface{}) error
 	FindNamesByIds([]string) ([]Medicine, error)
 	GetMedicineByID(medicineID string) (medicine Medicine, err error)
@@ -32,6 +37,35 @@ func (MRepo *MedicineRepo) FindMany(query string, args ...any) (Med []Medicine, 
 		return
 	}
 	return
+}
+func (MRepo *MedicineRepo) SearchMedicine(query string, args ...any) ([]dto.SearchMedicineItem, error) {
+	var results []dto.SearchMedicineItem
+	sql := `
+		SELECT
+			m.id,
+			m.name,
+			m.form,
+			m.strength,
+			m.hsn_code,
+			m.reorder_level,
+			m.max_stock_target,
+			COALESCE((
+				SELECT mi.shelf_location
+				FROM medicine_inventories mi
+				WHERE mi.medicine_id = m.id
+				ORDER BY mi.created_at DESC
+				LIMIT 1
+			), '') AS shelf_location
+		FROM medicines m
+		WHERE ` + query
+	err := MRepo.db.Raw(sql, args...).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	if results == nil {
+		results = []dto.SearchMedicineItem{}
+	}
+	return results, nil
 }
 func (Mrepo *MedicineRepo) Update(id string, updates map[string]interface{}) (err error) {
 	err = Mrepo.db.Model(&Medicine{}).Where("id=?", id).Updates(updates).Error

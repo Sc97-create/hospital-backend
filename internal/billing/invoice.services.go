@@ -7,6 +7,7 @@ import (
 	patientDto "hospital-backend/internal/patient/dto"
 	"hospital-backend/internal/payments"
 	paymentDto "hospital-backend/internal/payments/dto"
+	"hospital-backend/pkg/constants"
 	"math/rand"
 	"time"
 
@@ -86,6 +87,9 @@ func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patient
 	paymentdto.PatientID = patientInfo.PatientID
 	paymentdto.ReferenceID = invoiceCode
 	paymentdto.InvoiceID = invoiceID
+	paymentdto.Currency = constants.IndCurrnecy
+	paymentdto.PrescriptionID = payload.PrescriptionID
+
 	return paymentdto
 
 }

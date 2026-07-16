@@ -64,6 +64,9 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
+	/*
+
+	 */
 	paymentLink, err := IB.BillingServ.CreatePaymentLink(checkoutReq)
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)

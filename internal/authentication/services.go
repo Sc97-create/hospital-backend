@@ -23,6 +23,13 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	if err != nil {
 		return dto.LoginResponse{}, err
 	}
+	if user == nil {
+		return dto.LoginResponse{}, errors.New("user not found")
+	}
+	verified, err := a.comparePwd(user.PasswordHash, L.Password)
+	if err != nil || !verified {
+		return dto.LoginResponse{}, errors.New("invalid credentials")
+	}
 	err = a.validateCredentials(L)
 	if err != nil {
 		return dto.LoginResponse{}, err
@@ -48,7 +55,7 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 		if err != nil {
 			return dto.LoginResponse{}, errors.New("failed to generate refresh token")
 		}
-		err = a.JwtService.InsertRefreshToken(claims.RefereshToken, claims.ExpiresAt, user.ID)
+		err = a.JwtService.InsertRefreshToken(claims.RefereshToken, claims.ExpiresAt, user.ID, claims.JTI)
 		if err != nil {
 			return dto.LoginResponse{}, errors.New("failed to save refresh token")
 		}
@@ -63,6 +70,7 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	response.UserID = user.ID
 	response.Token = token
 	response.RefreshToken = refreshToken
+	response.OrganisationID = user.OrganisationID
 	return response, nil
 }
 func (a *UserService) validateCredentials(L dto.LoginUser) error {

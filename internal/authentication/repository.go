@@ -1,19 +1,26 @@
 package authentication
 
-import "hospital-backend/internal/employee"
+import (
+	"errors"
+	"hospital-backend/internal/employee"
+)
 
 type UserRepository interface {
 	GetUserID(username string) (user *employee.User, err error)
 	UpdateLastLoginAttempt(userID string, lastLoginAttempt int) error
 }
 
-func (A *AuthRepo) GetUserID(username string) (user *employee.User, err error) {
+func (A *AuthRepo) GetUserID(username string) (*employee.User, error) {
+	var user employee.User
 	query := `select id,password_hash,last_login_attempt, organisation_id from users where email_id=$1`
-	err = A.db.Raw(query, username).Scan(&user).Error
+	err := A.db.Raw(query, username).Scan(&user).Error
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	if user.ID == "" {
+		return nil, errors.New("user not found")
+	}
+	return &user, nil
 }
 
 func (A *AuthRepo) UpdateLastLoginAttempt(userID string, lastLoginAttempt int) error {
