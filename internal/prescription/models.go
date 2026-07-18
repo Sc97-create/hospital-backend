@@ -96,6 +96,22 @@ type PrescriptionAppointmentData struct {
 	PrescriptionItemList  PrescriptionItemList `gorm:"column:prescription_item_list;type:jsonb"`
 }
 
+type MedicineBatch struct {
+	BatchID           string            `json:"batch_id"`
+	BatchNo           string            `json:"batch_no"`
+	ExpiresAt         string            `json:"expires_at"`
+	CurrentStockUnits int               `json:"current_stock_units"`
+	UnitsPerBox       int               `json:"units_per_box"`
+	Pricing           DBMedicinePricing `json:"pricing"` // Kept as raw JSONB pricing
+	ShelfLocation     string            `json:"shelf_location"`
+}
+type DBMedicinePricing struct {
+	MRP              float64 `json:"mrp"`
+	UnitPrice        float64 `json:"unit_price"`    // MRP / units_per_box
+	SellingPrice     float64 `json:"selling_price"` // Target strip/box selling price
+	UnitSellingPrice float64 `json:"unit_selling_price"`
+}
+
 type PrescriptionNotificationData struct {
 	PrescriptionCode string               `gorm:"column:prescription_code"`
 	ConsultedOn      time.Time            `gorm:"column:consulted_on"`
@@ -120,22 +136,6 @@ type PrescriptionItemResponse struct {
 	FoodInstruction    string  `json:"food_instruction"`
 	DurationDay        float64 `json:"duration_day"`
 	DurationType       string  `json:"duration_type"`
-}
-type MedicineBatch struct {
-	BatchID           string            `json:"batch_id"`
-	BatchNo           string            `json:"batch_no"`
-	ExpiresAt         string            `json:"expires_at"`
-	CurrentStockUnits int               `json:"current_stock_units"`
-	UnitsPerBox       int               `json:"units_per_box"`
-	Pricing           DBMedicinePricing `json:"pricing"` // Kept as raw JSONB pricing
-	ShelfLocation     string            `json:"shelf_location"`
-	SupplierID        string            `json:"supplier_id"`
-}
-type DBMedicinePricing struct {
-	MRP              float64 `json:"mrp"`
-	UnitPrice        float64 `json:"unit_price"`    // MRP / units_per_box
-	SellingPrice     float64 `json:"selling_price"` // Target strip/box selling price
-	UnitSellingPrice float64 `json:"unit_selling_price"`
 }
 
 func (pil *PrescriptionItemList) Scan(value interface{}) error {
