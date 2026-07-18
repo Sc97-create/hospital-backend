@@ -2,7 +2,11 @@
 <<<<<<< HEAD
 
 =======
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 type Invoice struct {
 	ID              string        `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	PrescriptionID  *string       `gorm:"type:uuid" json:"prescription_id,omitempty"`
@@ -22,7 +26,11 @@ type Invoice struct {
 <<<<<<< HEAD
 
 =======
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 type InvoiceItem struct {
 	ID            string  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	InvoiceID     string  `gorm:"type:uuid;not null;index" json:"invoice_id"`
@@ -41,7 +49,11 @@ type InvoiceItem struct {
 =======
 
 ## payments
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 explained schema
 Column	     Type	          Why?
 id	         UUID	           Internal primary key
@@ -65,7 +77,11 @@ deleted_at	Soft delete	         GORM
 <<<<<<< HEAD
 
 =======
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 Column	            Type	Why?
 id	                UUID	PK
 payment_id	        UUID	FK
@@ -153,7 +169,11 @@ provider_data	                 Provider fields
 gateway_response	             Raw refund response
 created_at	                          Audit
 updated_at	                          Audit
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 
 
 
@@ -161,7 +181,11 @@ updated_at	                          Audit
 <<<<<<< HEAD
 
 =======
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 type TransactionHistory struct {
 	ID              string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	InvoiceID       string    `gorm:"type:uuid;not null;index" json:"invoice_id"`
@@ -179,7 +203,11 @@ type TransactionHistory struct {
 1. checkout api is called with below payload
 =======
 1) checkout api is called with below payload
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 
 {
   "prescription_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
@@ -264,7 +292,11 @@ architecture for next 5 years we can think of
                           │
                  Modular Monolith
                           │
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
  ┌─────────────┬─────────────┬─────────────┬─────────────┐
  │ Auth        │ Patients    │ Billing     │ Payments    │
  ├─────────────┼─────────────┼─────────────┼─────────────┤
@@ -310,7 +342,11 @@ This design keeps operational complexity low while giving you a clean path to sc
           ┌────────────┴────────────┐
           │                         │
           ▼                         ▼
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
  Payment Attempt #1         Payment Attempt #2
           │                         │
           │                         ▼
@@ -905,5 +941,9 @@ invoice example lifecycle
                 ↓
 
                 Update Invoice
+<<<<<<< HEAD
 >>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
+=======
+>>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
+>>>>>>> 430891a (conflict resolved.)
 
