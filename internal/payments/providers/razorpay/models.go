@@ -24,37 +24,26 @@ type paymentLinkResponse struct {
 }
 
 type createPaymentLinkRequest struct {
-	Amount float64 `json:"amount"`
-
-	Currency string `json:"currency"`
-
-	AcceptPartial bool `json:"accept_partial"`
-
-	FirstMinPartialAmount int64 `json:"first_min_partial_amount"`
-
-	ExpireBy int64 `json:"expire_by"`
-
-	ReferenceID string `json:"reference_id"`
-
-	Description string `json:"description"`
-
-	Customer customer `json:"customer"`
-
-	Notify notify `json:"notify"`
-
-	ReminderEnable bool `json:"reminder_enable"`
-
-	Notes map[string]string `json:"notes"`
-
-	CallbackURL string `json:"callback_url"`
-
-	CallbackMethod string `json:"callback_method"`
+	Amount                int64             `json:"amount"`
+	Currency              string            `json:"currency"`
+	AcceptPartial         bool              `json:"accept_partial"`
+	FirstMinPartialAmount int64             `json:"first_min_partial_amount,omitempty"`
+	ExpireBy              int64             `json:"expire_by,omitempty"`
+	ReferenceID           string            `json:"reference_id"`
+	Description           string            `json:"description"`
+	Customer              customer          `json:"customer"`
+	Notify                notify            `json:"notify"`
+	ReminderEnable        bool              `json:"reminder_enable"`
+	Notes                 map[string]string `json:"notes,omitempty"`
+	CallbackURL           string            `json:"callback_url,omitempty"`
+	CallbackMethod        string            `json:"callback_method,omitempty"`
+	UPILink               bool              `json:"upi_link,omitempty"`
 }
 
 type customer struct {
-	Name   string `json:"name"`
-	Email  string `json:"email"`
-	Mobile string `json:"mobile"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Contact string `json:"contact"`
 }
 
 type notify struct {

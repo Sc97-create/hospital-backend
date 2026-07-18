@@ -112,8 +112,8 @@ func (IB *Ibilling) toDispenseItems(dispenseItems []*params.Payload) ([]dto.Disp
 		if err != nil {
 			return nil, err
 		}
-		item.CurrentStockUnits, _ = each.Getint("current_stock_units")
-		item.QuantitySoldUnits, _ = each.GetInt64("quantity_sold_units")
+		item.CurrentStockUnits, _ = each.Getfloat("current_stock_units")
+		item.QuantitySoldUnits, _ = each.Getfloat("quantity_sold_units")
 		item.UnitPriceCharged, _ = each.Getfloat("unit_price_charged")
 		item.ComputedItemTotal, _ = each.Getfloat("computed_item_total")
 		item.TotalAmount, err = each.Getfloat("total_amount")

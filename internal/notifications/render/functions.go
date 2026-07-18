@@ -2,12 +2,23 @@ package render
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
-	"hospital-backend/config"
 	"html/template"
-	"os"
-	"path/filepath"
+	"io/fs"
+	"path"
 	"strings"
+)
+
+// templateFS embeds all notification templates into the binary so the
+// application does not depend on OS-specific filesystem paths at runtime.
+//
+//go:embed templates/*.tmpl
+var templateFS embed.FS
+
+const (
+	templateDir = "templates"
+	layoutFile  = "templates/layout.tmpl"
 )
 
 type TemplateConfig struct {
@@ -20,14 +31,13 @@ type HTMLRenderer struct {
 	withLayout map[string]bool
 }
 
-func NewHTMLRenderer(templatePath config.NotificationTemplateFilepath, subjects map[string]string) (*HTMLRenderer, error) {
+func NewHTMLRenderer(subjects map[string]string) (*HTMLRenderer, error) {
 
 	r := &HTMLRenderer{
 		templates:  make(map[string]*template.Template),
 		subjects:   subjects,
 		withLayout: make(map[string]bool),
 	}
-	files := createFilepath(templatePath)
 
 	layoutTemplates := map[string]bool{
 		"appointment_created":  true,
@@ -35,19 +45,27 @@ func NewHTMLRenderer(templatePath config.NotificationTemplateFilepath, subjects 
 		"prescription_created": true,
 	}
 
-	for key, file := range files {
+	entries, err := fs.Glob(templateFS, templateDir+"/*.tmpl")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range entries {
+		key := strings.TrimSuffix(path.Base(file), ".tmpl")
+		if key == "layout" {
+			continue
+		}
+
 		var (
 			tmpl       *template.Template
-			err        error
 			usesLayout bool
 		)
 
 		if layoutTemplates[key] {
-			layoutPath := filepath.Join(filepath.Dir(file), "layout.tmpl")
-			tmpl, err = template.ParseFiles(layoutPath, file)
+			tmpl, err = template.ParseFS(templateFS, layoutFile, file)
 			usesLayout = true
 		} else {
-			tmpl, err = template.ParseFiles(file)
+			tmpl, err = template.ParseFS(templateFS, file)
 		}
 		if err != nil {
 			return nil, err
@@ -60,30 +78,6 @@ func NewHTMLRenderer(templatePath config.NotificationTemplateFilepath, subjects 
 	}
 
 	return r, nil
-}
-
-func createFilepath(templatePath config.NotificationTemplateFilepath) map[string]string {
-	filemap := make(map[string]string)
-	dir, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
-	getlastkey := func(path string) string {
-		normalizedPath := filepath.FromSlash(path)
-		return strings.TrimSuffix(filepath.Base(normalizedPath), ".tmpl")
-	}
-
-	filemap[getlastkey(templatePath.Appointmentcreated)] = filepath.Join(dir, templatePath.Appointmentcreated)
-	//filemap[getlastkey(templatePath.AppointmentUpdated)] = filepath.Join(dir, templatePath.AppointmentUpdated)
-	filemap[getlastkey(templatePath.Patientcreated)] = filepath.Join(dir, templatePath.Patientcreated)
-	filemap[getlastkey(templatePath.PatientUpdated)] = filepath.Join(dir, templatePath.PatientUpdated)
-	filemap[getlastkey(templatePath.PrescriptionCreated)] = filepath.Join(dir, templatePath.PrescriptionCreated)
-	filemap[getlastkey(templatePath.MedicationAdherence)] = filepath.Join(dir, templatePath.MedicationAdherence)
-	filemap[getlastkey(templatePath.FollowUpReminder)] = filepath.Join(dir, templatePath.FollowUpReminder)
-	filemap[getlastkey(templatePath.PaymentLinkGenerated)] = filepath.Join(dir, templatePath.PaymentLinkGenerated)
-	//filemap[getlastkey(templatePath.PaymentRecieved)] = filepath.Join(dir, templatePath.PaymentRecieved)
-
-	return filemap
 }
 func (r *HTMLRenderer) Render(notificationType string, data any) (string, error) {
 

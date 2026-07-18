@@ -19,7 +19,8 @@ func NewPaymentController(payment *PaymentsService, webhook *IWebhookService) *I
 }
 
 func (controller *IPayment) RazorPayWebhook(c *fiber.Ctx) error {
-	signature := c.Get("x-RazorPay-Signature")
+	// Razorpay sends: X-Razorpay-Signature (HMAC-SHA256 hex of raw body)
+	signature := c.Get("X-Razorpay-Signature")
 	isverified, err := controller.WebhookService.ProcessWebhook(c.Body(), signature, constants.ProviderNameRazorpay)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

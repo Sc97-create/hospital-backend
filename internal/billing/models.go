@@ -27,6 +27,5 @@ type InvoiceItem struct {
 	SubtotalPrice       float64   `json:"sub_total_price" gorm:"numeric(10,2);not null"`
 	TotalPrice          float64   `json:"total_price" gorm:"numeric(10,2);not null"`
 	DispensedQty        int       `json:"dispensed_qty" gorm:"default:0;"`
-	Pendingqty          int       `json:"pending_qty" gorm:"default:0;"`
 	CreatedAt           time.Time `json:"created_at" gorm:"autoCreateTime"`
 }

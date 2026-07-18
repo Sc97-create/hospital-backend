@@ -39,11 +39,26 @@ type UpdateRequest struct {
 	MedicineArr    []MedicineArray `json:"medicine_array"`
 	UserID         string          `json:"user_id"`
 }
+type UpdatePrescriptionItemRequest struct {
+	PrescriptionItemID string  `json:"prescription_item_id"`
+	MedicineID         string  `json:"medicine_id"`
+	DurationDay        float64 `json:"duration_day"`
+	DurationType       string  `json:"duration_type"`
+	FoodInstruction    string  `json:"food_instruction"`
+	Morning            float64 `json:"morning"`
+	Afternoon          float64 `json:"afternoon"`
+	Night              float64 `json:"night"`
+}
 type PresPatients struct {
 	AppointmentID  string  `json:"appointment_id"`
 	OrganisationID string  `json:"organisation_id"`
 	Limit          float64 `json:"limit"`
 	Pageno         float64 `json:"page_no"`
+}
+type PatientPrescriptionsRequest struct {
+	PatientID string `query:"patient_id"`
+	Limit     int    `query:"limit"`
+	PageNo    int    `query:"page_no"`
 }
 type DispensePayload struct {
 	PrescriptionID string             `json:"prescription_id" binding:"required,uuid"`

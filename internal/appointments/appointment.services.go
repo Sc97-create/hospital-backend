@@ -396,7 +396,7 @@ func (s *AppointmentService) buildQueryWithFilters(reqModel dto.GetDataReq) (str
 	`
 	args := []interface{}{reqModel.OrganisationID}
 	baseQuery, args, argsPos := s.appendAppointmentFilters(baseQuery, reqModel, args, 2)
-	baseQuery += " ORDER BY a.start_time ASC"
+	baseQuery += " ORDER BY a.start_time DESC"
 	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
 	args = append(args, reqModel.Dblimit, reqModel.Dbpageno)
 	return baseQuery, args

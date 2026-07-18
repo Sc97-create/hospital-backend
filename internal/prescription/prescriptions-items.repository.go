@@ -8,8 +8,10 @@ import (
 
 type PrescItemsRepo interface {
 	AddItems(db *gorm.DB, edicine []PrescriptionItems) error
+	GetMedicineIDsByPrescriptionID(db *gorm.DB, prescriptionID string) ([]string, error)
 	GetItemsByPrescriptionID(query string, cond ...any) ([]MixedPrescriptionItem, error)
-	//UpdatePrescriptionItem(medicine PrescriptionItems) (err error)
+	GetPrescriptionItemByID(id string) (PrescriptionItems, error)
+	UpdatePrescriptionItem(item PrescriptionItems) error
 	GetTotalCountByPrescID(prescriptionID string) (int64, error)
 	FindMedicineInfoByPID(ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
 	GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error)
@@ -24,6 +26,16 @@ func (pdb *PrescriptionDB) AddItems(db *gorm.DB, medicine []PrescriptionItems) e
 	}
 	return nil
 }
+func (pdb *PrescriptionDB) GetMedicineIDsByPrescriptionID(db *gorm.DB, prescriptionID string) ([]string, error) {
+	var medicineIDs []string
+	err := db.Model(&PrescriptionItems{}).
+		Where("prescription_id = ?", prescriptionID).
+		Pluck("medicine_id", &medicineIDs).Error
+	if err != nil {
+		return nil, err
+	}
+	return medicineIDs, nil
+}
 func (pdb *PrescriptionDB) GetItemsByPrescriptionID(query string, cond ...any) ([]MixedPrescriptionItem, error) {
 	var prescriptionItems []MixedPrescriptionItem
 	err := pdb.db.Raw(query, cond...).Find(&prescriptionItems).Error
@@ -31,6 +43,20 @@ func (pdb *PrescriptionDB) GetItemsByPrescriptionID(query string, cond ...any) (
 		return nil, err
 	}
 	return prescriptionItems, nil
+}
+func (pdb *PrescriptionDB) GetPrescriptionItemByID(id string) (PrescriptionItems, error) {
+	var item PrescriptionItems
+	err := pdb.db.Where("id = ?", id).First(&item).Error
+	if err != nil {
+		return PrescriptionItems{}, err
+	}
+	return item, nil
+}
+func (pdb *PrescriptionDB) UpdatePrescriptionItem(item PrescriptionItems) error {
+	return pdb.db.Model(&PrescriptionItems{}).
+		Where("id = ?", item.ID).
+		Select("medicine_id", "frequency", "quantity", "duration_day", "duration_type", "food_instruction", "updated_at").
+		Updates(item).Error
 }
 func (pdb *PrescriptionDB) GetTotalCountByPrescID(prescriptionID string) (count int64, err error) {
 	err = pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Count(&count).Error

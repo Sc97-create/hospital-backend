@@ -140,8 +140,10 @@ func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.Prescripti
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
 	prescriptionGrp.Get("/getByStatus", prescriptionController.FindByStatus)
 	prescriptionGrp.Patch("/updatePrescriptions", prescriptionController.AddPrescriptionItems)
+	prescriptionGrp.Patch("/updatePrescriptionItem", prescriptionController.UpdatePrescriptionItem)
 	prescriptionGrp.Get("/getprescriptionbyPid", prescriptionController.FindPrescriptionByID)
-	prescriptionGrp.Post("/getPrescriptionByAppointmentID", prescriptionController.GetPrescriptionByPatientID)
+	prescriptionGrp.Post("/getPrescriptionByAppointmentID", prescriptionController.GetPrescriptionByAppointmentID)
+	prescriptionGrp.Get("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionsByPatientID)
 	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
 	prescriptionGrp.Get("getMedicineInfo/:prescription_id", prescriptionController.FindMedicineDetInfo)
 }

@@ -8,6 +8,7 @@ import (
 	"hospital-backend/internal/payments"
 	paymentDto "hospital-backend/internal/payments/dto"
 	"hospital-backend/pkg/constants"
+	"math"
 	"math/rand"
 	"time"
 
@@ -73,8 +74,8 @@ func (IService *InvoiceServ) toInvoiceModel(payload dto.CheckoutReq) Invoice {
 func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patientInfo patientDto.PatientResponse, invoiceID string, invoiceCode string) paymentDto.CreatePaymentCommand {
 
 	var paymentdto paymentDto.CreatePaymentCommand
-	paymentdto.Amount = payload.Financials.TotalAmount
-	paymentdto.ExpiresAt = time.Now().Add(5 * time.Minute)
+	paymentdto.Amount = math.Round(payload.Financials.TotalAmount) // rupees; gateway converts to paise
+	paymentdto.ExpiresAt = time.Now().Add(20 * time.Minute)
 	paymentdto.Customer.Email = patientInfo.PatientEmail
 	paymentdto.Customer.Mobile = patientInfo.PatientPhone
 	paymentdto.Customer.Name = patientInfo.PatientName

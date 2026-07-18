@@ -29,5 +29,13 @@ const (
 	PatientCreatedSubject             = "Patient Created"
 	PrescriptionCreatedEvent          = "prescription_created"
 	PrescriptionCreatedSubject        = "Prescription Created"
+	StatusActive                      = "active"
+	StatusInactive                    = "inactive"
+	StatusDraft                       = "draft"
+	StatusSent                        = "sent"
+	StatusPaymentLinkCreated          = "payment_link_created"
+	Days                       string = "Days"
+	Weeks                      string = "Weeks"
+	Month                      string = "Months"
 	//CurrencyINR                       = "INR"
 )

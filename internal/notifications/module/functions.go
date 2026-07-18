@@ -30,7 +30,7 @@ func New(db *gorm.DB, cfg config.Config) (*Module, error) {
 		"Appointment Created":  "Appointment Created",
 		"Prescription Created": "Prescription Created",
 	}
-	renderer, err := render.NewHTMLRenderer(cfg.TemplatePath, subjects)
+	renderer, err := render.NewHTMLRenderer(subjects)
 	if err != nil {
 		return nil, err
 	}

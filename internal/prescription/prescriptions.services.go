@@ -137,7 +137,7 @@ func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionReq
 	return Prescription{
 		ID:             uuid.NewString(),
 		Code:           p.generateCode(),
-		Status:         StatusDraft,
+		Status:         constants.StatusDraft,
 		PatientID:      requestdto.PatientID,
 		PrescribedBy:   requestdto.PrescribedBy,
 		OrganisationID: requestdto.OrganisationID,
@@ -178,7 +178,7 @@ func (p *PrescriptionService) FindMany(limit int, offset int, organisationID str
 		countArgs = append(countArgs, "%"+search+"%")
 	}
 
-	listQuery += ` LIMIT ? OFFSET ?`
+	listQuery += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
 	listArgs = append(listArgs, limit, skip)
 
 	prescription, err = p.prescriptionRepo.FindMany(listQuery, listArgs...)
@@ -219,16 +219,16 @@ func (p *PrescriptionService) FindByStatus(limit int, offset int, organisationID
 	return prescriptions, total, nil
 }
 
-func (p *PrescriptionService) parseFilterStatus(status string) (Status, error) {
+func (p *PrescriptionService) parseFilterStatus(status string) (string, error) {
 	switch strings.TrimSpace(strings.ToLower(status)) {
-	case string(StatusDraft):
-		return StatusDraft, nil
-	case string(StatusSent):
-		return StatusSent, nil
-	case string(StatusPaymentLinkCreated):
-		return StatusPaymentLinkCreated, nil
+	case constants.StatusDraft:
+		return constants.StatusDraft, nil
+	case constants.StatusSent:
+		return constants.StatusSent, nil
+	case constants.StatusPaymentLinkCreated:
+		return constants.StatusPaymentLinkCreated, nil
 	default:
-		return "", fmt.Errorf("status must be %s, %s, or %s", StatusDraft, StatusSent, StatusPaymentLinkCreated)
+		return "", fmt.Errorf("status must be %s, %s, or %s", constants.StatusDraft, constants.StatusSent, constants.StatusPaymentLinkCreated)
 	}
 }
 
@@ -264,36 +264,44 @@ func (p *PrescriptionService) getMedicineIDS(med []dto.MedicineResponse) []strin
 	}
 	return medids
 }
-func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointmentID string) error {
+func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointmentID string, status string) error {
+	//sent
+	//cancelled
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
-		err := p.appointmentService.Repository.UpdateStatus(tx, appointments.StatusCompleted, appointmentID)
+		if status == constants.StatusSent {
+			err := p.appointmentService.Repository.UpdateStatus(tx, status, appointmentID)
+			if err != nil {
+				return err
+			}
+		}
+
+		err := p.prescriptionRepo.UpdateStatus(tx, status, prescriptionID)
 		if err != nil {
 			return err
 		}
-		err = p.prescriptionRepo.UpdateStatus(tx, StatusSent, prescriptionID)
-		if err != nil {
-			return err
-		}
+
 		return nil
 	})
 	//send notification to patient
 	if err != nil {
 		return err
 	}
-	var notificationRequest notificationdto.CreateRequest
-	notifData, err := p.getNotificationDetails(prescriptionID)
-	if err != nil {
-		return err
+	if status == constants.StatusSent {
+		var notificationRequest notificationdto.CreateRequest
+		notifData, err := p.getNotificationDetails(prescriptionID)
+		if err != nil {
+			return err
+		}
+		notificationRequest.Data = notifData
+		notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
+		notificationRequest.Subject = constants.PrescriptionCreatedSubject
+		ctx := context.Background()
+		p.notificationService.Create(ctx, notificationRequest)
 	}
-	notificationRequest.Data = notifData
-	notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
-	notificationRequest.Subject = constants.PrescriptionCreatedSubject
-	ctx := context.Background()
-	p.notificationService.Create(ctx, notificationRequest)
 
 	return nil
 }
-func (p *PrescriptionService) GetPrescriptionByPatientID(reqmodel dto.PresPatients) (dto.Response, error) {
+func (p *PrescriptionService) GetPrescriptionByAppointmentID(reqmodel dto.PresPatients) (dto.Response, error) {
 	dblimit, dbskip := p.parsePagination(reqmodel.Limit, reqmodel.Pageno)
 	query := `SELECT
     p.id AS prescription_id,
@@ -329,7 +337,13 @@ ORDER BY p.created_at ASC
 LIMIT $3
 OFFSET $4`
 
-	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByAppointmentID(query, reqmodel.OrganisationID, dblimit, dbskip)
+	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByAppointmentID(
+		query,
+		reqmodel.AppointmentID,
+		reqmodel.OrganisationID,
+		dblimit,
+		dbskip,
+	)
 	if err != nil {
 		return dto.Response{}, err
 	}
@@ -344,6 +358,53 @@ OFFSET $4`
 	response.Code = "200"
 	response.Message = "fetched data successfully"
 	return response, nil
+}
+
+func (p *PrescriptionService) GetPrescriptionsByPatientID(reqmodel dto.PatientPrescriptionsRequest) (dto.Response, error) {
+	limit := reqmodel.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	skip := commonfunctions.Getskip(limit, reqmodel.PageNo)
+
+	query := `SELECT
+    p.id,
+    p.code,
+    u.username AS prescribed_by,
+    p.patient_id,
+    p.appointment_id,
+    p.created_at,
+    p.status
+FROM prescriptions p
+JOIN users u ON u.id = p.prescribed_by
+WHERE p.patient_id = $1
+ORDER BY p.created_at DESC
+LIMIT $2
+OFFSET $3`
+
+	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByPatientID(
+		query,
+		reqmodel.PatientID,
+		limit,
+		skip,
+	)
+	if err != nil {
+		return dto.Response{}, err
+	}
+	if prescriptions == nil {
+		prescriptions = []dto.PrescriptionListItem{}
+	}
+	totalCount, err := p.prescriptionRepo.GetPrescriptionByPatientIDCount(reqmodel.PatientID)
+	if err != nil {
+		return dto.Response{}, err
+	}
+
+	return dto.Response{
+		Data:    prescriptions,
+		Code:    "200",
+		Message: "prescriptions fetched successfully",
+		Total:   int(totalCount),
+	}, nil
 }
 
 func (p *PrescriptionService) toAppointmentPrescriptionResponse(prescriptions []PrescriptionAppointmentData) []dto.AppointmentPrescriptionResponse {
@@ -388,14 +449,14 @@ func (p *PrescriptionService) parsePagination(limit float64, pageno float64) (in
 	return numLimit, skip
 }
 func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
-	var Pstatus Status
+	var Pstatus string
 	switch status {
-	case string(StatusFullyDispensed):
-		Pstatus = StatusFullyDispensed
-	case string(StatusPartiallyDispensed):
-		Pstatus = StatusPartiallyDispensed
-	case string(StatusPaymentLinkCreated):
-		Pstatus = StatusPaymentLinkCreated
+	case constants.StatusFullyDispensed:
+		Pstatus = constants.StatusFullyDispensed
+	case constants.StatusPartiallyDispensed:
+		Pstatus = constants.StatusPartiallyDispensed
+	case constants.StatusPaymentLinkCreated:
+		Pstatus = constants.StatusPaymentLinkCreated
 	default:
 		return fmt.Errorf("invalid status")
 	}

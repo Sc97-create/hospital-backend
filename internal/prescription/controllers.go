@@ -25,6 +25,7 @@ type IPrescriptionController interface {
 	GetPrescriptionsByPatientID(c *fiber.Ctx) error
 	// GetPrescriptionsByDoctorID(c *fiber.Ctx) error
 	AddPrescriptionItems(c *fiber.Ctx) error
+	UpdatePrescriptionItem(c *fiber.Ctx) error
 	// DeletePrescription(c *fiber.Ctx) error
 	FindMany(c *fiber.Ctx) error
 	FindByStatus(c *fiber.Ctx) error
@@ -61,7 +62,7 @@ func (PresC *PrescriptionController) CreatePrescription(c *fiber.Ctx) error {
 	requestmap.MedicineArray = PresC.toMedicineArray(medicines)
 	id, err := PresC.PService.CreatePrescription(requestmap)
 	if err != nil {
-		return wrapError.Wrap(err, c, 400)
+		return wrapError.Wrap(err, c, 409)
 	}
 	var response dto.CreatePrescriptionResponse
 	response.Code = "200"
@@ -134,12 +135,46 @@ func (Presc *PrescriptionController) AddPrescriptionItems(c *fiber.Ctx) error {
 	requestMap.MedicineArr = Presc.toMedicineArray(medicineArr)
 	err = Presc.PService.AddPrescriptionItems(requestMap)
 	if err != nil {
-		return wrapError.Wrap(err, c, 400)
+		return wrapError.Wrap(err, c, 409)
 	}
 	var response dto.CreatePrescriptionResponse
 	response.Code = "200"
 	response.Message = "prescription updated successfully"
 	response.Data = dto.Data{ID: requestMap.PrescriptionID}
+	return c.Status(200).JSON(response)
+}
+func (Presc *PrescriptionController) UpdatePrescriptionItem(c *fiber.Ctx) error {
+	payload, err := params.New(c)
+	if err != nil {
+		return wrapError.Wrap(err, c, 409)
+	}
+	var requestMap dto.UpdatePrescriptionItemRequest
+	requestMap.PrescriptionItemID, err = payload.Getstring("prescription_item_id")
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	requestMap.MedicineID, err = payload.Getstring("medicine_id")
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	if err = Presc.validateIDs(requestMap.PrescriptionItemID, requestMap.MedicineID); err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	requestMap.DurationDay, _ = payload.Getfloat("duration")
+	requestMap.DurationType, _ = payload.Getstring("duration_type")
+	requestMap.FoodInstruction, _ = payload.Getstring("food_instruction")
+	requestMap.Morning, _ = payload.Getfloat("morning")
+	requestMap.Afternoon, _ = payload.Getfloat("afternoon")
+	requestMap.Night, _ = payload.Getfloat("night")
+
+	err = Presc.PItemService.UpdatePrescriptionItemByID(requestMap)
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	var response dto.CreatePrescriptionResponse
+	response.Code = "200"
+	response.Message = "prescription item updated successfully"
+	response.Data = dto.Data{ID: requestMap.PrescriptionItemID}
 	return c.Status(200).JSON(response)
 }
 func (PresC *PrescriptionController) FindPrescriptionByID(c *fiber.Ctx) error {
@@ -171,11 +206,12 @@ func (PresC *PrescriptionController) UpdateStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
-	appointmentID, err := payload.Getstring("appointment_id")
+	appointmentID, _ := payload.Getstring("appointment_id")
+	status, err := payload.Getstring("status")
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	err = PresC.PService.UpdateManualStatus(prescriptionID, appointmentID)
+	err = PresC.PService.UpdateManualStatus(prescriptionID, appointmentID, status)
 	if err != nil {
 		return wrapError.Wrap(err, c, 400)
 	}
@@ -185,7 +221,7 @@ func (PresC *PrescriptionController) UpdateStatus(c *fiber.Ctx) error {
 	response.Data = dto.Data{ID: prescriptionID}
 	return c.Status(200).JSON(response)
 }
-func (PresC *PrescriptionController) GetPrescriptionByPatientID(c *fiber.Ctx) error {
+func (PresC *PrescriptionController) GetPrescriptionByAppointmentID(c *fiber.Ctx) error {
 	payload, err := params.New(c)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
@@ -207,9 +243,24 @@ func (PresC *PrescriptionController) GetPrescriptionByPatientID(c *fiber.Ctx) er
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	response, err := PresC.PService.GetPrescriptionByPatientID(reqmodel)
+	response, err := PresC.PService.GetPrescriptionByAppointmentID(reqmodel)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
+	}
+	return c.Status(200).JSON(response)
+}
+func (PresC *PrescriptionController) GetPrescriptionsByPatientID(c *fiber.Ctx) error {
+	var request dto.PatientPrescriptionsRequest
+	if err := c.QueryParser(&request); err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+	if err := PresC.validateIDs(request.PatientID); err != nil {
+		return wrapError.Wrap(err, c, 400)
+	}
+
+	response, err := PresC.PService.GetPrescriptionsByPatientID(request)
+	if err != nil {
+		return wrapError.Wrap(err, c, 400)
 	}
 	return c.Status(200).JSON(response)
 }

@@ -1,6 +1,7 @@
 package payments
 
 import (
+	"errors"
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/pkg/constants"
 	"time"
@@ -53,5 +54,12 @@ func (sPAttempts *SPaymentAttempts) UpdatePaymentAttemptStatus(tx *gorm.DB, paym
 
 // ClaimForProcessing delegates atomic pending → processing transition to the repo
 func (sPAttempts *SPaymentAttempts) ClaimForProcessing(providerLinkID string) (PaymentAttempts, bool, error) {
-	return sPAttempts.PaymentAttemptRepo.ClaimForProcessing(providerLinkID)
+	paymentAttempt, claimed, err := sPAttempts.PaymentAttemptRepo.ClaimForProcessing(providerLinkID)
+	if err != nil {
+		return PaymentAttempts{}, false, err
+	}
+	if !claimed {
+		return PaymentAttempts{}, false, errors.New("payment attempt already claimed")
+	}
+	return paymentAttempt, claimed, nil
 }

@@ -69,6 +69,7 @@ func main() {
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
 	routers.RegisterBillingRoutes(app, containers.BillingService)
+	routers.RegisterPaymentRoutes(app, containers.PaymentContainer.Mod.Paymentservice, containers.PaymentContainer.Mod.WebhookService)
 	err = app.Listen(fmt.Sprintf(":%s", cfg.ServerPort))
 	if err != nil {
 		log.Fatalf("%v", err)

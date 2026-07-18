@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	"hospital-backend/internal/payments/dto"
@@ -42,17 +43,15 @@ func (g *gateway) CreatePayment(ctx context.Context, req dto.CreatePaymentComman
 }
 func (g *gateway) mapExternalReq(paymentLinkPayload createPaymentLinkRequest) map[string]interface{} {
 	paymentPayload := map[string]interface{}{
-		"amount":                   paymentLinkPayload.Amount,
-		"currency":                 paymentLinkPayload.Currency,
-		"accept_partial":           paymentLinkPayload.AcceptPartial,
-		"first_min_partial_amount": paymentLinkPayload.FirstMinPartialAmount,
-		"expire_by":                paymentLinkPayload.ExpireBy,
-		"reference_id":             paymentLinkPayload.ReferenceID,
-		"description":              paymentLinkPayload.Description,
+		"amount":         paymentLinkPayload.Amount,
+		"currency":       paymentLinkPayload.Currency,
+		"accept_partial": paymentLinkPayload.AcceptPartial,
+		"reference_id":   paymentLinkPayload.ReferenceID,
+		"description":    paymentLinkPayload.Description,
 		"customer": map[string]interface{}{
-			"name":   paymentLinkPayload.Customer.Name,
-			"email":  paymentLinkPayload.Customer.Email,
-			"mobile": paymentLinkPayload.Customer.Mobile,
+			"name":    paymentLinkPayload.Customer.Name,
+			"email":   paymentLinkPayload.Customer.Email,
+			"contact": paymentLinkPayload.Customer.Contact,
 		},
 		"notify": map[string]interface{}{
 			"email": paymentLinkPayload.Notify.Email,
@@ -62,23 +61,30 @@ func (g *gateway) mapExternalReq(paymentLinkPayload createPaymentLinkRequest) ma
 		"callback_url":    paymentLinkPayload.CallbackURL,
 		"callback_method": paymentLinkPayload.CallbackMethod,
 	}
-
+	if paymentLinkPayload.ExpireBy > 0 {
+		paymentPayload["expire_by"] = paymentLinkPayload.ExpireBy
+	}
 	return paymentPayload
 }
 
 func (g *gateway) toCreatePaymentLinkRequest(req dto.CreatePaymentCommand) createPaymentLinkRequest {
+	var expireBy int64
+	if !req.ExpiresAt.IsZero() {
+		expireBy = req.ExpiresAt.Unix()
+	}
 	return createPaymentLinkRequest{
-		Amount:                req.Amount,
-		Currency:              req.Currency,
-		AcceptPartial:         false,
-		FirstMinPartialAmount: 0,
-		ExpireBy:              0,
-		ReferenceID:           req.ReferenceID,
-		Description:           req.Description,
+		// Razorpay expects amount in paise (₹500 → 50000)
+		Amount:   int64(math.Round(req.Amount * 100)),
+		Currency: req.Currency,
+		//UPILink:       true,
+		AcceptPartial: false,
+		ExpireBy:      expireBy,
+		ReferenceID:   req.ReferenceID,
+		Description:   req.Description,
 		Customer: customer{
-			Name:   req.Customer.Name,
-			Email:  req.Customer.Email,
-			Mobile: req.Customer.Mobile,
+			Name:    req.Customer.Name,
+			Email:   req.Customer.Email,
+			Contact: req.Customer.Mobile,
 		},
 		Notify: notify{
 			Email: req.SendEmail,
@@ -86,10 +92,13 @@ func (g *gateway) toCreatePaymentLinkRequest(req dto.CreatePaymentCommand) creat
 		ReminderEnable: req.SendSMS,
 		Notes:          req.Metadata,
 		CallbackURL:    g.client.PaymentConfig.CallbackUrl,
-		CallbackMethod: "POST",
+		CallbackMethod: "get", // payment links only allow get
 	}
 }
 func (g *gateway) VerifySignature(payload []byte, signature string) (bool, error) {
+	if signature == "" {
+		return false, errors.New("missing razorpay signature")
+	}
 	mac := hmac.New(sha256.New, []byte(g.client.PaymentConfig.WebhookSecret))
 	mac.Write(payload)
 	expected := hex.EncodeToString(mac.Sum(nil))
@@ -108,22 +117,37 @@ func (g *gateway) ParseWebhookEvent(payload []byte) (dto.ParsedWebhookEvent, err
 	return dtowebhookevent, nil
 }
 func (g *gateway) toParsedWebhookEvent(webhookEvent WebhookEvent, payload []byte) dto.ParsedWebhookEvent {
-	return dto.ParsedWebhookEvent{
+	payment := webhookEvent.Payload.Payment.Entity
+	paymentLink := webhookEvent.Payload.PaymentLink.Entity
+	order := webhookEvent.Payload.Order.Entity
+
+	event := dto.ParsedWebhookEvent{
 		EventType:         webhookEvent.Event,
 		ProviderEventID:   webhookEvent.AccountID,
-		ProviderLinkID:    webhookEvent.Payload.PaymentLink.Entity.ID,
-		ProviderOrderID:   webhookEvent.Payload.Order.Entity.ID,
-		ProviderPaymentID: webhookEvent.Payload.Payment.Entity.ID,
-		ReferenceID:       webhookEvent.Payload.PaymentLink.Entity.ReferenceID,
-		AmountPaid:        float64(webhookEvent.Payload.Payment.Entity.Amount),
-		AmountTransferred: float64(webhookEvent.Payload.Payment.Entity.AmountTransferred),
-		PaymentStatus:     webhookEvent.Payload.Payment.Entity.Status,
-		PaymentLinkStatus: webhookEvent.Payload.PaymentLink.Entity.Status,
-		PayerVPA:          webhookEvent.Payload.Payment.Entity.UPI.VPA,
-		PayerAccountType:  webhookEvent.Payload.Payment.Entity.UPI.PayerAccountType,
-		PaymentError:      webhookEvent.Payload.Payment.Entity.ErrorDescription,
-		PaymentErrorCode:  webhookEvent.Payload.Payment.Entity.ErrorCode,
+		ProviderLinkID:    paymentLink.ID,
+		ProviderOrderID:   order.ID,
+		ProviderPaymentID: payment.ID,
+		ReferenceID:       paymentLink.ReferenceID,
+		AmountPaid:        float64(payment.Amount) / 100, // paise → rupees
+		AmountTransferred: float64(payment.AmountTransferred) / 100,
+		PaymentStatus:     payment.Status,
+		PaymentLinkStatus: paymentLink.Status,
+		AcceptPartial:     paymentLink.AcceptPartial,
 		RawPayload:        payload,
-		PaidAt:            time.Unix(int64(webhookEvent.Payload.Payment.Entity.CreatedAt), 0),
 	}
+
+	if payment.CreatedAt > 0 {
+		event.PaidAt = time.Unix(payment.CreatedAt, 0)
+	}
+	if payment.UPI != nil {
+		event.PayerVPA = payment.UPI.VPA
+		event.PayerAccountType = payment.UPI.PayerAccountType
+	}
+	if payment.ErrorDescription != nil {
+		event.PaymentError = payment.ErrorDescription
+	}
+	if payment.ErrorCode != nil {
+		event.PaymentErrorCode = payment.ErrorCode
+	}
+	return event
 }

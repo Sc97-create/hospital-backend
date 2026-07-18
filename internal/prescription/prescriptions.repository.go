@@ -20,14 +20,16 @@ type PrescriptionRepositoryInterface interface {
 	GetPrescriptionByID(id string) (*Prescription, error)
 	GetPrescriptionsByAppointmentID(query string, cond ...any) ([]PrescriptionAppointmentData, error)
 	GetPrescriptionByAppointmentIDCount(cond ...any) (count int64, err error)
+	GetPrescriptionsByPatientID(query string, args ...any) ([]dto.PrescriptionListItem, error)
+	GetPrescriptionByPatientIDCount(patientID string) (count int64, err error)
 	GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error)
 	//UpdatePrescription(prescription Prescription) error
 	DeletePrescription(id string) error
 	FindMany(query string, args ...any) ([]dto.PrescriptionListItem, error)
-	FindByStatus(organisationID string, status Status, limit int, offset int) ([]dto.PrescriptionListItem, error)
-	CountByStatus(organisationID string, status Status) (int64, error)
+	FindByStatus(organisationID string, status string, limit int, offset int) ([]dto.PrescriptionListItem, error)
+	CountByStatus(organisationID string, status string) (int64, error)
 	FindPrescriptionByID(query string, id string) (presc Prescription, err error)
-	UpdateStatus(tx *gorm.DB, status Status, prescriptionID string) (err error)
+	UpdateStatus(tx *gorm.DB, status string, prescriptionID string) (err error)
 	GetNotificationDetails(query string, prescriptionID string) (PrescriptionNotificationData, error)
 
 	Count(query string, args ...any) (int64, error)
@@ -51,6 +53,22 @@ func (pdb *PrescriptionDB) GetPrescriptionsByAppointmentID(query string, cond ..
 		return nil, err
 	}
 	return prescriptions, nil
+}
+
+func (pdb *PrescriptionDB) GetPrescriptionsByPatientID(query string, args ...any) ([]dto.PrescriptionListItem, error) {
+	var prescriptions []dto.PrescriptionListItem
+	if err := pdb.db.Raw(query, args...).Find(&prescriptions).Error; err != nil {
+		return nil, err
+	}
+	return prescriptions, nil
+}
+
+func (pdb *PrescriptionDB) GetPrescriptionByPatientIDCount(patientID string) (count int64, err error) {
+	err = pdb.db.Model(&Prescription{}).
+		Where("patient_id = ?", patientID).
+		Count(&count).
+		Error
+	return count, err
 }
 
 func (pdb *PrescriptionDB) GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error) {
@@ -81,12 +99,13 @@ func (pdb *PrescriptionDB) FindMany(query string, args ...any) (prescription []d
 	}
 	return
 }
-func (pdb *PrescriptionDB) FindByStatus(organisationID string, status Status, limit int, offset int) ([]dto.PrescriptionListItem, error) {
+func (pdb *PrescriptionDB) FindByStatus(organisationID string, status string, limit int, offset int) ([]dto.PrescriptionListItem, error) {
 	var prescriptions []dto.PrescriptionListItem
 	err := pdb.db.Table("prescriptions AS p").
 		Select("p.id, p.code, e.username AS prescribed_by, p.patient_id, p.appointment_id, p.created_at, p.status").
 		Joins("JOIN users AS e ON p.prescribed_by = e.id").
 		Where("p.organisation_id = ? AND p.status = ?", organisationID, status).
+		Order("p.created_at DESC").
 		Limit(limit).
 		Offset(offset).
 		Scan(&prescriptions).Error
@@ -95,14 +114,14 @@ func (pdb *PrescriptionDB) FindByStatus(organisationID string, status Status, li
 	}
 	return prescriptions, nil
 }
-func (pdb *PrescriptionDB) CountByStatus(organisationID string, status Status) (int64, error) {
+func (pdb *PrescriptionDB) CountByStatus(organisationID string, status string) (int64, error) {
 	var count int64
 	err := pdb.db.Model(&Prescription{}).
 		Where("organisation_id = ? AND status = ?", organisationID, status).
 		Count(&count).Error
 	return count, err
 }
-func (pdb *PrescriptionDB) UpdateStatus(db *gorm.DB, status Status, prescriptionID string) (err error) {
+func (pdb *PrescriptionDB) UpdateStatus(db *gorm.DB, status string, prescriptionID string) (err error) {
 	query := `UPDATE prescriptions
 	SET status = ?, updated_at = ?
 	WHERE id = ?;`

@@ -20,7 +20,7 @@ type Prescription struct {
 	PrescribedBy   string `json:"prescribed_by" gorm:"type:uuid;column:prescribed_by"`
 	OrganisationID string `json:"organisation_id" gorm:"type:uuid;column:organisation_id"`
 	//Medicines       MedicineList `json:"medicines" gorm:"type:jsonb"`
-	Status    Status    `json:"status" gorm:"type:text"`
+	Status    string    `json:"status" gorm:"type:text"`
 	CreatedAt time.Time `json:"created_at" gorm:"column:created_at"`
 
 	UpdatedAt time.Time           `json:"updated_at" gorm:"column:updated_at"`
@@ -60,16 +60,18 @@ type MixPrescriptionData struct {
 	OrganisationID string `json:"organisation_id"`
 }
 type MixedPrescriptionItem struct {
-	PrescriptionID   string  `json:"prescription_id"`
-	Frequency        Freq    `json:"frequency"`
-	DurationDay      float64 `json:"duration_day"`
-	DurationType     string  `json:"duration_type"`
-	Quantity         int     `json:"quantity"`
-	FoodInstruction  string  `json:"food_instruction"`
-	MedicineName     string  `json:"medicine_name"`
-	MedicineForm     string  `json:"medicine_form"`
-	MedicineID       string  `json:"medicine_id"`
-	MedicineStrength string  `json:"medicine_strength"`
+	PrescriptionID     string  `json:"prescription_id"`
+	PrescriptionItemID string  `json:"prescription_item_id"`
+	AppointmentID      string  `json:"appointment_id"`
+	Frequency          Freq    `json:"frequency"`
+	DurationDay        float64 `json:"duration_day"`
+	DurationType       string  `json:"duration_type"`
+	Quantity           int     `json:"quantity"`
+	FoodInstruction    string  `json:"food_instruction"`
+	MedicineName       string  `json:"medicine_name"`
+	MedicineForm       string  `json:"medicine_form"`
+	MedicineID         string  `json:"medicine_id"`
+	MedicineStrength   string  `json:"medicine_strength"`
 }
 type MedicineDetInfo struct {
 	PrescriptionCode      string       `json:"prescription_code"`

@@ -5,5 +5,9 @@ type IWebhookRepository interface {
 }
 
 func (r *DB) CreateWebhookEvent(webhook WebhookEvents) error {
-	return r.db.Create(webhook).Error
+	err := r.db.Create(&webhook).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }

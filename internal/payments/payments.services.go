@@ -4,7 +4,6 @@ import (
 	"context"
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
-	"hospital-backend/internal/prescription"
 	"hospital-backend/pkg/constants"
 	"time"
 
@@ -51,7 +50,7 @@ func (p *PaymentsService) StorePaymentandNotifyUser(paymentReq dto.CreatePayment
 		tx.Rollback()
 		return
 	}
-	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, string(prescription.StatusPaymentLinkCreated))
+	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentLinkCreated)
 	if err != nil {
 		tx.Rollback()
 		return

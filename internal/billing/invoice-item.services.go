@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/prescription"
-	prescriptionDTO "hospital-backend/internal/prescription/dto"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,12 +36,12 @@ func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID st
 			return fmt.Errorf("dispensed qty %d exceeds remaining prescribed qty %d for medicine %s",
 				each.QuantitySoldUnits, remaining, each.MedicineID)
 		}
-		if int(each.QuantitySoldUnits) > each.CurrentStockUnits {
+		if each.QuantitySoldUnits > each.CurrentStockUnits {
 			return fmt.Errorf("insufficient stock in batch %s: requested %d, available %d",
 				each.BatchNo, each.QuantitySoldUnits, each.CurrentStockUnits)
 		}
 	}
-	inoviceItems := IItemServ.toInvoiceItem(prescriptionQtyMap, invoiceID, invoiceItems)
+	inoviceItems := IItemServ.toInvoiceItem(invoiceID, invoiceItems)
 	err = IItemServ.InvItemRepo.Create(db, inoviceItems)
 	if err != nil {
 		return err
@@ -50,7 +49,7 @@ func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID st
 	return nil
 }
 
-func (IItemServ *InvoiceItemServ) toInvoiceItem(prescriptionQtyMap map[string]prescriptionDTO.PrescriptionQtyInfo, invoiceID string, items []dto.DispensedItem) []InvoiceItem {
+func (IItemServ *InvoiceItemServ) toInvoiceItem(invoiceID string, items []dto.DispensedItem) []InvoiceItem {
 	var InvoiceItems []InvoiceItem
 	for _, each := range items {
 		var item InvoiceItem
@@ -64,7 +63,6 @@ func (IItemServ *InvoiceItemServ) toInvoiceItem(prescriptionQtyMap map[string]pr
 		item.PrescriptionItemID = each.PrescriptionItemID
 		item.SubtotalPrice = each.ComputedItemTotal
 		item.TotalPrice = each.TotalAmount
-		item.Pendingqty = int(prescriptionQtyMap[each.MedicineID].Quantity - int64(each.QuantitySoldUnits)) // need to take from db
 		InvoiceItems = append(InvoiceItems, item)
 	}
 	return InvoiceItems

@@ -2,6 +2,8 @@ package prescription
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+var ErrMedicineAlreadyPresent = errors.New("medicine already present in prescription")
 
 type PrescriptionItemServ struct {
 	PrescRepo PrescItemsRepo
@@ -18,17 +22,33 @@ func NewPrescriptionItemService(PItems PrescItemsRepo) *PrescriptionItemServ {
 	return &PrescriptionItemServ{PrescRepo: PItems}
 }
 func (s *PrescriptionItemServ) AddItems(db *gorm.DB, medicine []dto.MedicineArray, prescriptionID string, userID string) (err error) {
-	prescriptionItems := s.toPrescItems(medicine, prescriptionID, userID)
+	prescriptionItems, err := s.toPrescItems(db, medicine, prescriptionID, userID)
+	if err != nil {
+		return err
+	}
 	err = s.PrescRepo.AddItems(db, prescriptionItems)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string, userID string) []PrescriptionItems {
+func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray, pID string, userID string) ([]PrescriptionItems, error) {
 	var prescItems []PrescriptionItems
+	medicineIDs, err := s.PrescRepo.GetMedicineIDsByPrescriptionID(db, pID)
+	if err != nil {
+		return nil, err
+	}
+	existingMedicines := make(map[string]struct{}, len(medicineIDs)+len(med))
+	for _, medicineID := range medicineIDs {
+		existingMedicines[medicineID] = struct{}{}
+	}
 
 	for _, each := range med {
+		if _, exists := existingMedicines[each.MedicineID]; exists {
+			return nil, ErrMedicineAlreadyPresent
+		}
+		existingMedicines[each.MedicineID] = struct{}{}
+
 		var pItem PrescriptionItems
 		pItem.ID = uuid.New().String()
 		pItem.MedicineID = each.MedicineID
@@ -46,18 +66,42 @@ func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string,
 		pItem.CreatedBy = userID
 		prescItems = append(prescItems, pItem)
 	}
-	return prescItems
+	return prescItems, nil
+}
+func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescriptionItemRequest) error {
+	existing, err := s.PrescRepo.GetPrescriptionItemByID(req.PrescriptionItemID)
+	if err != nil {
+		return err
+	}
+	// don't allow editing once dispensing has started, otherwise it desyncs with invoices
+	if existing.BalanceAfterDispense > 0 ||
+		existing.Status == constants.StatusFullyDispensed ||
+		existing.Status == constants.StatusPartiallyDispensed {
+		return fmt.Errorf("cannot edit prescription item %s: it has already been dispensed", req.PrescriptionItemID)
+	}
+
+	var item PrescriptionItems
+	item.ID = req.PrescriptionItemID
+	item.MedicineID = req.MedicineID
+	item.Frequency = Freq{Morning: req.Morning, Afternoon: req.Afternoon, Night: req.Night}
+	item.DurationDay = req.DurationDay
+	item.DurationType = s.parseDurationtype(req.DurationType)
+	item.FoodInstruction = req.FoodInstruction
+	item.Quantity = int64(s.calculateQuantity(item.Frequency, int(req.DurationDay), item.DurationType))
+	item.UpdatedAt = time.Now()
+
+	return s.PrescRepo.UpdatePrescriptionItem(item)
 }
 func (s *PrescriptionItemServ) parseDurationtype(durationtype string) string {
 	switch durationtype {
-	case Days:
-		return Days
-	case Weeks:
-		return Weeks
-	case Month:
-		return Month
+	case constants.Days:
+		return constants.Days
+	case constants.Weeks:
+		return constants.Weeks
+	case constants.Month:
+		return constants.Month
 	default:
-		return Days
+		return constants.Days
 	}
 }
 func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, durationtype string) int {
@@ -73,17 +117,17 @@ func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, dur
 	}
 	var qty int
 	switch durationtype {
-	case Days:
+	case constants.Days:
 		qty = durationDay * count
-	case Weeks:
+	case constants.Weeks:
 		qty = durationDay * count * 7
-	case Month:
+	case constants.Month:
 		qty = durationDay * count * 30
 	}
 	return qty
 }
 func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
-	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, 
+	query := `select p.id as prescription_item_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, 
 	m.name as medicine_name,m.form as medicine_form, m.strength as medicine_strength 
 	from prescription_items p
 	join medicines m on p.medicine_id = m.id
