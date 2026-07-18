@@ -1,12 +1,5 @@
 ## invoice table
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 type Invoice struct {
 	ID              string        `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	PrescriptionID  *string       `gorm:"type:uuid" json:"prescription_id,omitempty"`
@@ -23,14 +16,7 @@ type Invoice struct {
 }
 
 ## invoice-item table
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 type InvoiceItem struct {
 	ID            string  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	InvoiceID     string  `gorm:"type:uuid;not null;index" json:"invoice_id"`
@@ -43,17 +29,8 @@ type InvoiceItem struct {
 	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
-<<<<<<< HEAD
 ## payments
 
-=======
-
-## payments
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 explained schema
 Column	     Type	          Why?
 id	         UUID	           Internal primary key
@@ -74,14 +51,7 @@ updated_at	Timestamp	         Audit
 deleted_at	Soft delete	         GORM
 
 ## payment-attempts
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 Column	            Type	Why?
 id	                UUID	PK
 payment_id	        UUID	FK
@@ -115,7 +85,6 @@ updated_at	                          Audit
 
 ## webhook events
 
-<<<<<<< HEAD
 Append-only audit log of every inbound gateway webhook (success or failure). Used for idempotency, debugging, and payment history. Processing updates `payment_attempts`, `payments`, and invoice state separately.
 Column	                            Type	Purpose
 id	                                   UUID	PK
@@ -157,35 +126,11 @@ type WebhookEvents struct {
 	CreatedAt         time.Time         `json:"created_at" gorm:"autoCreateTime"`
 }
 ```
-=======
-Column	                            Purpose
-id	                                   PK
-payment_attempt_id	                   FK
-provider_refund_id	             Gateway refund id
-amount	                          Refund amount
-reason	                           Why refunded
-status	                         Refund lifecycle
-provider_data	                 Provider fields
-gateway_response	             Raw refund response
-created_at	                          Audit
-updated_at	                          Audit
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 
 
 
 ## transaction table
-<<<<<<< HEAD
 
-=======
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 type TransactionHistory struct {
 	ID              string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	InvoiceID       string    `gorm:"type:uuid;not null;index" json:"invoice_id"`
@@ -199,15 +144,7 @@ type TransactionHistory struct {
 
 ## how it works
 
-<<<<<<< HEAD
 1. checkout api is called with below payload
-=======
-1) checkout api is called with below payload
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 
 {
   "prescription_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
@@ -242,7 +179,6 @@ type TransactionHistory struct {
   ]
 }
 
-<<<<<<< HEAD
 1. process the payload in billing module
 2. save the necessary item in necessary table
  for invoice keep status as unpaid
@@ -265,38 +201,6 @@ architecture for next 5 years we can think of
                       │
 ```
 
-=======
-2) process the payload in billing module
-
-3) save the necessary item in necessary table
-    for invoice keep status as unpaid
-
-4) generate qr code and they can pay from there, since everyone is connected to upi, if card then how to integrate swipe machine and get transaction id need to figure out
-
-5) once webhook gets called and verify payment, verifies it and transaction history is stored with status what we get from gateway
-
-6) change the status of invoice 
-
-7) decrement the inventory count=> once paid
-
-8) it should be done in one transaction all this
-
-
-architecture for next 5 years we can think of
-
-                      Kubernetes
-                          │
-                    Load Balancer
-                          │
-                 Multiple Go Pods
-                          │
-                 Modular Monolith
-                          │
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
  ┌─────────────┬─────────────┬─────────────┬─────────────┐
  │ Auth        │ Patients    │ Billing     │ Payments    │
  ├─────────────┼─────────────┼─────────────┼─────────────┤
@@ -313,7 +217,6 @@ architecture for next 5 years we can think of
                           │
          Emails • SMS • Receipts • Webhooks • Retries
 
-<<<<<<< HEAD
 This design keeps operational complexity low while giving you a clean path to scale. You get the simplicity of a modular monolith, horizontal scaling through Kubernetes pods, efficient concurrency inside each pod where it actually helps, and the flexibility to extract the payment module into its own service later if your team size or deployment needs justify it.
 
 ```
@@ -328,25 +231,6 @@ This design keeps operational complexity low while giving you a clean path to sc
       ▼                         ▼
 ```
 
-=======
-
-This design keeps operational complexity low while giving you a clean path to scale. You get the simplicity of a modular monolith, horizontal scaling through Kubernetes pods, efficient concurrency inside each pod where it actually helps, and the flexibility to extract the payment module into its own service later if your team size or deployment needs justify it.
-
-
-                    Invoice
-                       │
-                       │ 1
-                       ▼
-                  Payments
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-          ▼                         ▼
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
  Payment Attempt #1         Payment Attempt #2
           │                         │
           │                         ▼
@@ -356,7 +240,6 @@ This design keeps operational complexity low while giving you a clean path to sc
           ▼              ▼
       Refunds      Webhook Events
 
-<<<<<<< HEAD
 invoice example lifecycle
 
 ```
@@ -888,62 +771,4 @@ upi
   }
 }
 ```
-=======
-
-invoice example lifecycle
-
-            Checkout
-
-                ↓
-
-                Invoice Created
-
-                ↓
-
-                Payment Created
-
-                ↓
-
-                Attempt Created
-
-                ↓
-
-                Gateway Create Payment
-
-                ↓
-
-                Save Provider Response
-
-                ↓
-
-                Send Link
-
-                ↓
-
-                Customer Pays
-
-                ↓
-
-                Webhook Stored
-
-                ↓
-
-                Verify Signature
-
-                ↓
-
-                Update Attempt
-
-                ↓
-
-                Update Payment
-
-                ↓
-
-                Update Invoice
-<<<<<<< HEAD
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
-=======
->>>>>>> 5f1bf7c (billing.md added details, medicineinventory.md, code changes.)
->>>>>>> 430891a (conflict resolved.)
 

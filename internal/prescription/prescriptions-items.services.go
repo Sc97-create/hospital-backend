@@ -2,25 +2,18 @@ package prescription
 
 import (
 	"context"
-<<<<<<< HEAD
 	"errors"
 	"fmt"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
-=======
-	"hospital-backend/internal/prescription/dto"
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-<<<<<<< HEAD
 var ErrMedicineAlreadyPresent = errors.New("medicine already present in prescription")
 
-=======
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 type PrescriptionItemServ struct {
 	PrescRepo PrescItemsRepo
 }
@@ -29,7 +22,6 @@ func NewPrescriptionItemService(PItems PrescItemsRepo) *PrescriptionItemServ {
 	return &PrescriptionItemServ{PrescRepo: PItems}
 }
 func (s *PrescriptionItemServ) AddItems(db *gorm.DB, medicine []dto.MedicineArray, prescriptionID string, userID string) (err error) {
-<<<<<<< HEAD
 	prescriptionItems, err := s.toPrescItems(db, medicine, prescriptionID, userID)
 	if err != nil {
 		return err
@@ -57,19 +49,6 @@ func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray
 		}
 		existingMedicines[each.MedicineID] = struct{}{}
 
-=======
-	prescriptionItems := s.toPrescItems(medicine, prescriptionID, userID)
-	err = s.PrescRepo.AddItems(db, prescriptionItems)
-	if err != nil {
-		return
-	}
-	return nil
-}
-func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string, userID string) []PrescriptionItems {
-	var prescItems []PrescriptionItems
-
-	for _, each := range med {
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 		var pItem PrescriptionItems
 		pItem.ID = uuid.New().String()
 		pItem.MedicineID = each.MedicineID
@@ -79,22 +58,14 @@ func (s *PrescriptionItemServ) toPrescItems(med []dto.MedicineArray, pID string,
 		pItem.Frequency.Afternoon = each.Afternoon
 		pItem.DurationDay = each.DurationDay
 		pItem.DurationType = s.parseDurationtype(each.DurationType)
-<<<<<<< HEAD
 		pItem.Quantity = int64(s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType))
 		pItem.BalanceAfterDispense = 0
 		pItem.PrescriptionID = pID
 		pItem.Status = constants.StatusPending
-=======
-		pItem.Quantity = s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType)
-		pItem.BalanceAfterDispense = 0
-		pItem.PrescriptionID = pID
-		pItem.Status = StatusPending
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 		pItem.CreatedAt = time.Now()
 		pItem.CreatedBy = userID
 		prescItems = append(prescItems, pItem)
 	}
-<<<<<<< HEAD
 	return prescItems, nil
 }
 func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescriptionItemRequest) error {
@@ -131,20 +102,6 @@ func (s *PrescriptionItemServ) parseDurationtype(durationtype string) string {
 		return constants.Month
 	default:
 		return constants.Days
-=======
-	return prescItems
-}
-func (s *PrescriptionItemServ) parseDurationtype(durationtype string) string {
-	switch durationtype {
-	case Days:
-		return Days
-	case Weeks:
-		return Weeks
-	case Month:
-		return Month
-	default:
-		return Days
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 	}
 }
 func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, durationtype string) int {
@@ -160,31 +117,18 @@ func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, dur
 	}
 	var qty int
 	switch durationtype {
-<<<<<<< HEAD
 	case constants.Days:
 		qty = durationDay * count
 	case constants.Weeks:
 		qty = durationDay * count * 7
 	case constants.Month:
-=======
-	case Days:
-		qty = durationDay * count
-	case Weeks:
-		qty = durationDay * count * 7
-	case Month:
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 		qty = durationDay * count * 30
 	}
 	return qty
 }
-<<<<<<< HEAD
 func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
 	query := `select p.id as prescription_item_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, 
 	m.name as medicine_name,m.form as medicine_form, m.strength as medicine_strength 
-=======
-func (s *PrescriptionItemServ) GetPrescriptionsByPID(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
-	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, m.name as medicine_name,m.form as medicine_form,m.strength as medicine_strength 
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 	from prescription_items p
 	join medicines m on p.medicine_id = m.id
 	where p.prescription_id = $1
@@ -237,12 +181,8 @@ func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]Medicin
                     minv.current_stock_units,
                     minv.units_per_box,
                     minv.pricing,
-<<<<<<< HEAD
                     minv.shelf_location,
 					minv.supplier_id
-=======
-                    minv.shelf_location
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
                 FROM medicine_inventories minv
                 WHERE minv.medicine_id = m.id
                   AND minv.current_stock_units > 0     
@@ -256,13 +196,7 @@ JOIN prescriptions p ON pI.prescription_id = p.id
 JOIN medicines m ON pI.medicine_id = m.id
 WHERE pI.prescription_id = $1;
 	`
-<<<<<<< HEAD
 	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(context.TODO(), query, prescriptionID)
-=======
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-	defer cancel()
-	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(ctx, query, prescriptionID)
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +204,6 @@ WHERE pI.prescription_id = $1;
 	return medicineDet, nil
 
 }
-<<<<<<< HEAD
 func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {
 	prescriptionItems, err := p.PrescRepo.GetQtyInfoByMed(prescriptionID)
 	if err != nil {
@@ -314,5 +247,3 @@ func (p *PrescriptionItemServ) GetPrescriptionItemsByPID(pID string) ([]MixedPre
 	}
 	return prescriptionItems, nil
 }
-=======
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)

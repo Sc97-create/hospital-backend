@@ -8,7 +8,6 @@ import (
 
 type PrescItemsRepo interface {
 	AddItems(db *gorm.DB, edicine []PrescriptionItems) error
-<<<<<<< HEAD
 	GetMedicineIDsByPrescriptionID(db *gorm.DB, prescriptionID string) ([]string, error)
 	GetItemsByPrescriptionID(query string, cond ...any) ([]MixedPrescriptionItem, error)
 	GetPrescriptionItemByID(id string) (PrescriptionItems, error)
@@ -18,12 +17,6 @@ type PrescItemsRepo interface {
 	GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error)
 	UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error
 	UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error
-=======
-	GetItemsByPrescriptionID(query string, cond ...any) ([]MixedPrescriptionItem, error)
-	//UpdatePrescriptionItem(medicine PrescriptionItems) (err error)
-	GetTotalCountByPrescID(prescriptionID string) (int64, error)
-	FindMedicineInfoByPID(ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 }
 
 func (pdb *PrescriptionDB) AddItems(db *gorm.DB, medicine []PrescriptionItems) error {
@@ -33,7 +26,6 @@ func (pdb *PrescriptionDB) AddItems(db *gorm.DB, medicine []PrescriptionItems) e
 	}
 	return nil
 }
-<<<<<<< HEAD
 func (pdb *PrescriptionDB) GetMedicineIDsByPrescriptionID(db *gorm.DB, prescriptionID string) ([]string, error) {
 	var medicineIDs []string
 	err := db.Model(&PrescriptionItems{}).
@@ -44,8 +36,6 @@ func (pdb *PrescriptionDB) GetMedicineIDsByPrescriptionID(db *gorm.DB, prescript
 	}
 	return medicineIDs, nil
 }
-=======
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 func (pdb *PrescriptionDB) GetItemsByPrescriptionID(query string, cond ...any) ([]MixedPrescriptionItem, error) {
 	var prescriptionItems []MixedPrescriptionItem
 	err := pdb.db.Raw(query, cond...).Find(&prescriptionItems).Error
@@ -54,7 +44,6 @@ func (pdb *PrescriptionDB) GetItemsByPrescriptionID(query string, cond ...any) (
 	}
 	return prescriptionItems, nil
 }
-<<<<<<< HEAD
 func (pdb *PrescriptionDB) GetPrescriptionItemByID(id string) (PrescriptionItems, error) {
 	var item PrescriptionItems
 	err := pdb.db.Where("id = ?", id).First(&item).Error
@@ -69,8 +58,6 @@ func (pdb *PrescriptionDB) UpdatePrescriptionItem(item PrescriptionItems) error 
 		Select("medicine_id", "frequency", "quantity", "duration_day", "duration_type", "food_instruction", "updated_at").
 		Updates(item).Error
 }
-=======
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
 func (pdb *PrescriptionDB) GetTotalCountByPrescID(prescriptionID string) (count int64, err error) {
 	err = pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Count(&count).Error
 	if err != nil {
@@ -86,7 +73,6 @@ func (pdb *PrescriptionDB) FindMedicineInfoByPID(ctx context.Context, query stri
 	}
 	return medicineInfo, nil
 }
-<<<<<<< HEAD
 func (pdb *PrescriptionDB) GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error) {
 	var prescriptionItems []PrescriptionItems
 	err := pdb.db.Model(&PrescriptionItems{}).Where("prescription_id=?", prescriptionID).Select("id", "medicine_id", "quantity", "balance_after_dispense").Find(&prescriptionItems).Error
@@ -109,5 +95,3 @@ func (pdb *PrescriptionDB) UpdatePrescriptionItemStatus(tx *gorm.DB, item Prescr
 	}
 	return nil
 }
-=======
->>>>>>> f944f9f (billing.md added details, medicineinventory.md, code changes.)
