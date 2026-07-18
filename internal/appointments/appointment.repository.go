@@ -13,6 +13,7 @@ type AppointmentRepository interface {
 	UpdateStatus(tx *gorm.DB, value interface{}, cond ...any) (err error)
 	GetAppointmentByPatientID(query string, cond ...any) ([]map[string]interface{}, error)
 	GetAppointmentByPatientIDCount(cond ...any) (count int64, err error)
+	GetNotificationsDetails(query string, cond ...any) (map[string]interface{}, error)
 }
 
 func (r *CommonDB) Create(appointment *Appointment) error {
@@ -86,4 +87,12 @@ func (r *CommonDB) GetAppointmentByPatientIDCount(cond ...any) (count int64, err
 		return
 	}
 	return
+}
+func (r *CommonDB) GetNotificationsDetails(query string, cond ...any) (map[string]interface{}, error) {
+	var data map[string]interface{}
+	err := r.db.Raw(query, cond...).First(&data).Error
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }

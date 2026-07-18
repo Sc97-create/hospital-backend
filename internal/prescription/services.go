@@ -218,13 +218,19 @@ func (p *PrescriptionService) UpdateStatus(prescriptionID string, appointmentID 
 }
 func (p *PrescriptionService) GetPrescriptionByPatientID(reqmodel dto.PresPatients) (dto.Response, error) {
 	dblimit, dbskip := p.parsePagination(reqmodel.Limit, reqmodel.Pageno)
-	query := `select p.id, p.created,p.medicines,u.username as doctor_name from prescriptions p 
-	join users u
-	on  p.prescribed_by = u.id
-	where patient_id = $1 and organisation_id = $2
-	order by created_at asc
-	limit = $3
-	offset = $4`
+	query := `SELECT
+    p.id,
+    p.created_at,
+    p.medicines,
+    u.username AS doctor_name
+FROM prescriptions p
+JOIN users u
+    ON p.prescribed_by = u.id
+WHERE p.patient_id = $1
+  AND p.organisation_id = $2
+ORDER BY p.created_at ASC
+LIMIT $3
+OFFSET $4;`
 	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByPatientID(query, reqmodel.PatientID, reqmodel.OrganisationID, dblimit, dbskip)
 	if err != nil {
 		return dto.Response{}, err
@@ -241,14 +247,15 @@ func (p *PrescriptionService) GetPrescriptionByPatientID(reqmodel dto.PresPatien
 	response.Message = "fetched data successfully"
 	return response, nil
 }
-func (p *PrescriptionService) toPrescriptionResponse(Prescription []map[string]interface{}) []dto.PrescriptionPatientResponse {
+func (p *PrescriptionService) toPrescriptionResponse(Prescription []MixPrescriptionData) []dto.PrescriptionPatientResponse {
 	var PrescriptionResponse []dto.PrescriptionPatientResponse
 	for _, each := range Prescription {
 		var eachPrescription dto.PrescriptionPatientResponse
-		eachPrescription.DoctorName, _ = each["doctor_name"].(string)
-		eachPrescription.IssuedAt, _ = each["created_at"].(time.Time)
-		eachPrescription.Medicines, _ = each["medicines"].(MedicineList)
-		eachPrescription.Reason, _ = each["reason"].(string)
+		eachPrescription.PrescriptionID = each.ID
+		eachPrescription.DoctorName = each.DoctorName
+		eachPrescription.IssuedAt = each.CreatedAt
+		eachPrescription.Medicines = each.Medicines
+		eachPrescription.Reason = each.Reason
 		PrescriptionResponse = append(PrescriptionResponse, eachPrescription)
 	}
 	return PrescriptionResponse

@@ -18,7 +18,7 @@ func NewPrescriptionDB(db *gorm.DB) *PrescriptionDB {
 type PrescriptionRepositoryInterface interface {
 	CreatePrescription(prescription Prescription) error
 	GetPrescriptionByID(id string) (*Prescription, error)
-	GetPrescriptionsByPatientID(query string, cond ...any) ([]map[string]interface{}, error)
+	GetPrescriptionsByPatientID(query string, cond ...any) ([]MixPrescriptionData, error)
 	GetPrescriptionByPatientIDCount(cond ...any) (count int64, err error)
 	GetPrescriptionsByDoctorID(doctorID string) ([]Prescription, error)
 	UpdatePrescription(prescription Prescription) error
@@ -39,8 +39,8 @@ func (pdb *PrescriptionDB) GetPrescriptionByID(id string) (*Prescription, error)
 	return &prescription, err
 }
 
-func (pdb *PrescriptionDB) GetPrescriptionsByPatientID(query string, cond ...any) ([]map[string]interface{}, error) {
-	var prescriptions []map[string]interface{}
+func (pdb *PrescriptionDB) GetPrescriptionsByPatientID(query string, cond ...any) ([]MixPrescriptionData, error) {
+	var prescriptions []MixPrescriptionData
 
 	err := pdb.db.Raw(query, cond...).Find(&prescriptions).Error
 	return prescriptions, err
@@ -94,7 +94,11 @@ func (pdb *PrescriptionDB) Count(organisationID string) (int64, error) {
 	return count, err
 }
 func (pdb *PrescriptionDB) GetPrescriptionByPatientIDCount(cond ...any) (count int64, err error) {
-	err = pdb.db.Model(&Prescription{}).Where("patient_id=? and organisation_id=?").Count(&count).Error
+	err = pdb.db.
+		Model(&Prescription{}).
+		Where("patient_id = ? AND organisation_id = ?", cond...).
+		Count(&count).
+		Error
 	if err != nil {
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine/medmigration"
 	"hospital-backend/internal/modules"
+	"hospital-backend/internal/notifications"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/permissions"
@@ -82,6 +83,14 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 	}
 	err = database.PostgreClient.AutoMigrate(&admins.OrganisationSchedule{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&notifications.Notification{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&notifications.NotificationAttempts{})
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

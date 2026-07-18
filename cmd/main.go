@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"hospital-backend/appinit"
 	"hospital-backend/config"
@@ -26,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
 	migration.Migrate()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -50,6 +52,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+	ctx := context.Background()
+	containers.NotificationContainer.Start(ctx)
 	routers.RegisterPatientRoutes(app, containers.PatientService, containers.JwtManagement)
 	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
 	routers.RegisterLicenseRoutes(app, containers.LicenseService)

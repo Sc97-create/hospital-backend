@@ -42,6 +42,15 @@ type Medicines struct {
 	MedicineType    string  `json:"medicine_type" gorm:"column:medicine_type"`
 	Dosage          string  `json:"dosage" gorm:"column:dosage"`
 }
+type MixPrescriptionData struct {
+	DoctorName     string       `json:"doctor_name"`
+	ID             string       `json:"id"`
+	Reason         string       `json:"reason"`
+	CreatedAt      time.Time    `json:"created_at"`
+	Medicines      MedicineList `json:"medicines"`
+	PatientID      string       `json:"patient_id"`
+	OrganisationID string       `json:"organisation_id"`
+}
 
 func (S *MedicineList) Scan(value interface{}) error {
 	if value == nil {

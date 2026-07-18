@@ -52,10 +52,11 @@ type PrescriptionListItem struct {
 	Status       string    `json:"status"`
 }
 type PrescriptionPatientResponse struct {
-	DoctorName string    `json:"doctor_name"`
-	IssuedAt   time.Time `json:"issued_at"`
-	Medicines  any       `json:"medicines"`
-	Reason     string    `json:"reason"`
+	PrescriptionID string    `json:"prescription_id"`
+	DoctorName     string    `json:"doctor_name"`
+	IssuedAt       time.Time `json:"issued_at"`
+	Medicines      any       `json:"medicines"`
+	Reason         string    `json:"reason"`
 }
 type Response struct {
 	Data    any    `json:"data"`
