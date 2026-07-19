@@ -36,4 +36,7 @@ type NotificationModel struct {
 	ExpiresAt           string                 `json:"expires_at"`
 	PatientCode         string                 `json:"patient_code"`
 	PatientPhone        string                 `json:"patient_phone"`
+	PaymentStatus       string                 `json:"payment_status"`
+	//Amount          string                 `json:"amount_paid"`
+	PaidAt string `json:"paid_at"`
 }

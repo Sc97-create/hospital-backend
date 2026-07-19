@@ -269,7 +269,7 @@ func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointm
 	//cancelled
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
 		if status == constants.StatusSent {
-			err := p.appointmentService.Repository.UpdateStatus(tx, status, appointmentID)
+			err := p.appointmentService.Repository.UpdateStatus(tx, constants.StatusCompleted, appointmentID)
 			if err != nil {
 				return err
 			}

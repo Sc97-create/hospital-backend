@@ -69,6 +69,11 @@ func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 		notificationData.ConsultedOn, _ = v["consulted_on"].(string)
 		notificationData.PrescriptionCode, _ = v["prescription_code"].(string)
 		notificationData.PrescriptionSummary, _ = v["prescription_summary"].(string)
+		amountPaid, _ := v["amount_paid"].(float64)
+		notificationData.Amount = fmt.Sprintf("%.2f", amountPaid)
+		notificationData.Currency, _ = v["currency"].(string)
+		notificationData.PaymentStatus, _ = v["payment_status"].(string)
+		notificationData.PaidAt, _ = v["paid_at"].(string)
 		notificationData.Medicines = parsePrescriptionMedicines(v["medicines"])
 	}
 	return notificationData

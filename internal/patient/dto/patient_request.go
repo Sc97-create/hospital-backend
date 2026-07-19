@@ -13,6 +13,7 @@ type PatientInfo struct {
 	BloodGroup     string `json:"blood_group"`
 	Address        string `json:"address"`
 	OrganisationID string `json:"organisation_id"`
+	HospitalName   string `json:"hospital_name"`
 }
 
 type PatientResponse struct {

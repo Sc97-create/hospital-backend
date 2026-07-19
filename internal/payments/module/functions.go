@@ -2,7 +2,6 @@ package module
 
 import (
 	"hospital-backend/config"
-
 	"hospital-backend/internal/payments"
 	"hospital-backend/internal/payments/providers"
 	"hospital-backend/internal/payments/providers/razorpay"
@@ -33,7 +32,6 @@ func NewModule(
 
 	gateway := providers.NewPaymentFactory(razorpaygateway)
 	paymentAttempts := payments.NewPaymentAttempts(paymentsDB)
-
 	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts, prescriptionStatus)
 	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment)
 	return &Module{Paymentservice: paymentsService, PaymentAttempt: paymentAttempts, WebhookService: webhookService}

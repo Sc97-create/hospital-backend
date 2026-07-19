@@ -35,23 +35,24 @@ type Bed struct {
 }
 
 type Patient struct {
-	ID             string                    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	UHID           string                    `json:"uh_id" gorm:"not null;unique"`
-	Name           string                    `json:"name" gorm:"type:text;not null"`
-	Age            int                       `json:"age" gorm:"not null"`
-	Gender         string                    `json:"gender" gorm:"not null"`
-	Weight         int                       `json:"weight" gorm:"not null"`
-	EmailID        string                    `json:"email_id" gorm:"unique"`
-	MobileNumber   string                    `json:"mobile_no" gorm:"unique"`
-	BloodGroup     string                    `json:"blood_group" gorm:"type:varchar(10)"`
-	LastVisitDate  time.Time                 `json:"last_visit_date"`
-	CreatedBy      string                    `json:"created_by" gorm:"type:uuid"`
-	OrganisationID string                    `json:"organisation_id" gorm:"type:uuid"`
-	Organisation   organisation.Organisation `gorm:"foreignKey:OrganisationID"`
-	Status         Status                    `json:"status" gorm:"default:'free'"`
-	CreatedAt      time.Time                 `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt      time.Time                 `json:"updated_at" gorm:"autoUpdateTime"`
-	Address        string                    `json:"address" gorm:"type:varchar(500)"`
-	TotalVisit     int                       `json:"total_visit"`
-	LastVisit      time.Time                 `json:"last_visit" gorm:"type:timestamp"`
+	ID             string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	UHID           string    `json:"uh_id" gorm:"not null;unique"`
+	Name           string    `json:"name" gorm:"type:text;not null"`
+	Age            int       `json:"age" gorm:"not null"`
+	Gender         string    `json:"gender" gorm:"not null"`
+	Weight         int       `json:"weight" gorm:"not null"`
+	EmailID        string    `json:"email_id" gorm:"unique"`
+	MobileNumber   string    `json:"mobile_no" gorm:"unique"`
+	BloodGroup     string    `json:"blood_group" gorm:"type:varchar(10)"`
+	LastVisitDate  time.Time `json:"last_visit_date"`
+	CreatedBy      string    `json:"created_by" gorm:"type:uuid"`
+	OrganisationID string    `json:"organisation_id" gorm:"type:uuid"`
+
+	Organisation organisation.Organisation `gorm:"foreignKey:OrganisationID"`
+	Status       Status                    `json:"status" gorm:"default:'free'"`
+	CreatedAt    time.Time                 `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time                 `json:"updated_at" gorm:"autoUpdateTime"`
+	Address      string                    `json:"address" gorm:"type:varchar(500)"`
+	TotalVisit   int                       `json:"total_visit"`
+	LastVisit    time.Time                 `json:"last_visit" gorm:"type:timestamp"`
 }

@@ -104,6 +104,7 @@ type MedicineBatch struct {
 	UnitsPerBox       int               `json:"units_per_box"`
 	Pricing           DBMedicinePricing `json:"pricing"` // Kept as raw JSONB pricing
 	ShelfLocation     string            `json:"shelf_location"`
+	SupplierID        string            `json:"supplier_id"`
 }
 type DBMedicinePricing struct {
 	MRP              float64 `json:"mrp"`

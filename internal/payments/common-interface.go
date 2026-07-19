@@ -1,7 +1,9 @@
 package payments
 
 import (
+	"context"
 	invoiceDto "hospital-backend/internal/billing/dto"
+	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/pkg/types"
 
 	"gorm.io/gorm"
@@ -22,4 +24,6 @@ type IPaymentFulfillment interface {
 	UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error // item-level status
 	UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error   // prescription-level status
 	UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error
+	GetNotificationPatientByID(patientID string) (map[string]interface{}, error)
+	CreateNotification(ctx context.Context, notification notificationdto.CreateRequest) error
 }

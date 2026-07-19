@@ -207,3 +207,12 @@ func (p *PatientService) formatWaitingTime(lastVisit time.Time) string {
 	return fmt.Sprintf("%.0f mins", minutes)
 
 }
+func (p *PatientService) GetNotificationPatientByID(patientID string) (map[string]interface{}, error) {
+	query := `select p.name,p.email_id,p.mobile_number,p.blood_group,p.address,o.organisation_name as hospital_name,p.organisation_id,p.id as patient_id from patients p 
+	join organisations o on p.organisation_id=o.id where p.id = $1`
+	patient, err := p.PRepo.ReadOneWithOrganisationID(query, patientID)
+	if err != nil {
+		return nil, err
+	}
+	return patient, nil
+}

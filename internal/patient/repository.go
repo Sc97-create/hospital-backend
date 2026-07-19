@@ -5,6 +5,7 @@ type PatientRepository interface {
 	ReadMany(limit int, offset int, organisationID string) ([]Patient, error)
 	ReadOne(patientID string) (Patient, error)
 	Count(organisationID string) (int64, error)
+	ReadOneWithOrganisationID(query string, args ...any) (map[string]interface{}, error)
 }
 
 func (p *PatientRepo) Create(record *Patient) error {
@@ -36,4 +37,11 @@ func (p *PatientRepo) Count(organisationID string) (int64, error) {
 		return 0, err
 	}
 	return count, nil
+}
+func (p *PatientRepo) ReadOneWithOrganisationID(query string, args ...any) (patient map[string]interface{}, err error) {
+	err = p.db.Raw(query, args...).Scan(&patient).Error
+	if err != nil {
+		return nil, err
+	}
+	return patient, nil
 }

@@ -37,5 +37,7 @@ const (
 	Days                       string = "Days"
 	Weeks                      string = "Weeks"
 	Month                      string = "Months"
+	PaymentReceivedEvent              = "payment_received"
+	PaymentReceivedSubject            = "Payment Received"
 	//CurrencyINR                       = "INR"
 )

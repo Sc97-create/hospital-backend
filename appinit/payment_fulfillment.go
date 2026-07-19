@@ -1,9 +1,13 @@
 package appinit
 
 import (
+	"context"
 	"hospital-backend/internal/billing"
 	invoiceDto "hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/medicine"
+	notificationdto "hospital-backend/internal/notifications/dto"
+	notificationService "hospital-backend/internal/notifications/service"
+	"hospital-backend/internal/patient"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/pkg/types"
 
@@ -12,12 +16,14 @@ import (
 
 // paymentFulfillment adapts billing/medicine/prescription services to payments.IPaymentFulfillment.
 type paymentFulfillment struct {
-	invoiceItems      *billing.InvoiceItemServ
-	invoiceRepo       billing.InvoiceRepo
-	medInventory      *medicine.SMedicineInventory
-	medMvmt           *medicine.SMedicineMvmt
-	prescription      *prescription.PrescriptionService
-	prescriptionItems *prescription.PrescriptionItemServ
+	invoiceItems        *billing.InvoiceItemServ
+	invoiceRepo         billing.InvoiceRepo
+	medInventory        *medicine.SMedicineInventory
+	medMvmt             *medicine.SMedicineMvmt
+	prescription        *prescription.PrescriptionService
+	prescriptionItems   *prescription.PrescriptionItemServ
+	patientService      *patient.PatientService
+	notificationService *notificationService.Notificationservice
 }
 
 func newPaymentFulfillment(
@@ -27,14 +33,18 @@ func newPaymentFulfillment(
 	medMvmt *medicine.SMedicineMvmt,
 	prescriptionSvc *prescription.PrescriptionService,
 	prescriptionItems *prescription.PrescriptionItemServ,
+	patientService *patient.PatientService,
+	notificationService *notificationService.Notificationservice,
 ) *paymentFulfillment {
 	return &paymentFulfillment{
-		invoiceItems:      invoiceItems,
-		invoiceRepo:       invoiceRepo,
-		medInventory:      medInventory,
-		medMvmt:           medMvmt,
-		prescription:      prescriptionSvc,
-		prescriptionItems: prescriptionItems,
+		invoiceItems:        invoiceItems,
+		invoiceRepo:         invoiceRepo,
+		medInventory:        medInventory,
+		medMvmt:             medMvmt,
+		prescription:        prescriptionSvc,
+		prescriptionItems:   prescriptionItems,
+		patientService:      patientService,
+		notificationService: notificationService,
 	}
 }
 
@@ -64,4 +74,11 @@ func (f *paymentFulfillment) UpdateExtPrescriptionStatus(tx *gorm.DB, prescripti
 
 func (f *paymentFulfillment) UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error {
 	return f.invoiceRepo.UpdateInvoiceStatus(tx, invoiceID, status)
+}
+func (f *paymentFulfillment) GetNotificationPatientByID(patientID string) (map[string]interface{}, error) {
+	return f.patientService.GetNotificationPatientByID(patientID)
+}
+
+func (f *paymentFulfillment) CreateNotification(ctx context.Context, notification notificationdto.CreateRequest) error {
+	return f.notificationService.Create(ctx, notification)
 }
