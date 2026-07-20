@@ -187,4 +187,5 @@ func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, we
 	paymentGrp := version.Group("payment")
 	paymentController := payments.NewPaymentController(payment, webhook)
 	paymentGrp.Post("/webhook", paymentController.RazorPayWebhook)
+	paymentGrp.Post("/confirm", paymentController.UpdatePaymentManually)
 }

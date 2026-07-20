@@ -5,6 +5,7 @@ import "gorm.io/gorm"
 type IPaymentAttempts interface {
 	CreatePaymentAttempts(tx *gorm.DB, PAttempts PaymentAttempts) error
 	FindByProviderLinkID(providerLinkID string) (PaymentAttempts, error)
+	FindByPaymentID(paymentID string) (PaymentAttempts, error)
 	UpdatePaymentAttempt(tx *gorm.DB, paymentAttempt PaymentAttempts) error
 	UpdatePaymentAttemptStatus(tx *gorm.DB, PaymentAttempt PaymentAttempts) error
 	// ClaimForProcessing atomically transitions status from pending → processing.
@@ -19,6 +20,12 @@ func (p *DB) CreatePaymentAttempts(tx *gorm.DB, PAttempts PaymentAttempts) error
 func (p *DB) FindByProviderLinkID(providerLinkID string) (PaymentAttempts, error) {
 	var attempt PaymentAttempts
 	err := p.db.Where("provider_link_id = ?", providerLinkID).First(&attempt).Error
+	return attempt, err
+}
+
+func (p *DB) FindByPaymentID(paymentID string) (PaymentAttempts, error) {
+	var attempt PaymentAttempts
+	err := p.db.Where("payment_id = ?", paymentID).Order("created_at DESC").First(&attempt).Error
 	return attempt, err
 }
 

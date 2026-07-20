@@ -82,11 +82,8 @@ func (pdb *PrescriptionDB) GetQtyInfoByMed(prescriptionID string) ([]Prescriptio
 	return prescriptionItems, nil
 }
 func (pdb *PrescriptionDB) UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error {
-	err := tx.Raw(query, prescriptionItemID, dispensedQty).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	// placeholders: balance_after_dispense + ?  then  WHERE id = ?
+	return tx.Exec(query, dispensedQty, prescriptionItemID).Error
 }
 func (pdb *PrescriptionDB) UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error {
 	err := tx.Model(&PrescriptionItems{}).Where("id=?", item.ID).Updates(item).Error

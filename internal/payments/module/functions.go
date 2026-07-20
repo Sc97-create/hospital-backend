@@ -32,7 +32,8 @@ func NewModule(
 
 	gateway := providers.NewPaymentFactory(razorpaygateway)
 	paymentAttempts := payments.NewPaymentAttempts(paymentsDB)
-	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts, prescriptionStatus)
-	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment)
+	fulfillmentSvc := payments.NewFulfillmentService(fulfillment)
+	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts, prescriptionStatus, fulfillmentSvc)
+	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment, fulfillmentSvc)
 	return &Module{Paymentservice: paymentsService, PaymentAttempt: paymentAttempts, WebhookService: webhookService}
 }

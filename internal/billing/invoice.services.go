@@ -27,33 +27,46 @@ type InvoiceServ struct {
 func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS *payments.PaymentsService, items *InvoiceItemServ, patientServ *patient.PatientService) *InvoiceServ {
 	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ}
 }
-func (IService *InvoiceServ) CreatePaymentLink(reqPayload dto.CheckoutReq) (string, error) {
+func (IService *InvoiceServ) CreateInvoice(reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error) {
 	invoice := IService.toInvoiceModel(reqPayload)
 	tx := IService.db.Begin()
 	err := IService.InvRepo.CreateInvoice(tx, invoice)
 	if err != nil {
 		tx.Rollback()
-		return "", err
+		return dto.InvoiceResponse{}, err
 	}
 	err = IService.InoviceItemS.addInvoiceItems(tx, reqPayload.PrescriptionID, invoice.ID, reqPayload.DispensedItems)
 	if err != nil {
 		tx.Rollback()
-		return "", err
+		return dto.InvoiceResponse{}, err
 	}
 	tx.Commit()
 	patientInfo, err := IService.PatientServ.FindOne(reqPayload.PatientID)
 	if err != nil {
-		return "", err
+		return dto.InvoiceResponse{}, err
 	}
+
+	var paymentResponse paymentDto.CreatePaymentResponse
+
 	paymentDto := IService.toPaymentlinkModel(reqPayload, patientInfo, invoice.ID, invoice.InvoiceCode)
-	paymentResponse, err := IService.PaymentServ.StorePaymentandNotifyUser(paymentDto)
-	if err != nil {
-		return "", err
+	switch reqPayload.PaymentMode {
+	case constants.PaymentLink:
+		paymentResponse, err = IService.PaymentServ.CreateLinkPayment(paymentDto)
+		if err != nil {
+			return dto.InvoiceResponse{}, err
+		}
+	case constants.PaymentCash, constants.PaymentQR:
+		err = IService.PaymentServ.CreatePendingPayment(paymentDto)
+		if err != nil {
+			return dto.InvoiceResponse{}, err
+		}
+	default:
+		return dto.InvoiceResponse{}, fmt.Errorf("unsupported payment_mode: %s", reqPayload.PaymentMode)
 	}
 	if paymentResponse.PaymentURL != "" {
-		return paymentResponse.PaymentURL, nil
+		return dto.InvoiceResponse{InvoiceID: invoice.ID, PaymentURL: paymentResponse.PaymentURL}, nil
 	}
-	return paymentResponse.PaymentURL, nil
+	return dto.InvoiceResponse{InvoiceID: invoice.ID, PaymentURL: ""}, nil
 }
 func (IService *InvoiceServ) toInvoiceModel(payload dto.CheckoutReq) Invoice {
 	var invoice Invoice
@@ -82,8 +95,14 @@ func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patient
 	paymentdto.SendEmail = true
 	paymentdto.SendSMS = true
 	paymentdto.Description = "please pay the amount to get prescribed medicine"
-	paymentdto.Channel = payload.PaymentMode
-	paymentdto.Source = Source
+	if payload.PaymentMode == constants.PaymentCash {
+		paymentdto.Channel = constants.PaymentCash
+	} else if payload.PaymentMode == constants.PaymentQR {
+		paymentdto.Channel = constants.PaymentUPI
+	} else {
+		paymentdto.Channel = constants.PaymentUPI
+	}
+	paymentdto.Source = payload.PaymentMode
 	paymentdto.InitiatedBy = payload.CashierID
 	paymentdto.PatientID = patientInfo.PatientID
 	paymentdto.ReferenceID = invoiceCode

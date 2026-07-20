@@ -146,18 +146,19 @@ func (p *PatientService) arraymaptopatientResponse(patient []Patient) []dto.Pati
 	patientResponse := []dto.PatientResponse{}
 	for _, each := range patient {
 		patientResponse = append(patientResponse, dto.PatientResponse{
-			PatientID:      each.ID,
-			PatientCode:    each.UHID,
-			PatientName:    each.Name,
-			PatientWeight:  each.Weight,
-			PatientGender:  each.Gender,
-			PatientPhone:   each.MobileNumber,
-			PatientEmail:   each.EmailID,
-			PatientAge:     each.Age,
-			PatientStatus:  string(each.Status),
-			PatientBG:      each.BloodGroup,
-			PatientLVD:     each.LastVisitDate,
-			PatientAddress: each.Address,
+			PatientID:        each.ID,
+			PatientCode:      each.UHID,
+			PatientName:      each.Name,
+			PatientWeight:    each.Weight,
+			PatientGender:    each.Gender,
+			PatientPhone:     each.MobileNumber,
+			PatientEmail:     each.EmailID,
+			PatientAge:       each.Age,
+			PatientStatus:    string(each.Status),
+			PatientBG:        each.BloodGroup,
+			PatientLVD:       each.LastVisitDate,
+			PatientAddress:   each.Address,
+			PatientCreatedAt: each.CreatedAt,
 		})
 	}
 	return patientResponse

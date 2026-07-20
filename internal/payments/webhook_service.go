@@ -1,14 +1,11 @@
 package payments
 
 import (
-	"context"
 	"encoding/json"
 	invoiceDto "hospital-backend/internal/billing/dto"
-	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
 	"hospital-backend/pkg/constants"
-	"hospital-backend/pkg/types"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,10 +20,27 @@ type IWebhookService struct {
 	PaymentAttempts   *SPaymentAttempts
 	PaymentFactory    *providers.PaymentFactory
 	Fulfillment       IPaymentFulfillment
+	FulfillmentSvc    *FulfillmentService
 }
 
-func NewWebhookService(db *gorm.DB, webhookRepository IWebhookRepository, paymentsService *PaymentsService, paymentAttempts *SPaymentAttempts, paymentFactory *providers.PaymentFactory, fulfillment IPaymentFulfillment) *IWebhookService {
-	return &IWebhookService{db: db, WebhookRepository: webhookRepository, PaymentsService: paymentsService, PaymentAttempts: paymentAttempts, PaymentFactory: paymentFactory, Fulfillment: fulfillment}
+func NewWebhookService(
+	db *gorm.DB,
+	webhookRepository IWebhookRepository,
+	paymentsService *PaymentsService,
+	paymentAttempts *SPaymentAttempts,
+	paymentFactory *providers.PaymentFactory,
+	fulfillment IPaymentFulfillment,
+	fulfillmentSvc *FulfillmentService,
+) *IWebhookService {
+	return &IWebhookService{
+		db:                db,
+		WebhookRepository: webhookRepository,
+		PaymentsService:   paymentsService,
+		PaymentAttempts:   paymentAttempts,
+		PaymentFactory:    paymentFactory,
+		Fulfillment:       fulfillment,
+		FulfillmentSvc:    fulfillmentSvc,
+	}
 }
 func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provider string) (bool, error) {
 	gateway, err := w.PaymentFactory.GetProvider(provider)
@@ -91,83 +105,13 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			begin.Rollback()
 			return false, err
 		}
-
-		var bulkMedicineMvmt []types.MedicineStockMovements
-
-		allFullyDispensed := true // XOR flag: flips false if any item is partially dispensed
-		for _, each := range medicineInventoryDet {
-			// build stock movement record for bulk insert
-			var eachMedicineMvmt types.MedicineStockMovements
-			eachMedicineMvmt.ID = uuid.NewString()
-			eachMedicineMvmt.MedicineID = each.MedicineID
-			eachMedicineMvmt.MedicineInventoryID = each.MedicineInventoryID
-			eachMedicineMvmt.OrganisationID = each.OrganisationID
-			eachMedicineMvmt.MovementType = types.Dispense
-			eachMedicineMvmt.QtyChanged = int(each.DispensedQty)
-			eachMedicineMvmt.SourceType = types.PatientMedicineOrder
-			eachMedicineMvmt.UnitPriceAtTimeOfMvmt = each.Pricing.UnitPrice
-			eachMedicineMvmt.BalanceAfterMvmt = int(each.CurrentStockUnitAfterDispense)
-			eachMedicineMvmt.CreatedBy = each.CashierID
-			bulkMedicineMvmt = append(bulkMedicineMvmt, eachMedicineMvmt)
-
-			// atomically decrement medicine inventory stock by dispensed qty
-			err = w.Fulfillment.UpdateMedInventoryStock(begin, each.MedicineInventoryID, each.DispensedQty)
-			if err != nil {
-				begin.Rollback()
-				return false, err
-			}
-
-			// increment balance_after_dispense on prescription item
-			err = w.Fulfillment.UpdateDispenseItemQty(begin, each.PrescriptionItemID, each.DispensedQty)
-			if err != nil {
-				begin.Rollback()
-				return false, err
-			}
-			// item-level status: fully or partially dispensed
-			newBalance := each.AlreadyDispensed + each.DispensedQty
-			if newBalance >= each.PrescribedQty {
-				err = w.Fulfillment.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusFullyDispensed)
-			} else {
-				allFullyDispensed = false // at least one item still pending
-				err = w.Fulfillment.UpdateIPrescriptionStatus(begin, each.PrescriptionItemID, constants.StatusPartiallyDispensed)
-			} // item-level status updated
-			if err != nil {
-				begin.Rollback()
-				return false, err
-			}
-		}
-
-		// bulk insert all stock movement records
-		err = w.Fulfillment.CreateMedicineMvmt(begin, bulkMedicineMvmt)
+		err = w.FulfillmentSvc.FulfillPaidInvoice(begin, invoiceInfo.InvoiceID)
 		if err != nil {
 			begin.Rollback()
 			return false, err
 		}
-
-		// prescription-level status derived from XOR of all item statuses
-		prescStatus := constants.StatusPartiallyDispensed
-		if allFullyDispensed {
-			prescStatus = constants.StatusFullyDispensed
-		}
-		if prescriptionID != "" {
-			err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, prescriptionID, prescStatus)
-			if err != nil {
-				begin.Rollback()
-				return false, err
-			}
-		}
-		err = w.Fulfillment.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.InvoicePaid)
-		if err != nil {
-			begin.Rollback()
-			return false, err
-		} //invoice status updated
 		begin.Commit()
-		ctx := context.Background()
-		notificationRequest, err := w.createNotification(invoiceInfo, constants.PaymentReceivedEvent, paymentAttempt.PaidAt)
-		if err != nil {
-			return false, err
-		}
-		err = w.Fulfillment.CreateNotification(ctx, notificationRequest)
+		err = w.FulfillmentSvc.NotifyPaymentReceived(invoiceInfo, paymentAttempt.PaidAt)
 		if err != nil {
 			return false, err
 		}
@@ -216,21 +160,7 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 	}
 	return false, nil
 }
-func (w *IWebhookService) createNotification(invoiceInfo Payments, eventType string, paidAt time.Time) (notificationdto.CreateRequest, error) {
-	patientInfo, err := w.Fulfillment.GetNotificationPatientByID(invoiceInfo.PatientID)
-	if err != nil {
-		return notificationdto.CreateRequest{}, err
-	}
-	patientInfo["amount_paid"] = invoiceInfo.Amount
-	patientInfo["payment_status"] = eventType
-	patientInfo["currency"] = invoiceInfo.Currency
-	patientInfo["paid_at"] = paidAt.Format("02 Jan 2006 15:04:05")
-	var notificationRequest notificationdto.CreateRequest
-	notificationRequest.Data = patientInfo
-	notificationRequest.NotificationType = constants.PaymentReceivedEvent
-	notificationRequest.Subject = constants.PaymentReceivedSubject
-	return notificationRequest, nil
-}
+
 func (w *IWebhookService) toWebhookEvent(dtowebhookevent dto.ParsedWebhookEvent, paymentAttemptID string) WebhookEvents {
 
 	var webhookresponse datatypes.JSONMap

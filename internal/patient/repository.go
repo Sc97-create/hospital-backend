@@ -16,7 +16,7 @@ func (p *PatientRepo) Create(record *Patient) error {
 	return nil
 }
 func (p *PatientRepo) ReadMany(limit int, offset int, organisationID string) (patients []Patient, err error) {
-	query := `select id,uh_id,name,gender,age,weight,mobile_number,email_id,last_visit_date,blood_group,status from patients where organisation_id=? limit ? offset ?`
+	query := `select id,uh_id,name,gender,age,weight,mobile_number,email_id,last_visit_date,blood_group,status,created_at from patients where organisation_id=? limit ? offset ?`
 	err = p.db.Raw(query, organisationID, limit, offset).Scan(&patients).Error
 	if err != nil {
 		return

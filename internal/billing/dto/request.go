@@ -1,14 +1,14 @@
 package dto
 
 type CheckoutReq struct {
-	PrescriptionID string    `json:"prescription_id"`
-	OrganisationID string    `json:"organisation_id"`
-	PatientID      string    `json:"patient_id"`
-	CashierID      string    `json:"cashier_id"`
-	SupplierID     string    `json:"supplier_id"`
-	PaymentMode    string    `json:"payment_mode"`
-	Financials     Financial `json:"financials"`
-	DispensedItems []DispensedItem
+	PrescriptionID string          `json:"prescription_id"`
+	OrganisationID string          `json:"organisation_id"`
+	PatientID      string          `json:"patient_id"`
+	CashierID      string          `json:"cashier_id"`
+	SupplierID     string          `json:"supplier_id"`
+	PaymentMode    string          `json:"payment_mode"`
+	Financials     Financial       `json:"financials"`
+	DispensedItems []DispensedItem `json:"dispensed_items"`
 }
 type DispensedItem struct {
 	MedicineID          string  `json:"medicine_id"`

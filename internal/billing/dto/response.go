@@ -16,3 +16,7 @@ type MedInvoiceItemResponse struct {
 	PrescribedQty                 int64         `json:"prescribed_qty"`    // from prescription_items.quantity
 	AlreadyDispensed              int64         `json:"already_dispensed"` // from prescription_items.balance_after_dispense
 }
+type InvoiceResponse struct {
+	InvoiceID  string `json:"invoice_id"`
+	PaymentURL string `json:"payment_url"`
+}

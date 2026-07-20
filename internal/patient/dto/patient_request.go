@@ -17,20 +17,21 @@ type PatientInfo struct {
 }
 
 type PatientResponse struct {
-	PatientID      string    `json:"patient_id"`
-	PatientCode    string    `json:"patient_code"`
-	PatientName    string    `json:"patient_name"`
-	PatientWeight  int       `json:"patient_weight"`
-	PatientGender  string    `json:"patient_gender"`
-	PatientPhone   string    `json:"patient_phone"`
-	PatientAddress string    `json:"patient_address"`
-	PatientEmail   string    `json:"patient_email"`
-	PatientImage   string    `json:"patient_image"`
-	PatientStatus  string    `json:"patient_status"`
-	PatientAge     int       `json:"patient_age"`
-	PatientBG      string    `json:"patient_bg"`
-	PatientLVD     time.Time `json:"patient_lvd"`
-	WaitingTime    string    `json:"waiting_time"`
+	PatientID        string    `json:"patient_id"`
+	PatientCode      string    `json:"patient_code"`
+	PatientName      string    `json:"patient_name"`
+	PatientWeight    int       `json:"patient_weight"`
+	PatientGender    string    `json:"patient_gender"`
+	PatientPhone     string    `json:"patient_phone"`
+	PatientAddress   string    `json:"patient_address"`
+	PatientEmail     string    `json:"patient_email"`
+	PatientImage     string    `json:"patient_image"`
+	PatientStatus    string    `json:"patient_status"`
+	PatientAge       int       `json:"patient_age"`
+	PatientBG        string    `json:"patient_bg"`
+	PatientLVD       time.Time `json:"patient_lvd"`
+	WaitingTime      string    `json:"waiting_time"`
+	PatientCreatedAt time.Time `json:"patient_created_at"`
 }
 type PatientListResponse struct {
 	Data  []PatientResponse `json:"data"`

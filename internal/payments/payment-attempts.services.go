@@ -28,6 +28,10 @@ func (sPAttempts *SPaymentAttempts) FindByProviderLinkID(providerLinkID string) 
 	return sPAttempts.PaymentAttemptRepo.FindByProviderLinkID(providerLinkID)
 }
 
+func (sPAttempts *SPaymentAttempts) FindByPaymentID(paymentID string) (PaymentAttempts, error) {
+	return sPAttempts.PaymentAttemptRepo.FindByPaymentID(paymentID)
+}
+
 func (sPAttempts *SPaymentAttempts) toPaymentAModel(internalPaymentID string, paymentResponse dto.CreatePaymentResponse, providerName string) PaymentAttempts {
 	var payAttempts PaymentAttempts
 	payAttempts.ID = uuid.NewString()

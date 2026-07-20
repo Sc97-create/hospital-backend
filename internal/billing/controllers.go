@@ -44,6 +44,10 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
+	checkoutReq.PaymentMode, err = payload.Getstring("payment_mode")
+	if err != nil {
+		return wrapErrors.Wrap(err, c, 409)
+	}
 	checkoutReq.OrganisationID, err = payload.Getstring("organisation_id")
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
@@ -60,18 +64,16 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
+
 	checkoutReq.DispensedItems, err = IB.toDispenseItems(items)
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
-	/*
-
-	 */
-	paymentLink, err := IB.BillingServ.CreatePaymentLink(checkoutReq)
+	invoiceResponse, err := IB.BillingServ.CreateInvoice(checkoutReq)
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
 	}
-	return c.JSON(fiber.Map{"message": "stored", "payment_link": paymentLink})
+	return c.JSON(fiber.Map{"message": "stored", "payment": invoiceResponse})
 }
 func (IB *Ibilling) tofinancialMap(financials *params.Payload) (dto.Financial, error) {
 	var finance dto.Financial

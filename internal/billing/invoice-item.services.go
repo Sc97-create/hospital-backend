@@ -33,7 +33,7 @@ func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID st
 		}
 		remaining := info.Quantity - int64(info.BalanceAfterDispense)
 		if int64(each.QuantitySoldUnits) > remaining {
-			return fmt.Errorf("dispensed qty %d exceeds remaining prescribed qty %d for medicine %s",
+			return fmt.Errorf("dispensed qty %.2f exceeds remaining prescribed qty %d for medicine %s",
 				each.QuantitySoldUnits, remaining, each.MedicineID)
 		}
 		if each.QuantitySoldUnits > each.CurrentStockUnits {
