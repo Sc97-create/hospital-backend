@@ -396,7 +396,7 @@ func (s *AppointmentService) buildQueryWithFilters(reqModel dto.GetDataReq) (str
 	`
 	args := []interface{}{reqModel.OrganisationID}
 	baseQuery, args, argsPos := s.appendAppointmentFilters(baseQuery, reqModel, args, 2)
-	baseQuery += " ORDER BY a.start_time DESC"
+	baseQuery += " ORDER BY a.appointment_date DESC, a.start_time ASC"
 	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
 	args = append(args, reqModel.Dblimit, reqModel.Dbpageno)
 	return baseQuery, args
@@ -425,7 +425,7 @@ func (s *AppointmentService) parsepagination(limit float64, pageno float64) (int
 }
 func (s *AppointmentService) toAppointmentList(data []map[string]interface{}) []dto.AppointmentList {
 	var response []dto.AppointmentList
-	for i, each := range data {
+	for _, each := range data {
 		var singleResp dto.AppointmentList
 		singleResp.AppointmentID, _ = each["appointment_id"].(string)
 		singleResp.AppointmentCode, _ = each["appointment_code"].(string)
@@ -437,9 +437,6 @@ func (s *AppointmentService) toAppointmentList(data []map[string]interface{}) []
 		endtime, _ := each["end_time"].(time.Time)
 		singleResp.StartTime, singleResp.EndTime = s.formatSEtime(starttime, endtime)
 		singleResp.AppointmentDate, _ = each["appointment_date"].(time.Time)
-		if i == 0 {
-			singleResp.Next = true
-		}
 		singleResp.VisitType, _ = each["visit_type"].(string)
 		singleResp.Status = string(s.findStatus(status, endtime, singleResp.AppointmentDate))
 		response = append(response, singleResp)

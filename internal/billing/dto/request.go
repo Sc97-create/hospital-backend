@@ -7,6 +7,7 @@ type CheckoutReq struct {
 	CashierID      string          `json:"cashier_id"`
 	SupplierID     string          `json:"supplier_id"`
 	PaymentMode    string          `json:"payment_mode"`
+	IdempotencyKey string          `json:"-"` // from Idempotency-Key header; same key = same checkout
 	Financials     Financial       `json:"financials"`
 	DispensedItems []DispensedItem `json:"dispensed_items"`
 }

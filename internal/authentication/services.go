@@ -95,6 +95,11 @@ func (a *UserService) RefreshToken(refreshToken string) (dto.LoginResponse, erro
 	loginresp := a.toLoginResp(tokenresp)
 	return loginresp, nil
 }
+
+func (a *UserService) Logout(refreshToken string) error {
+	return a.JwtService.LogoutRefreshToken(refreshToken)
+}
+
 func (a *UserService) toLoginResp(tokenresp jwt.TokenResp) dto.LoginResponse {
 	return dto.LoginResponse{
 		Token:        tokenresp.AccessToken,

@@ -64,6 +64,7 @@ func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
 	auth := authentication.NewAuthController(service)
 	authGroup.Post("/login", auth.Login)
 	authGroup.Post("/refresh", auth.Refresh)
+	authGroup.Post("/logout", auth.Logout)
 }
 func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService, jwtservice *jwt.JwtService) {
 	version := getVersion(app)

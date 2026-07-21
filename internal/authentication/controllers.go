@@ -12,6 +12,7 @@ import (
 type IAuthService interface {
 	Login(c *fiber.Ctx) (dto.LoginResponse, error)
 	Refresh(c *fiber.Ctx) error
+	Logout(c *fiber.Ctx) error
 }
 type AuthController struct {
 	AuthService *UserService
@@ -69,6 +70,14 @@ func (a *AuthController) Refresh(c *fiber.Ctx) (err error) {
 	}
 	return
 }
+func (a *AuthController) Logout(c *fiber.Ctx) error {
+	refreshToken := c.Cookies("refresh_token")
+	_ = a.AuthService.Logout(refreshToken)
+	a.clearRefreshToken(c)
+	return c.Status(200).JSON(fiber.Map{
+		"message": "logged out successfully",
+	})
+}
 func (a *AuthController) setRefreshToken(c *fiber.Ctx, token string) {
 	c.Cookie(&fiber.Cookie{
 		Name:  "refresh_token",
@@ -80,4 +89,13 @@ func (a *AuthController) setRefreshToken(c *fiber.Ctx, token string) {
 		MaxAge:   int(1440 * 60),
 	})
 
+}
+func (a *AuthController) clearRefreshToken(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		SameSite: fiber.CookieSameSiteLaxMode,
+		Path:     "/",
+		MaxAge:   -1,
+	})
 }

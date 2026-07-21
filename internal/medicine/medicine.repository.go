@@ -10,7 +10,7 @@ type MedicineRepository interface {
 	CreateInBatches(db *gorm.DB, M []Medicine) (err error)
 	FindOne(id string) (*Medicine, error)
 	FindMany(query string, args ...any) ([]Medicine, error)
-	SearchMedicine(query string, args ...any) ([]dto.SearchMedicineItem, error)
+	SearchMedicine(name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error)
 	Update(id string, update map[string]interface{}) error
 	FindNamesByIds([]string) ([]Medicine, error)
 	GetMedicineByID(medicineID string) (medicine Medicine, err error)
@@ -38,7 +38,7 @@ func (MRepo *MedicineRepo) FindMany(query string, args ...any) (Med []Medicine, 
 	}
 	return
 }
-func (MRepo *MedicineRepo) SearchMedicine(query string, args ...any) ([]dto.SearchMedicineItem, error) {
+func (MRepo *MedicineRepo) SearchMedicine(name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error) {
 	var results []dto.SearchMedicineItem
 	sql := `
 		SELECT
@@ -53,12 +53,21 @@ func (MRepo *MedicineRepo) SearchMedicine(query string, args ...any) ([]dto.Sear
 				SELECT mi.shelf_location
 				FROM medicine_inventories mi
 				WHERE mi.medicine_id = m.id
+				  AND mi.organisation_id = $3
 				ORDER BY mi.created_at DESC
 				LIMIT 1
-			), '') AS shelf_location
+			), '') AS shelf_location,
+			COALESCE((
+				SELECT SUM(mi.current_stock_units)
+				FROM medicine_inventories mi
+				WHERE mi.medicine_id = m.id
+				  AND mi.current_stock_units > 0
+				  AND mi.organisation_id = $3
+			), 0) AS current_stock_units
 		FROM medicines m
-		WHERE ` + query
-	err := MRepo.db.Raw(sql, args...).Scan(&results).Error
+		WHERE ($1 = '' OR m.name ILIKE $2 OR m.code ILIKE $2)
+		  AND m.organisation_id = $3`
+	err := MRepo.db.Raw(sql, name, pattern, organisationID).Scan(&results).Error
 	if err != nil {
 		return nil, err
 	}

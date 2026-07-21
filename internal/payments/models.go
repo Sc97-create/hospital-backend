@@ -15,7 +15,7 @@ type Payments struct {
 	Source         string    `json:"source" gorm:"type:varchar(50);not null;default:link"`
 	Channel        string    `json:"channel" gorm:"type:varchar(50);not null;default:upi"`
 	InitiatedBy    string    `json:"initiated_by" gorm:"type:varchar(50);not null"`
-	IdempotencyKey string    `json:"idempotency_key" gorm:"type:varchar(255);not null"`
+	IdempotencyKey string    `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
 	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt      time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }

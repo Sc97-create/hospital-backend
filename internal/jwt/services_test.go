@@ -54,6 +54,18 @@ func (m *mockRefreshTokenRepo) CheckIfExist(ID string) (int64, error) {
 	return m.checkIfExistCnt, m.checkIfExistErr
 }
 
+func (m *mockRefreshTokenRepo) FindIDByUserID(userID string) (string, error) {
+	return "", nil
+}
+
+func (m *mockRefreshTokenRepo) DeleteByID(id string) error {
+	return nil
+}
+
+func (m *mockRefreshTokenRepo) DeleteByUserID(userID string) error {
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers — generate EC P-256 key pair and write to the paths
 // used by the constants PrivateKeyPath / PublicKeyPath.

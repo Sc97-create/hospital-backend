@@ -20,6 +20,8 @@ type RefreshtokenRepo interface {
 	Update(refreshToken string, expiresAt time.Time, id string) error
 	CheckIfExist(ID string) (int64, error)
 	FindIDByUserID(userID string) (string, error)
+	DeleteByID(id string) error
+	DeleteByUserID(userID string) error
 }
 
 func (t *RefreshTokenModel) Insert(refreshToken *RefreshToken) (err error) {
@@ -68,4 +70,10 @@ func (t *RefreshTokenModel) FindIDByUserID(userID string) (id string, err error)
 		return
 	}
 	return
+}
+func (t *RefreshTokenModel) DeleteByID(id string) error {
+	return t.DB.Where("id = ?", id).Delete(&RefreshToken{}).Error
+}
+func (t *RefreshTokenModel) DeleteByUserID(userID string) error {
+	return t.DB.Where("user_id = ?", userID).Delete(&RefreshToken{}).Error
 }

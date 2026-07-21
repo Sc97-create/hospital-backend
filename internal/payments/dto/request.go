@@ -20,6 +20,7 @@ type CreatePaymentCommand struct {
 	SendSMS        bool              `json:"send_sms"`
 	SendEmail      bool              `json:"send_email"`
 	PrescriptionID string            `json:"prescription_id"`
+	IdempotencyKey string            `json:"idempotency_key"` // required from frontend
 	//CallbackURL string
 }
 type CustomerInfo struct {

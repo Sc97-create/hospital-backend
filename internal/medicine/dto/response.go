@@ -6,14 +6,15 @@ type MedicineResponse struct {
 }
 
 type SearchMedicineItem struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Form           string `json:"form"`
-	Strength       string `json:"strength"`
-	HsnCode        string `json:"hsn_code"`
-	ShelfLocation  string `json:"shelf_location"`
-	ReorderLevel   int    `json:"reorder_level"`
-	MaxStockTarget int    `json:"max_stock_target"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Form              string `json:"form"`
+	Strength          string `json:"strength"`
+	HsnCode           string `json:"hsn_code"`
+	ShelfLocation     string `json:"shelf_location"`
+	ReorderLevel      int    `json:"reorder_level"`
+	MaxStockTarget    int    `json:"max_stock_target"`
+	CurrentStockUnits int    `json:"current_stock_units"` // sum across all inventory batches
 }
 
 type SupplierListItem struct {

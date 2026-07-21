@@ -76,7 +76,11 @@ func (MedCo *MedicineController) SearchMedicine(c *fiber.Ctx) (err error) {
 	if name == "" {
 		return wrapError.Wrap(errors.New("name is required"), c, 409)
 	}
-	med, err := MedCo.Service.SearchMedicine(name)
+	organisationID := c.Query("organisation_id")
+	if organisationID == "" {
+		return wrapError.Wrap(errors.New("organisation_id is required"), c, 409)
+	}
+	med, err := MedCo.Service.SearchMedicine(name, organisationID)
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}

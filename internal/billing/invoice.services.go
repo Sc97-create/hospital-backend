@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"errors"
 	"fmt"
 	"hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/patient"
@@ -10,6 +11,7 @@ import (
 	"hospital-backend/pkg/constants"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,9 +30,23 @@ func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS *payments.PaymentsS
 	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ}
 }
 func (IService *InvoiceServ) CreateInvoice(reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error) {
+	if strings.TrimSpace(reqPayload.IdempotencyKey) == "" {
+		return dto.InvoiceResponse{}, fmt.Errorf("idempotency_key is required")
+	}
+
+	// Replay: same frontend key must not create another invoice/payment
+	existing, err := IService.PaymentServ.GetPaymentByIdempotencyKey(reqPayload.IdempotencyKey)
+	if err == nil {
+		paymentURL, _ := IService.PaymentServ.GetPaymentURLByPaymentID(existing.ID)
+		return dto.InvoiceResponse{InvoiceID: existing.InvoiceID, PaymentURL: paymentURL}, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return dto.InvoiceResponse{}, err
+	}
+
 	invoice := IService.toInvoiceModel(reqPayload)
 	tx := IService.db.Begin()
-	err := IService.InvRepo.CreateInvoice(tx, invoice)
+	err = IService.InvRepo.CreateInvoice(tx, invoice)
 	if err != nil {
 		tx.Rollback()
 		return dto.InvoiceResponse{}, err
@@ -48,15 +64,15 @@ func (IService *InvoiceServ) CreateInvoice(reqPayload dto.CheckoutReq) (dto.Invo
 
 	var paymentResponse paymentDto.CreatePaymentResponse
 
-	paymentDto := IService.toPaymentlinkModel(reqPayload, patientInfo, invoice.ID, invoice.InvoiceCode)
+	cmd := IService.toPaymentlinkModel(reqPayload, patientInfo, invoice.ID, invoice.InvoiceCode)
 	switch reqPayload.PaymentMode {
 	case constants.PaymentLink:
-		paymentResponse, err = IService.PaymentServ.CreateLinkPayment(paymentDto)
+		paymentResponse, err = IService.PaymentServ.CreateLinkPayment(cmd)
 		if err != nil {
 			return dto.InvoiceResponse{}, err
 		}
 	case constants.PaymentCash, constants.PaymentQR:
-		err = IService.PaymentServ.CreatePendingPayment(paymentDto)
+		_, err = IService.PaymentServ.CreatePendingPayment(cmd)
 		if err != nil {
 			return dto.InvoiceResponse{}, err
 		}
@@ -109,6 +125,7 @@ func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patient
 	paymentdto.InvoiceID = invoiceID
 	paymentdto.Currency = constants.IndCurrnecy
 	paymentdto.PrescriptionID = payload.PrescriptionID
+	paymentdto.IdempotencyKey = payload.IdempotencyKey
 
 	return paymentdto
 

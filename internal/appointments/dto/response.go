@@ -30,7 +30,6 @@ type AppointmentList struct {
 	AppointmentCode string    `json:"appointment_code"`
 	StartTime       string    `json:"start_time"`
 	EndTime         string    `json:"end_time"`
-	Next            bool      `json:"next"`
 	PatientName     string    `json:"patient_name"`
 	MobileNo        string    `json:"mobile_no"`
 	DoctorName      string    `json:"doctor_name"`

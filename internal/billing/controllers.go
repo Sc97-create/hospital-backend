@@ -1,10 +1,11 @@
 package billing
 
 import (
+	"fmt"
 	"hospital-backend/internal/billing/dto"
-	"hospital-backend/shared/params"
-
 	wrapErrors "hospital-backend/shared/error"
+	"hospital-backend/shared/params"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -47,6 +48,10 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	checkoutReq.PaymentMode, err = payload.Getstring("payment_mode")
 	if err != nil {
 		return wrapErrors.Wrap(err, c, 409)
+	}
+	checkoutReq.IdempotencyKey = strings.TrimSpace(c.Get("Idempotency-Key"))
+	if checkoutReq.IdempotencyKey == "" {
+		return wrapErrors.Wrap(fmt.Errorf("Idempotency-Key header is required"), c, 409)
 	}
 	checkoutReq.OrganisationID, err = payload.Getstring("organisation_id")
 	if err != nil {

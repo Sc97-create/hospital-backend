@@ -7,6 +7,7 @@ import (
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
 	"hospital-backend/pkg/constants"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +42,16 @@ func NewPaymentsService(
 }
 
 func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand) (paymentRespone dto.CreatePaymentResponse, err error) {
+	if err = validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		return
+	}
+
+	// Same client key → return existing payment link (double-click / retry safe)
+	if existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey); findErr == nil {
+		return p.responseFromExistingPayment(existing)
+	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return paymentRespone, findErr
+	}
 
 	provider, err := p.PaymentFactory.GetProvider(constants.ProviderNameRazorpay)
 	if err != nil {
@@ -60,6 +71,12 @@ func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand)
 	err = p.PaymentsRepository.Create(tx, paymentModel)
 	if err != nil {
 		tx.Rollback()
+		if isUniqueViolation(err) {
+			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey)
+			if findErr == nil {
+				return p.responseFromExistingPayment(existing)
+			}
+		}
 		return
 	}
 	err = p.PaymentAttempt.CreateAttempt(tx, paymentModel.ID, paymentRespone, providerName)
@@ -77,15 +94,34 @@ func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand)
 }
 
 // CreatePendingPayment creates a payments row for cash/qr. No gateway call, no payment_attempt.
-func (p *PaymentsService) CreatePendingPayment(paymentReq dto.CreatePaymentCommand) error {
+func (p *PaymentsService) CreatePendingPayment(paymentReq dto.CreatePaymentCommand) (Payments, error) {
+	if err := validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		return Payments{}, err
+	}
+
+	if existing, err := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return Payments{}, err
+	}
+
 	tx := p.db.Begin()
 	paymentModel := p.toPaymentModel(paymentReq)
 	err := p.PaymentsRepository.Create(tx, paymentModel)
 	if err != nil {
 		tx.Rollback()
-		return err
+		if isUniqueViolation(err) {
+			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey)
+			if findErr == nil {
+				return existing, nil
+			}
+		}
+		return Payments{}, err
 	}
-	return tx.Commit().Error
+	if err = tx.Commit().Error; err != nil {
+		return Payments{}, err
+	}
+	return paymentModel, nil
 }
 
 // ConfirmManualPayment confirms cash/qr payment and runs shared fulfillment (no payment_attempt).
@@ -123,6 +159,39 @@ func (p *PaymentsService) ConfirmManualPayment(invoiceID, paymentMode, txnRef st
 	return p.FulfillmentSvc.NotifyPaymentReceived(payment, paidAt)
 }
 
+func (p *PaymentsService) GetPaymentByIdempotencyKey(key string) (Payments, error) {
+	if err := validateIdempotencyKey(key); err != nil {
+		return Payments{}, err
+	}
+	return p.PaymentsRepository.FindByIdempotencyKey(key)
+}
+
+func (p *PaymentsService) GetPaymentURLByPaymentID(paymentID string) (string, error) {
+	attempt, err := p.PaymentAttempt.FindByPaymentID(paymentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return attempt.PaymentLink, nil
+}
+
+func (p *PaymentsService) responseFromExistingPayment(payment Payments) (dto.CreatePaymentResponse, error) {
+	attempt, err := p.PaymentAttempt.FindByPaymentID(payment.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return dto.CreatePaymentResponse{}, nil
+		}
+		return dto.CreatePaymentResponse{}, err
+	}
+	return dto.CreatePaymentResponse{
+		PaymentLinkID: attempt.ProviderLinkID,
+		PaymentURL:    attempt.PaymentLink,
+		ReferenceID:   attempt.ProviderReferenceID,
+	}, nil
+}
+
 func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Payments {
 	var payment Payments
 	payment.ID = uuid.New().String()
@@ -133,7 +202,7 @@ func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Pa
 	payment.Currency = paymentReq.Currency
 	payment.InvoiceID = paymentReq.InvoiceID
 	payment.PatientID = paymentReq.PatientID
-	payment.IdempotencyKey = uuid.NewString()
+	payment.IdempotencyKey = paymentReq.IdempotencyKey
 	payment.InitiatedBy = paymentReq.InitiatedBy
 	return payment
 }
@@ -154,4 +223,23 @@ func (p *PaymentsService) GetPaymentByInvoiceID(invoiceID string) (Payments, err
 		return Payments{}, err
 	}
 	return payment, nil
+}
+
+func validateIdempotencyKey(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("idempotency_key is required")
+	}
+	return nil
+}
+
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint")
 }

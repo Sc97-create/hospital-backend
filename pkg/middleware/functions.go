@@ -18,7 +18,7 @@ func HandleMiddleware(app *fiber.App) {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:9069,http://localhost:5173",
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE",
-		AllowHeaders:     "Content-Type,Origin,Accept,Authorization",
+		AllowHeaders:     "Content-Type,Origin,Accept,Authorization,Idempotency-Key",
 		AllowCredentials: true,
 	}))
 

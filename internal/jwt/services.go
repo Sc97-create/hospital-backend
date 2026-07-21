@@ -143,6 +143,29 @@ func (j *JwtService) FindIDByUserID(userID string) (string, error) {
 	}
 	return id, nil
 }
+
+// LogoutRefreshToken deletes the refresh token row for the given refresh JWT (cookie value).
+func (j *JwtService) LogoutRefreshToken(refreshToken string) error {
+	if refreshToken == "" {
+		return nil
+	}
+	token1, err := j.parseToken(refreshToken)
+	if err != nil {
+		// still treat as logged out if token is malformed/expired
+		return nil
+	}
+	claims := token1.Claims.(jwt.MapClaims)
+	refreshID, _ := claims["jti"].(string)
+	userID, _ := claims["sub"].(string)
+	if refreshID != "" {
+		_ = j.RefreshtokenRepo.DeleteByID(refreshID)
+	}
+	if userID != "" {
+		_ = j.RefreshtokenRepo.DeleteByUserID(userID)
+	}
+	return nil
+}
+
 func (j *JwtService) createclaims(organisationID string, userID string, refreshID string) jwt.RegisteredClaims {
 	claims := jwt.RegisteredClaims{
 		Issuer:    organisationID,
