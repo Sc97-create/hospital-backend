@@ -162,9 +162,10 @@ func (p *PrescriptionService) FindMany(limit int, offset int, organisationID str
 	skip := commonfunctions.Getskip(limit, offset)
 	search = strings.TrimSpace(search)
 
-	listQuery := `SELECT p.id, p.code, e.username AS prescribed_by, p.patient_id, p.appointment_id, p.created_at, p.status as status
+	listQuery := `SELECT p.id, p.code, e.username AS prescribed_by, p.patient_id, pt.name AS patient_name, p.appointment_id, p.created_at, p.status as status
 	FROM prescriptions AS p
 	JOIN users AS e ON p.prescribed_by = e.id
+	JOIN patients AS pt ON p.patient_id = pt.id
 	WHERE p.organisation_id = ?`
 	listArgs := []interface{}{organisationID}
 

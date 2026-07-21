@@ -102,8 +102,9 @@ func (pdb *PrescriptionDB) FindMany(query string, args ...any) (prescription []d
 func (pdb *PrescriptionDB) FindByStatus(organisationID string, status string, limit int, offset int) ([]dto.PrescriptionListItem, error) {
 	var prescriptions []dto.PrescriptionListItem
 	err := pdb.db.Table("prescriptions AS p").
-		Select("p.id, p.code, e.username AS prescribed_by, p.patient_id, p.appointment_id, p.created_at, p.status").
+		Select("p.id, p.code, e.username AS prescribed_by, p.patient_id, pt.name AS patient_name, p.appointment_id, p.created_at, p.status").
 		Joins("JOIN users AS e ON p.prescribed_by = e.id").
+		Joins("JOIN patients AS pt ON p.patient_id = pt.id").
 		Where("p.organisation_id = ? AND p.status = ?", organisationID, status).
 		Order("p.created_at DESC").
 		Limit(limit).
