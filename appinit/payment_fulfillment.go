@@ -9,6 +9,7 @@ import (
 	notificationService "hospital-backend/internal/notifications/service"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/prescription"
+	"hospital-backend/pkg/logger"
 	"hospital-backend/pkg/types"
 
 	"gorm.io/gorm"
@@ -72,11 +73,15 @@ func (f *paymentFulfillment) UpdateExtPrescriptionStatus(tx *gorm.DB, prescripti
 	return f.prescription.UpdateExtPrescriptionStatus(tx, prescriptionID, status)
 }
 
+func (f *paymentFulfillment) ResolveAndUpdateParentPrescriptionStatus(tx *gorm.DB, prescriptionID string, medicineInventoryDet []invoiceDto.MedInvoiceItemResponse) error {
+	return f.prescription.ResolveAndUpdateParentStatus(tx, prescriptionID, medicineInventoryDet)
+}
+
 func (f *paymentFulfillment) UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error {
 	return f.invoiceRepo.UpdateInvoiceStatus(tx, invoiceID, status)
 }
 func (f *paymentFulfillment) GetNotificationPatientByID(patientID string) (map[string]interface{}, error) {
-	return f.patientService.GetNotificationPatientByID(patientID)
+	return f.patientService.GetNotificationPatientByID(logger.Log, patientID)
 }
 
 func (f *paymentFulfillment) CreateNotification(ctx context.Context, notification notificationdto.CreateRequest) error {

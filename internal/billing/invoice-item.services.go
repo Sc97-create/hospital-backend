@@ -31,10 +31,14 @@ func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID st
 		if !ok {
 			return fmt.Errorf("medicine %s not found in prescription", each.MedicineID)
 		}
-		remaining := info.Quantity - int64(info.BalanceAfterDispense)
+		remaining := int64(info.BalanceAfterDispense)
 		if int64(each.QuantitySoldUnits) > remaining {
 			return fmt.Errorf("dispensed qty %.2f exceeds remaining prescribed qty %d for medicine %s",
 				each.QuantitySoldUnits, remaining, each.MedicineID)
+		}
+		// qty 0 = patient skipped this med — skip inventory/stock checks
+		if each.QuantitySoldUnits == 0 {
+			continue
 		}
 		if each.QuantitySoldUnits > each.CurrentStockUnits {
 			return fmt.Errorf("insufficient stock in batch %s: requested %d, available %d",
@@ -80,7 +84,8 @@ func (IItemServ *InvoiceItemServ) GetMedicineInventoryDetByInvoiceID(invoiceID s
     (mi.current_stock_units - ii.dispensed_qty) AS current_stock_unit_after_dispense,
     mi.pricing,
     pi.quantity                                 AS prescribed_qty,
-    pi.balance_after_dispense                   AS already_dispensed
+    pi.balance_after_dispense                   AS balance_after_dispense,
+	pi.status                                   AS prescription_item_status
 	FROM invoice_items ii
 	JOIN medicine_inventories mi  ON mi.id  = ii.medicine_inventory_id
 	JOIN invoices inv              ON inv.id = ii.invoice_id

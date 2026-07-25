@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hospital-backend/internal/appointments"
+	invoicedto "hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/medicine"
 	notificationdto "hospital-backend/internal/notifications/dto"
@@ -226,10 +227,21 @@ func (p *PrescriptionService) parseFilterStatus(status string) (string, error) {
 		return constants.StatusDraft, nil
 	case constants.StatusSent:
 		return constants.StatusSent, nil
-	case constants.StatusPaymentLinkCreated:
-		return constants.StatusPaymentLinkCreated, nil
+	case constants.StatusPaymentPending, constants.StatusPaymentLinkCreated:
+		return constants.StatusPaymentPending, nil
+	case constants.StatusCompleted:
+		return constants.StatusCompleted, nil
+	case constants.StatusTentative:
+		return constants.StatusTentative, nil
 	default:
-		return "", fmt.Errorf("status must be %s, %s, or %s", constants.StatusDraft, constants.StatusSent, constants.StatusPaymentLinkCreated)
+		return "", fmt.Errorf(
+			"status must be %s, %s, %s, %s, or %s",
+			constants.StatusDraft,
+			constants.StatusSent,
+			constants.StatusPaymentPending,
+			constants.StatusCompleted,
+			constants.StatusTentative,
+		)
 	}
 }
 
@@ -452,18 +464,36 @@ func (p *PrescriptionService) parsePagination(limit float64, pageno float64) (in
 func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
 	var Pstatus string
 	switch status {
-	case constants.StatusFullyDispensed:
-		Pstatus = constants.StatusFullyDispensed
-	case constants.StatusPartiallyDispensed:
-		Pstatus = constants.StatusPartiallyDispensed
-	case constants.StatusPaymentLinkCreated:
-		Pstatus = constants.StatusPaymentLinkCreated
+	case constants.StatusPaymentPending, constants.StatusPaymentLinkCreated:
+		Pstatus = constants.StatusPaymentPending
+	case constants.StatusCompleted:
+		Pstatus = constants.StatusCompleted
+	case constants.StatusTentative:
+		Pstatus = constants.StatusTentative
+	case constants.StatusSent:
+		Pstatus = constants.StatusSent
 	default:
-		return fmt.Errorf("invalid status")
+		return fmt.Errorf("invalid prescription status: %s", status)
 	}
 	err := p.prescriptionRepo.UpdateStatus(tx, Pstatus, prescriptionID)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// ResolveAndUpdateParentStatus sets parent status from all items:
+// completed if every item is fully dispensed; otherwise tentative.
+func (p *PrescriptionService) ResolveAndUpdateParentStatus(tx *gorm.DB, prescriptionID string, invoiceItems []invoicedto.MedInvoiceItemResponse) error {
+	partiallyDispensed := 0
+	for _, each := range invoiceItems {
+		if each.PrescriptionItemStatus != constants.StatusFullyDispensed {
+			partiallyDispensed++
+		}
+	}
+	status := constants.StatusCompleted
+	if partiallyDispensed > 0 {
+		status = constants.StatusTentative
+	}
+	return p.UpdateExtPrescriptionStatus(tx, prescriptionID, status)
 }

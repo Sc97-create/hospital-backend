@@ -13,7 +13,16 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	wrapError "hospital-backend/shared/error"
 )
+
+func ensureLog(log *zap.Logger) *zap.Logger {
+	if log == nil {
+		return zap.NewNop()
+	}
+	return log
+}
 
 type JwtService struct {
 	RefreshtokenRepo RefreshtokenRepo
@@ -76,11 +85,13 @@ func (j *JwtService) UpdateRefreshToken(refreshID string, userID string, organis
 	}
 	return token, nil
 }
-func (j *JwtService) ValidateRefreshToken(token string) (TokenResp, error) {
+func (j *JwtService) ValidateRefreshToken(log *zap.Logger, token string) (TokenResp, error) {
+	log = ensureLog(log)
 	var tokenResponse TokenResp
 	token1, err := j.parseToken(token)
 	if err != nil {
-		return TokenResp{}, err
+		log.Warn("refresh failed", zap.String("reason", "invalid_token"), zap.Error(err))
+		return TokenResp{}, wrapError.ErrRefreshSession
 	}
 	claims := token1.Claims.(jwt.MapClaims)
 	refreshID, _ := claims["jti"].(string)
@@ -88,30 +99,73 @@ func (j *JwtService) ValidateRefreshToken(token string) (TokenResp, error) {
 	organisationID, _ := claims["iss"].(string)
 	refreshToken, err := j.RefreshtokenRepo.FindByID(refreshID)
 	if err != nil {
-		return TokenResp{}, err
+		log.Warn("refresh failed",
+			zap.String("reason", "not_found"),
+			zap.String("jti", refreshID),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return TokenResp{}, wrapError.ErrRefreshSession
 	}
 	err = j.checkRefreshToken(refreshToken, userID)
 	if err != nil {
-		return TokenResp{}, err
+		reason := "not_found"
+		switch err.Error() {
+		case "token is expired":
+			reason = "expired"
+		case "user mismatch":
+			reason = "user_mismatch"
+		case "refresh token not found":
+			reason = "not_found"
+		}
+		log.Warn("refresh failed",
+			zap.String("reason", reason),
+			zap.String("jti", refreshID),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return TokenResp{}, wrapError.ErrRefreshSession
 	}
 	claimsModel, err := j.RefreshToken(organisationID, userID, refreshID)
 	if err != nil {
-		return TokenResp{}, err
+		log.Error("refresh failed",
+			zap.String("reason", "rotate_refresh"),
+			zap.String("jti", refreshID),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return TokenResp{}, wrapError.ErrRefreshInternal
 	}
 	newAccessToken, err := j.AccessToken(userID, organisationID)
 	if err != nil {
-		return TokenResp{}, err
+		log.Error("refresh failed",
+			zap.String("reason", "access_token"),
+			zap.String("jti", refreshID),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return TokenResp{}, wrapError.ErrRefreshInternal
 	}
 	refreshToken.ExpiresAt = time.Now().AddDate(0, 0, int(RefreshTokenExpiresAt))
 	err = j.RefreshtokenRepo.Update(claimsModel.RefereshToken, refreshToken.ExpiresAt, refreshID)
 	if err != nil {
-		return TokenResp{}, err
+		log.Error("refresh failed",
+			zap.String("reason", "update_refresh"),
+			zap.String("jti", refreshID),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return TokenResp{}, wrapError.ErrRefreshInternal
 	}
 	tokenResponse.AccessToken = newAccessToken
 	tokenResponse.RefreshToken = claimsModel.RefereshToken
 
+	log.Info("refresh success",
+		zap.String("user_id", userID),
+		zap.String("organisation_id", organisationID),
+		zap.String("jti", refreshID),
+	)
 	return tokenResponse, nil
-
 }
 func (j *JwtService) ValidateAccessToken(token string) (bool, error) {
 	token1, err := j.parseToken(token)
@@ -145,24 +199,41 @@ func (j *JwtService) FindIDByUserID(userID string) (string, error) {
 }
 
 // LogoutRefreshToken deletes the refresh token row for the given refresh JWT (cookie value).
-func (j *JwtService) LogoutRefreshToken(refreshToken string) error {
+func (j *JwtService) LogoutRefreshToken(log *zap.Logger, refreshToken string) error {
+	log = ensureLog(log)
 	if refreshToken == "" {
+		log.Info("logout success", zap.String("reason", "no_cookie"))
 		return nil
 	}
 	token1, err := j.parseToken(refreshToken)
 	if err != nil {
 		// still treat as logged out if token is malformed/expired
+		log.Info("logout success", zap.String("reason", "token_unusable"))
 		return nil
 	}
 	claims := token1.Claims.(jwt.MapClaims)
 	refreshID, _ := claims["jti"].(string)
 	userID, _ := claims["sub"].(string)
 	if refreshID != "" {
-		_ = j.RefreshtokenRepo.DeleteByID(refreshID)
+		if err := j.RefreshtokenRepo.DeleteByID(refreshID); err != nil {
+			log.Warn("logout cleanup failed",
+				zap.String("jti", refreshID),
+				zap.Error(err),
+			)
+		}
 	}
 	if userID != "" {
-		_ = j.RefreshtokenRepo.DeleteByUserID(userID)
+		if err := j.RefreshtokenRepo.DeleteByUserID(userID); err != nil {
+			log.Warn("logout cleanup failed",
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
+		}
 	}
+	log.Info("logout success",
+		zap.String("user_id", userID),
+		zap.String("jti", refreshID),
+	)
 	return nil
 }
 
@@ -242,7 +313,7 @@ func (j *JwtService) checkRefreshToken(refreshToken *RefreshToken, userID string
 		return err
 	}
 	if refreshToken.UserID != userID {
-		err = errors.New("")
+		err = errors.New("user mismatch")
 		return err
 	}
 	return

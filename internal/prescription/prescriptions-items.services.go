@@ -59,7 +59,7 @@ func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray
 		pItem.DurationDay = each.DurationDay
 		pItem.DurationType = s.parseDurationtype(each.DurationType)
 		pItem.Quantity = int64(s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType))
-		pItem.BalanceAfterDispense = 0
+		pItem.BalanceAfterDispense = int(pItem.Quantity) // remaining starts as full prescribed qty
 		pItem.PrescriptionID = pID
 		pItem.Status = constants.StatusPending
 		pItem.CreatedAt = time.Now()
@@ -74,7 +74,7 @@ func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescrip
 		return err
 	}
 	// don't allow editing once dispensing has started, otherwise it desyncs with invoices
-	if existing.BalanceAfterDispense > 0 ||
+	if existing.BalanceAfterDispense < int(existing.Quantity) ||
 		existing.Status == constants.StatusFullyDispensed ||
 		existing.Status == constants.StatusPartiallyDispensed {
 		return fmt.Errorf("cannot edit prescription item %s: it has already been dispensed", req.PrescriptionItemID)
@@ -88,6 +88,7 @@ func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescrip
 	item.DurationType = s.parseDurationtype(req.DurationType)
 	item.FoodInstruction = req.FoodInstruction
 	item.Quantity = int64(s.calculateQuantity(item.Frequency, int(req.DurationDay), item.DurationType))
+	item.BalanceAfterDispense = int(item.Quantity)
 	item.UpdatedAt = time.Now()
 
 	return s.PrescRepo.UpdatePrescriptionItem(item)
@@ -155,7 +156,7 @@ func (s *PrescriptionItemServ) parsePagination(limit float64, pageno float64) (i
 	}
 	return numLimit, skip
 }
-func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]MedicineDetInfo, error) {
+func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]MedicineDetInfo, int64, error) {
 	query := `SELECT 
     p.code AS prescription_code,
     p.status AS prescription_status,
@@ -163,6 +164,9 @@ func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]Medicin
     pI.prescription_id,
     pI.id AS prescription_item_id,
 	pI.quantity AS prescribed_quantity,
+	pI.balance_after_dispense AS remaining_quantity,
+	pI.status AS prescription_item_status,
+	pI.food_instruction AS food_instruction,
     m.id AS medicine_id,
     m.name AS medicine_name,
     m.form AS medicine_form,
@@ -198,11 +202,13 @@ WHERE pI.prescription_id = $1;
 	`
 	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(context.TODO(), query, prescriptionID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	//unit selling price calculation
-	return medicineDet, nil
-
+	totalCount, err := p.PrescRepo.GetTotalCountByPrescID(prescriptionID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return medicineDet, totalCount, nil
 }
 func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {
 	prescriptionItems, err := p.PrescRepo.GetQtyInfoByMed(prescriptionID)
@@ -221,7 +227,8 @@ func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[stri
 	return prescriptionMap, nil
 }
 func (p *PrescriptionItemServ) UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error {
-	query := "UPDATE prescription_items SET balance_after_dispense = balance_after_dispense + ? WHERE id = ?"
+	// remaining balance: qty 12, dispense 5 → balance_after_dispense = 7
+	query := "UPDATE prescription_items SET balance_after_dispense = balance_after_dispense - ? WHERE id = ?"
 	return p.PrescRepo.UpdateDispenseItemQty(tx, query, prescriptionItemID, dispensedQty)
 }
 func (p *PrescriptionItemServ) UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error {

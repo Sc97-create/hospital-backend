@@ -124,20 +124,18 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			begin.Rollback()
 			return false, err
 		}
-		err = w.Fulfillment.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.StatusCancelled)
-		if err != nil {
-			begin.Rollback()
-			return false, err
-		}
-		err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, prescriptionID, constants.StatusCancelled)
-		if err != nil {
-			begin.Rollback()
-			return false, err
+		// Invoice stays unpaid — cashier can retry with a new payment link attempt.
+		if prescriptionID != "" {
+			err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, prescriptionID, constants.StatusPaymentPending)
+			if err != nil {
+				begin.Rollback()
+				return false, err
+			}
 		}
 		begin.Commit()
 		return true, nil
 	case constants.PaymentLinkExpired:
-		// invoice stays unpaid — cashier can generate a new payment link
+		// Invoice stays unpaid — cashier generates a new payment link (same invoice, new attempt).
 		paymentAttempt.PaymentStatus = constants.StatusExpired
 		paymentAttempt.PaymentLinkStatus = constants.StatusExpired
 		err = w.PaymentAttempts.UpdatePaymentAttemptStatus(begin, paymentAttempt)
@@ -145,15 +143,12 @@ func (w *IWebhookService) ProcessWebhook(payload []byte, signature string, provi
 			begin.Rollback()
 			return false, err
 		}
-		err = w.Fulfillment.UpdateInvoiceStatus(begin, invoiceInfo.InvoiceID, constants.StatusExpired)
-		if err != nil {
-			begin.Rollback()
-			return false, err
-		}
-		err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, prescriptionID, constants.StatusExpired)
-		if err != nil {
-			begin.Rollback()
-			return false, err
+		if prescriptionID != "" {
+			err = w.Fulfillment.UpdateExtPrescriptionStatus(begin, prescriptionID, constants.StatusPaymentPending)
+			if err != nil {
+				begin.Rollback()
+				return false, err
+			}
 		}
 		begin.Commit()
 		return true, nil

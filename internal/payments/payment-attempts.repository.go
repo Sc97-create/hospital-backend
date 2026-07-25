@@ -6,6 +6,8 @@ type IPaymentAttempts interface {
 	CreatePaymentAttempts(tx *gorm.DB, PAttempts PaymentAttempts) error
 	FindByProviderLinkID(providerLinkID string) (PaymentAttempts, error)
 	FindByPaymentID(paymentID string) (PaymentAttempts, error)
+	CountByPaymentID(paymentID string) (int64, error)
+	FindByClientIdempotencyKey(key string) (PaymentAttempts, error)
 	UpdatePaymentAttempt(tx *gorm.DB, paymentAttempt PaymentAttempts) error
 	UpdatePaymentAttemptStatus(tx *gorm.DB, PaymentAttempt PaymentAttempts) error
 	// ClaimForProcessing atomically transitions status from pending → processing.
@@ -26,6 +28,20 @@ func (p *DB) FindByProviderLinkID(providerLinkID string) (PaymentAttempts, error
 func (p *DB) FindByPaymentID(paymentID string) (PaymentAttempts, error) {
 	var attempt PaymentAttempts
 	err := p.db.Where("payment_id = ?", paymentID).Order("created_at DESC").First(&attempt).Error
+	return attempt, err
+}
+
+func (p *DB) CountByPaymentID(paymentID string) (int64, error) {
+	var count int64
+	err := p.db.Model(&PaymentAttempts{}).Where("payment_id = ?", paymentID).Count(&count).Error
+	return count, err
+}
+
+func (p *DB) FindByClientIdempotencyKey(key string) (PaymentAttempts, error) {
+	var attempt PaymentAttempts
+	err := p.db.Where("provider_request->>'client_idempotency_key' = ?", key).
+		Order("created_at DESC").
+		First(&attempt).Error
 	return attempt, err
 }
 

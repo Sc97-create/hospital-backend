@@ -5,7 +5,7 @@ import "time"
 type Invoice struct {
 	ID             string    `json:"id" gorm:"type:uuid;not null;primaryKey"`
 	InvoiceCode    string    `json:"invoice_code" gorm:"type:text;not null"`
-	PrescriptionID string    `json:"prescription_id" gorm:"type:uuid"`
+	PrescriptionID string    `json:"prescription_id" gorm:"type:uuid;uniqueIndex"`
 	PatientID      string    `json:"patient_id" gorm:"type:uuid;not null"`
 	Status         string    `json:"status" gorm:"default:unpaid"`
 	CashierID      string    `json:"cashier_id" gorm:"type:uuid;not null"`

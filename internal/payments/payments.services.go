@@ -84,13 +84,86 @@ func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand)
 		tx.Rollback()
 		return
 	}
-	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentLinkCreated)
+	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
 	if err != nil {
 		tx.Rollback()
 		return
 	}
 	tx.Commit()
 	return
+}
+
+// RetryLinkPayment creates a new Razorpay link + payment_attempt for an existing unpaid invoice.
+// Invoice and payments row stay unchanged.
+func (p *PaymentsService) RetryLinkPayment(paymentReq dto.CreatePaymentCommand) (dto.CreatePaymentResponse, error) {
+	if err := validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+	if paymentReq.InvoiceID == "" {
+		return dto.CreatePaymentResponse{}, fmt.Errorf("invoice_id is required")
+	}
+	if paymentReq.PrescriptionID == "" {
+		return dto.CreatePaymentResponse{}, fmt.Errorf("prescription_id is required")
+	}
+
+	if existingAttempt, findErr := p.PaymentAttempt.FindByClientIdempotencyKey(paymentReq.IdempotencyKey); findErr == nil {
+		return dto.CreatePaymentResponse{
+			PaymentLinkID: existingAttempt.ProviderLinkID,
+			PaymentURL:    existingAttempt.PaymentLink,
+			ReferenceID:   existingAttempt.ProviderReferenceID,
+		}, nil
+	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return dto.CreatePaymentResponse{}, findErr
+	}
+
+	payment, err := p.GetPaymentByInvoiceID(paymentReq.InvoiceID)
+	if err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+	if payment.Source != constants.PaymentLink {
+		return dto.CreatePaymentResponse{}, fmt.Errorf("retry link is only supported for payment_mode %s", constants.PaymentLink)
+	}
+
+	// Live pending link → reuse (avoid duplicate active links)
+	if latest, findErr := p.PaymentAttempt.FindByPaymentID(payment.ID); findErr == nil {
+		if latest.PaymentStatus == constants.StatusPending {
+			return dto.CreatePaymentResponse{
+				PaymentLinkID: latest.ProviderLinkID,
+				PaymentURL:    latest.PaymentLink,
+				ReferenceID:   latest.ProviderReferenceID,
+			}, nil
+		}
+	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		return dto.CreatePaymentResponse{}, findErr
+	}
+
+	provider, err := p.PaymentFactory.GetProvider(constants.ProviderNameRazorpay)
+	if err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.TODO(), 20*time.Second)
+	defer cancel()
+
+	paymentResponse, err := provider.CreatePayment(ctx, paymentReq)
+	if err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+
+	tx := p.db.Begin()
+	err = p.PaymentAttempt.CreateAttemptWithIdempotency(tx, payment.ID, paymentResponse, provider.Name(), paymentReq.IdempotencyKey)
+	if err != nil {
+		tx.Rollback()
+		return dto.CreatePaymentResponse{}, err
+	}
+	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
+	if err != nil {
+		tx.Rollback()
+		return dto.CreatePaymentResponse{}, err
+	}
+	if err = tx.Commit().Error; err != nil {
+		return dto.CreatePaymentResponse{}, err
+	}
+	return paymentResponse, nil
 }
 
 // CreatePendingPayment creates a payments row for cash/qr. No gateway call, no payment_attempt.
@@ -117,6 +190,12 @@ func (p *PaymentsService) CreatePendingPayment(paymentReq dto.CreatePaymentComma
 			}
 		}
 		return Payments{}, err
+	}
+	if paymentReq.PrescriptionID != "" {
+		if err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending); err != nil {
+			tx.Rollback()
+			return Payments{}, err
+		}
 	}
 	if err = tx.Commit().Error; err != nil {
 		return Payments{}, err

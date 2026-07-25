@@ -480,11 +480,42 @@ grep '"component":"webhook_service"' logs/app.log | grep '"level":"error"' | jq 
 grep '"latency_ms"' logs/app.log | jq 'select(.latency_ms > 500000000)'
 ```
 
-**Verdict:** Zero infrastructure, works today. Fine for MVP week 1.
+**Verdict:** Zero infrastructure, works today. Fine for local development and week 1. Weak for demos — no UI to show stakeholders.
 
 ---
 
-### Option B — Grafana Loki (Best Free OSS Platform — Recommended for MVP+)
+### Option B — Grafana Cloud Free Tier (Recommended until MVP demo)
+
+Use **[Grafana Cloud](https://grafana.com/products/cloud/)** free forever tier until the MVP is shown. It gives a hosted Loki + Grafana Explore UI with no Docker Compose to run.
+
+| Phase | What to use | Why |
+|-------|-------------|-----|
+| Local / week 1 | JSON to stdout + rotating files (Option A) | Zero cost while building |
+| Until MVP demo | **Grafana Cloud free tier** | Hosted UI, no infra, ~50 GB logs/month |
+| After MVP | Self-host Loki (Option C) or stay on Grafana Cloud | Same LogQL either way |
+
+**Why Grafana Cloud for the demo:**
+- Free forever tier is enough for early traffic
+- Open Grafana → Explore → filter by `request_id`, `component`, or `level=error`
+- Same stack as self-hosted Loki (LogQL), without running compose on a laptop
+- Ship with Grafana Alloy, Promtail, or HTTP push of JSON lines from stdout
+
+**What not to do for the demo:**
+- Files + `jq` alone — fine for engineers, weak on stage
+- Self-hosted Loki / SigNoz before the demo — free but ops overhead before product is shown
+- Paid APM (Datadog, etc.) — unnecessary until you need more than logs
+
+**Practical path:**
+1. Keep `zap` → JSON stdout (as configured in `pkg/logger/logger.go`)
+2. Create a free Grafana Cloud stack
+3. Point a small agent (Alloy / Promtail) at the app logs or stdout
+4. Demo live Explore queries: `request_id`, payment errors, slow requests
+
+**Verdict:** Best free option when you need to *show* logs at MVP. Switch to self-hosted Loki later if cost or data residency requires it.
+
+---
+
+### Option C — Grafana Loki Self-Hosted (Best Free OSS Platform — Recommended for MVP+)
 
 Grafana Loki is the logging equivalent of Prometheus. It does **not** index the full log body (unlike Elasticsearch), which makes it very cheap to run. It stores logs as compressed chunks.
 
@@ -580,7 +611,7 @@ scrape_configs:
 
 ---
 
-### Option C — SigNoz (Full Observability, OSS)
+### Option D — SigNoz (Full Observability, OSS)
 
 [SigNoz](https://signoz.io/) provides logs + metrics + distributed tracing in one platform, all open source.
 
@@ -636,11 +667,11 @@ With this single error log line you immediately know: **which request** (`reques
 ## 11. Implementation Roadmap
 
 ### Phase 1 — Foundation (Day 1–2)
-- [ ] Create `pkg/logger/logger.go`
-- [ ] Add `LOG_LEVEL` and `ENV` to config / `.env`
-- [ ] Initialize logger in `cmd/main.go` before anything else
-- [ ] Add `RequestLogger` middleware and register it in `HandleMiddleware`
-- [ ] Replace `log.Fatalf` in `main.go` with `logger.Log.Fatal`
+- [x] Create `pkg/logger/logger.go`
+- [x] Add `LOG_LEVEL` and `ENV` to config / `.env`
+- [x] Initialize logger in `cmd/main.go` before anything else
+- [x] Add `RequestLogger` middleware and register it in `HandleMiddleware`
+- [x] Replace `log.Fatalf` in `main.go` with `logger.Log.Fatal`
 
 ### Phase 2 — High-Risk Flows (Day 3–5)
 - [ ] Add logging to `webhook_service.go` — payment processing is the highest business risk
@@ -654,8 +685,10 @@ With this single error log line you immediately know: **which request** (`reques
 - [ ] Notification service (background job)
 - [ ] Add `organisation_id` and `patient_id` fields wherever those entities are handled
 
-### Phase 4 — Observability (Post-MVP)
-- [ ] Deploy Grafana Loki + Promtail + Grafana via Docker Compose
+### Phase 4 — Observability (MVP demo → Post-MVP)
+- [ ] Create Grafana Cloud free stack and ship JSON logs (Alloy / Promtail)
+- [ ] Demo Explore queries: request_id, payment errors, slow requests
+- [ ] After MVP: optionally deploy self-hosted Loki + Promtail + Grafana via Docker Compose
 - [ ] Create dashboards: error rate per endpoint, slow requests, payment failure rate
 - [ ] Set up Grafana alerting (free) for `level=error` spikes and payment failures
 - [ ] Evaluate SigNoz for full traces
@@ -664,11 +697,12 @@ With this single error log line you immediately know: **which request** (`reques
 
 ## 12. Decision Summary
 
-| Decision            | Choice                      | Reason                                               |
-|---------------------|-----------------------------|------------------------------------------------------|
-| Package             | `go.uber.org/zap`           | Fastest, typed fields, battle-tested                |
-| File rotation       | `lumberjack`                | Effortless daily rotation, zero infra               |
+| Decision            | Choice                         | Reason                                               |
+|---------------------|--------------------------------|------------------------------------------------------|
+| Package             | `go.uber.org/zap`              | Fastest, typed fields, battle-tested                |
+| File rotation       | `lumberjack`                   | Effortless daily rotation, zero infra               |
 | Context propagation | Fiber `c.Locals()` → method param | Explicit, matches existing code patterns      |
-| Log platform MVP    | Rotating files              | Zero infra, works now, searchable with `jq`         |
-| Log platform MVP+   | Grafana Loki stack          | Free, OSS, lightweight, powerful query language     |
-| Long term           | SigNoz                      | Full observability — logs + metrics + traces        |
+| Log platform local  | Rotating files + stdout        | Zero infra while building, searchable with `jq`     |
+| Log platform MVP    | Grafana Cloud free tier        | Free hosted UI to show logs at demo; no Docker ops  |
+| Log platform MVP+   | Grafana Loki self-hosted       | Free OSS, lightweight, same LogQL as Cloud          |
+| Long term           | SigNoz                         | Full observability — logs + metrics + traces        |

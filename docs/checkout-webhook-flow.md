@@ -111,20 +111,19 @@ PaymentLinkPaid
     │       │       → accumulates total dispensed so far
     │       │
     │       └─ item-level status:
-    │               newBalance = already_dispensed + dispensed_qty
-    │               if newBalance >= prescribed_qty
+    │               remaining = balance_after_dispense - dispensed_qty
+    │               if remaining == 0
     │                   UpdateIPrescriptionStatus(tx, itemID, "fully_dispensed")
     │               else
-    │                   allFullyDispensed = false
     │                   UpdateIPrescriptionStatus(tx, itemID, "partially_dispensed")
     │
     ├─► CommonInterface.CreateMedicineMvmt(tx, bulkMedicineMvmt)
     │       INSERT INTO medicine_stock_movements (bulk)
     │
-    ├─► CommonInterface.UpdateExtPrescriptionStatus(tx, prescriptionID, status)
-    │       if allFullyDispensed  → status = "fully_dispensed"
-    │       else                  → status = "partially_dispensed"
-    │       UPDATE prescriptions SET status = ? WHERE id = ?
+    ├─► ResolveAndUpdateParentPrescriptionStatus(tx, prescriptionID)
+    │       load ALL prescription items
+    │       if every item fully_dispensed → prescriptions.status = "completed"
+    │       else                          → prescriptions.status = "tentative"
     │
     ├─► CommonInterface.UpdateInvoiceStatus(tx, invoiceID, "paid")
     │       UPDATE invoices SET status = 'paid' WHERE id = ?
@@ -137,7 +136,8 @@ PaymentLinkPaid
 ```
 PaymentLinkCancelled
     ├─► UpdatePaymentAttemptStatus → status = "cancelled"
-    ├─► UpdateInvoiceStatus        → status = "unpaid"  (cashier can retry)
+    ├─► invoice unchanged (stays unpaid)
+    ├─► prescriptions.status → "payment_pending"
     └─► Commit → return true
 ```
 
@@ -146,10 +146,24 @@ PaymentLinkCancelled
 ```
 PaymentLinkExpired
     ├─► UpdatePaymentAttemptStatus → status = "expired"
-    │   (invoice stays "unpaid" — cashier generates a new link)
+    ├─► invoice unchanged (stays unpaid)
+    ├─► prescriptions.status → "payment_pending"
     └─► Commit → return true
+      (cashier: POST /billing/invoices/:invoiceID/retry-payment-link → new attempt only)
 ```
 
+### Parent prescription statuses
+
+`draft` → `sent` → `payment_pending` → `completed` | `tentative`
+
+| Event | Parent status |
+|---|---|
+| Create Rx | `draft` |
+| Doctor sends | `sent` |
+| Checkout / new link / retry | `payment_pending` |
+| Paid, all items full | `completed` |
+| Paid, partial / remaining | `tentative` |
+| Link expired / cancelled | `payment_pending` (invoice unpaid; new attempt) |
 ---
 
 ## Tables Written Per Flow

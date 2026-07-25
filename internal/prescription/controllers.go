@@ -311,13 +311,15 @@ func (Presc *PrescriptionController) toMedicineArray(medicine []*params.Payload)
 }
 func (Presc *PrescriptionController) FindMedicineDetInfo(c *fiber.Ctx) (err error) {
 	prescriptionID := c.Params("prescription_id")
-	medicineInfoData, err := Presc.PItemService.getMedicineInfo(prescriptionID)
+	medicineInfoData, totalCount, err := Presc.PItemService.getMedicineInfo(prescriptionID)
 	if err != nil {
 		return
 	}
 	var response dto.Response
 	response.Data = medicineInfoData
+	response.Total = int(totalCount)
 	response.Code = "200"
+	response.Message = "fetched data successfully"
 
 	return c.Status(200).JSON(response)
 }

@@ -10,6 +10,8 @@ var (
 
 type Config struct {
 	AppEnv             string
+	Env                string // production | development (from ENV, falls back to APP_ENV)
+	LogLevel           string // debug | info | warn | error (from LOG_LEVEL)
 	ServerPort         string
 	DatabaseURL        string
 	PrivateKeyPath     string

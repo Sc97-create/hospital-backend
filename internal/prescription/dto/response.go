@@ -90,5 +90,5 @@ type PrescriptionQtyInfo struct {
 	PrescriptionID       string `json:"prescription_id"`
 	Quantity             int64  `json:"quantity"`
 	MedicineID           string `json:"medicine_id"`
-	BalanceAfterDispense int    `json:"balance_after_dispense"` // total already dispensed so far
+	BalanceAfterDispense int    `json:"balance_after_dispense"` // remaining qty after dispenses
 }

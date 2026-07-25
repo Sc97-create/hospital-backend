@@ -34,38 +34,40 @@ func (s *FulfillmentService) FulfillPaidInvoice(tx *gorm.DB, invoiceID string) e
 	}
 
 	var bulkMedicineMvmt []types.MedicineStockMovements
-	allFullyDispensed := true
-	for _, each := range medicineInventoryDet {
-		var eachMedicineMvmt types.MedicineStockMovements
-		eachMedicineMvmt.ID = uuid.NewString()
-		eachMedicineMvmt.MedicineID = each.MedicineID
-		eachMedicineMvmt.MedicineInventoryID = each.MedicineInventoryID
-		eachMedicineMvmt.OrganisationID = each.OrganisationID
-		eachMedicineMvmt.MovementType = types.Dispense
-		eachMedicineMvmt.QtyChanged = int(each.DispensedQty)
-		eachMedicineMvmt.SourceType = types.PatientMedicineOrder
-		eachMedicineMvmt.UnitPriceAtTimeOfMvmt = each.Pricing.UnitPrice
-		eachMedicineMvmt.BalanceAfterMvmt = int(each.CurrentStockUnitAfterDispense)
-		eachMedicineMvmt.CreatedBy = each.CashierID
-		bulkMedicineMvmt = append(bulkMedicineMvmt, eachMedicineMvmt)
+	for i, each := range medicineInventoryDet {
+		// qty 0 = skipped med — no inventory decrement or stock movement
+		if each.DispensedQty > 0 {
+			var eachMedicineMvmt types.MedicineStockMovements
+			eachMedicineMvmt.ID = uuid.NewString()
+			eachMedicineMvmt.MedicineID = each.MedicineID
+			eachMedicineMvmt.MedicineInventoryID = each.MedicineInventoryID
+			eachMedicineMvmt.OrganisationID = each.OrganisationID
+			eachMedicineMvmt.MovementType = types.Dispense
+			eachMedicineMvmt.QtyChanged = int(each.DispensedQty)
+			eachMedicineMvmt.SourceType = types.PatientMedicineOrder
+			eachMedicineMvmt.UnitPriceAtTimeOfMvmt = each.Pricing.UnitPrice
+			eachMedicineMvmt.BalanceAfterMvmt = int(each.CurrentStockUnitAfterDispense)
+			eachMedicineMvmt.CreatedBy = each.CashierID
+			bulkMedicineMvmt = append(bulkMedicineMvmt, eachMedicineMvmt)
 
-		err = s.Deps.UpdateMedInventoryStock(tx, each.MedicineInventoryID, each.DispensedQty)
-		if err != nil {
-			return err
+			err = s.Deps.UpdateMedInventoryStock(tx, each.MedicineInventoryID, each.DispensedQty)
+			if err != nil {
+				return err
+			}
 		}
 
-		// prescription: remaining = prescribed - (already dispensed + this dispense)
-		// always bump balance_after_dispense; status depends on whether remaining is 0
+		// remaining = balance_after_dispense - this dispense (e.g. qty 12, dispense 5 → 7)
 		err = s.Deps.UpdateDispenseItemQty(tx, each.PrescriptionItemID, each.DispensedQty)
 		if err != nil {
 			return err
 		}
 
-		remaining := each.PrescribedQty - (each.AlreadyDispensed + each.DispensedQty)
+		remaining := each.BalanceAfterDispense - each.DispensedQty
 		if remaining != 0 {
-			allFullyDispensed = false
+			medicineInventoryDet[i].PrescriptionItemStatus = constants.StatusPartiallyDispensed
 			err = s.Deps.UpdateIPrescriptionStatus(tx, each.PrescriptionItemID, constants.StatusPartiallyDispensed)
 		} else {
+			medicineInventoryDet[i].PrescriptionItemStatus = constants.StatusFullyDispensed
 			err = s.Deps.UpdateIPrescriptionStatus(tx, each.PrescriptionItemID, constants.StatusFullyDispensed)
 		}
 		if err != nil {
@@ -73,17 +75,15 @@ func (s *FulfillmentService) FulfillPaidInvoice(tx *gorm.DB, invoiceID string) e
 		}
 	}
 
-	err = s.Deps.CreateMedicineMvmt(tx, bulkMedicineMvmt)
-	if err != nil {
-		return err
+	if len(bulkMedicineMvmt) > 0 {
+		err = s.Deps.CreateMedicineMvmt(tx, bulkMedicineMvmt)
+		if err != nil {
+			return err
+		}
 	}
 
-	prescStatus := constants.StatusPartiallyDispensed
-	if allFullyDispensed {
-		prescStatus = constants.StatusFullyDispensed
-	}
 	if prescriptionID != "" {
-		err = s.Deps.UpdateExtPrescriptionStatus(tx, prescriptionID, prescStatus)
+		err = s.Deps.ResolveAndUpdateParentPrescriptionStatus(tx, prescriptionID, medicineInventoryDet)
 		if err != nil {
 			return err
 		}

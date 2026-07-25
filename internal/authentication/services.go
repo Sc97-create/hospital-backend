@@ -5,7 +5,9 @@ import (
 	"hospital-backend/internal/authentication/dto"
 	"hospital-backend/internal/jwt"
 	jwtAuth "hospital-backend/internal/jwt"
+	wrapError "hospital-backend/shared/error"
 
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -18,54 +20,128 @@ func NewService(repo AuthRepo, jwtService jwt.JwtService) UserService {
 	return UserService{Repo: &repo, JwtService: jwtService}
 }
 
-func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
-	user, err := a.Repo.GetUserID(L.Username)
+func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse, error) {
+	log = ensureLog(log)
+
+	user, err := a.Repo.GetUserID(log, L.Username)
 	if err != nil {
-		return dto.LoginResponse{}, err
+		if errors.Is(err, errUserNotFound) {
+			log.Warn("login failed",
+				zap.String("username", L.Username),
+				zap.String("reason", "user_not_found"),
+			)
+			return dto.LoginResponse{}, wrapError.ErrInvalidCredentials
+		}
+		log.Error("login failed",
+			zap.String("username", L.Username),
+			zap.String("reason", "user_lookup"),
+			zap.Error(err),
+		)
+		return dto.LoginResponse{}, wrapError.ErrLoginFailed
 	}
 	if user == nil {
-		return dto.LoginResponse{}, errors.New("user not found")
+		log.Warn("login failed",
+			zap.String("username", L.Username),
+			zap.String("reason", "user_not_found"),
+		)
+		return dto.LoginResponse{}, wrapError.ErrInvalidCredentials
 	}
+
 	verified, err := a.comparePwd(user.PasswordHash, L.Password)
 	if err != nil || !verified {
-		return dto.LoginResponse{}, errors.New("invalid credentials")
+		log.Warn("login failed",
+			zap.String("username", L.Username),
+			zap.String("user_id", user.ID),
+			zap.String("reason", "invalid_credentials"),
+		)
+		return dto.LoginResponse{}, wrapError.ErrInvalidCredentials
 	}
+
 	err = a.validateCredentials(L)
 	if err != nil {
-		return dto.LoginResponse{}, err
+		log.Warn("login failed",
+			zap.String("username", L.Username),
+			zap.String("reason", "invalid_credentials"),
+		)
+		return dto.LoginResponse{}, wrapError.ErrInvalidCredentials
 	}
 
 	token, err := a.JwtService.AccessToken(user.ID, user.OrganisationID)
 	if err != nil {
-		return dto.LoginResponse{}, errors.New("failed to generate access token")
+		log.Error("login failed",
+			zap.String("user_id", user.ID),
+			zap.String("organisation_id", user.OrganisationID),
+			zap.String("reason", "access_token"),
+			zap.Error(err),
+		)
+		return dto.LoginResponse{}, wrapError.ErrLoginFailed
 	}
+
 	refreshID, err := a.JwtService.RefreshtokenRepo.FindIDByUserID(user.ID)
 	if err != nil {
-		return dto.LoginResponse{}, errors.New("failed to check refresh token")
+		log.Error("login failed",
+			zap.String("user_id", user.ID),
+			zap.String("organisation_id", user.OrganisationID),
+			zap.String("reason", "refresh_token"),
+			zap.Error(err),
+		)
+		return dto.LoginResponse{}, wrapError.ErrLoginFailed
 	}
+
 	var refreshToken string
+	refreshAction := "create"
 	if refreshID != "" {
-		//update existing row
+		refreshAction = "update"
 		refreshToken, err = a.JwtService.UpdateRefreshToken(refreshID, user.ID, user.OrganisationID)
 		if err != nil {
-			return dto.LoginResponse{}, errors.New("failed to update refresh token")
+			log.Error("login failed",
+				zap.String("user_id", user.ID),
+				zap.String("organisation_id", user.OrganisationID),
+				zap.String("reason", "refresh_token"),
+				zap.Error(err),
+			)
+			return dto.LoginResponse{}, wrapError.ErrLoginFailed
 		}
 	} else {
 		claims, err := a.JwtService.RefreshToken(user.OrganisationID, user.ID, "")
 		if err != nil {
-			return dto.LoginResponse{}, errors.New("failed to generate refresh token")
+			log.Error("login failed",
+				zap.String("user_id", user.ID),
+				zap.String("organisation_id", user.OrganisationID),
+				zap.String("reason", "refresh_token"),
+				zap.Error(err),
+			)
+			return dto.LoginResponse{}, wrapError.ErrLoginFailed
 		}
 		err = a.JwtService.InsertRefreshToken(claims.RefereshToken, claims.ExpiresAt, user.ID, claims.JTI)
 		if err != nil {
-			return dto.LoginResponse{}, errors.New("failed to save refresh token")
+			log.Error("login failed",
+				zap.String("user_id", user.ID),
+				zap.String("organisation_id", user.OrganisationID),
+				zap.String("reason", "refresh_token"),
+				zap.Error(err),
+			)
+			return dto.LoginResponse{}, wrapError.ErrLoginFailed
 		}
 		refreshToken = claims.RefereshToken
 	}
 
-	err = a.Repo.UpdateLastLoginAttempt(user.ID, user.LastLoginAttempt+1)
+	err = a.Repo.UpdateLastLoginAttempt(log, user.ID, user.LastLoginAttempt+1)
 	if err != nil {
-		return dto.LoginResponse{}, errors.New("failed to update last login Attempt")
+		log.Error("login failed",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "last_login_update"),
+			zap.Error(err),
+		)
+		return dto.LoginResponse{}, wrapError.ErrLoginFailed
 	}
+
+	log.Info("login success",
+		zap.String("user_id", user.ID),
+		zap.String("organisation_id", user.OrganisationID),
+		zap.String("refresh_action", refreshAction),
+	)
+
 	response := dto.LoginResponse{}
 	response.UserID = user.ID
 	response.Token = token
@@ -73,12 +149,14 @@ func (a *UserService) Login(L dto.LoginUser) (dto.LoginResponse, error) {
 	response.OrganisationID = user.OrganisationID
 	return response, nil
 }
+
 func (a *UserService) validateCredentials(L dto.LoginUser) error {
 	if L.Password == "" || L.Username == "" {
 		return errors.New("invalid credentials")
 	}
 	return nil
 }
+
 func (a *UserService) comparePwd(DbPwd string, userPwd string) (verified bool, err error) {
 	err = bcrypt.CompareHashAndPassword([]byte(DbPwd), []byte(userPwd))
 	if err != nil {
@@ -87,17 +165,22 @@ func (a *UserService) comparePwd(DbPwd string, userPwd string) (verified bool, e
 	}
 	return true, nil
 }
-func (a *UserService) RefreshToken(refreshToken string) (dto.LoginResponse, error) {
-	tokenresp, err := a.JwtService.ValidateRefreshToken(refreshToken)
+
+func (a *UserService) RefreshToken(log *zap.Logger, refreshToken string) (dto.LoginResponse, error) {
+	log = ensureLog(log)
+	tokenresp, err := a.JwtService.ValidateRefreshToken(log, refreshToken)
 	if err != nil {
-		return dto.LoginResponse{}, err
+		if errors.Is(err, wrapError.ErrRefreshSession) {
+			return dto.LoginResponse{}, wrapError.ErrSessionExpired
+		}
+		return dto.LoginResponse{}, wrapError.ErrRefreshFailed
 	}
-	loginresp := a.toLoginResp(tokenresp)
-	return loginresp, nil
+	return a.toLoginResp(tokenresp), nil
 }
 
-func (a *UserService) Logout(refreshToken string) error {
-	return a.JwtService.LogoutRefreshToken(refreshToken)
+func (a *UserService) Logout(log *zap.Logger, refreshToken string) error {
+	log = ensureLog(log)
+	return a.JwtService.LogoutRefreshToken(log, refreshToken)
 }
 
 func (a *UserService) toLoginResp(tokenresp jwt.TokenResp) dto.LoginResponse {

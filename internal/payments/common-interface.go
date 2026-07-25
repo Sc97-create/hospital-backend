@@ -23,6 +23,7 @@ type IPaymentFulfillment interface {
 	UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error
 	UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error // item-level status
 	UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error   // prescription-level status
+	ResolveAndUpdateParentPrescriptionStatus(tx *gorm.DB, prescriptionID string, medicineInventoryDet []invoiceDto.MedInvoiceItemResponse) error
 	UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error
 	GetNotificationPatientByID(patientID string) (map[string]interface{}, error)
 	CreateNotification(ctx context.Context, notification notificationdto.CreateRequest) error

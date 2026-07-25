@@ -181,7 +181,8 @@ func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ) {
 	billingGrp := version.Group("billing")
 	billingController := billing.NewBillingController(service)
 	billingGrp.Post("/create", billingController.Checkout)
-
+	billingGrp.Get("/getInvoiceByPrescriptionID/:prescriptionID", billingController.GetInvoiceByPrescriptionID)
+	billingGrp.Post("/invoices/:invoiceID/retry-payment-link", billingController.RetryPaymentLink)
 }
 func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, webhook *payments.IWebhookService) {
 	version := getVersion(app)

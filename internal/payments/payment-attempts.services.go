@@ -20,7 +20,26 @@ func NewPaymentAttempts(paymentARepo IPaymentAttempts) *SPaymentAttempts {
 }
 
 func (sPAttempts *SPaymentAttempts) CreateAttempt(tx *gorm.DB, internalPaymentID string, paymentResponse dto.CreatePaymentResponse, providerName string) error {
-	paymentAttempts := sPAttempts.toPaymentAModel(internalPaymentID, paymentResponse, providerName)
+	count, err := sPAttempts.PaymentAttemptRepo.CountByPaymentID(internalPaymentID)
+	if err != nil {
+		return err
+	}
+	paymentAttempts := sPAttempts.toPaymentAModel(internalPaymentID, paymentResponse, providerName, int(count)+1, "")
+	return sPAttempts.PaymentAttemptRepo.CreatePaymentAttempts(tx, paymentAttempts)
+}
+
+func (sPAttempts *SPaymentAttempts) CreateAttemptWithIdempotency(
+	tx *gorm.DB,
+	internalPaymentID string,
+	paymentResponse dto.CreatePaymentResponse,
+	providerName string,
+	clientIdempotencyKey string,
+) error {
+	count, err := sPAttempts.PaymentAttemptRepo.CountByPaymentID(internalPaymentID)
+	if err != nil {
+		return err
+	}
+	paymentAttempts := sPAttempts.toPaymentAModel(internalPaymentID, paymentResponse, providerName, int(count)+1, clientIdempotencyKey)
 	return sPAttempts.PaymentAttemptRepo.CreatePaymentAttempts(tx, paymentAttempts)
 }
 
@@ -32,10 +51,20 @@ func (sPAttempts *SPaymentAttempts) FindByPaymentID(paymentID string) (PaymentAt
 	return sPAttempts.PaymentAttemptRepo.FindByPaymentID(paymentID)
 }
 
-func (sPAttempts *SPaymentAttempts) toPaymentAModel(internalPaymentID string, paymentResponse dto.CreatePaymentResponse, providerName string) PaymentAttempts {
+func (sPAttempts *SPaymentAttempts) FindByClientIdempotencyKey(key string) (PaymentAttempts, error) {
+	return sPAttempts.PaymentAttemptRepo.FindByClientIdempotencyKey(key)
+}
+
+func (sPAttempts *SPaymentAttempts) toPaymentAModel(
+	internalPaymentID string,
+	paymentResponse dto.CreatePaymentResponse,
+	providerName string,
+	attemptNo int,
+	clientIdempotencyKey string,
+) PaymentAttempts {
 	var payAttempts PaymentAttempts
 	payAttempts.ID = uuid.NewString()
-	payAttempts.AttemptNo = 1
+	payAttempts.AttemptNo = attemptNo
 	payAttempts.PaymentID = internalPaymentID
 	payAttempts.ProviderLinkID = paymentResponse.PaymentLinkID
 	payAttempts.PaymentLink = paymentResponse.PaymentURL
@@ -44,8 +73,17 @@ func (sPAttempts *SPaymentAttempts) toPaymentAModel(internalPaymentID string, pa
 	payAttempts.PaymentLinkStatus = constants.StatusPending
 	payAttempts.PaymentLink = paymentResponse.PaymentURL
 	payAttempts.CreatedAt = time.Now()
+	reqPayload := map[string]interface{}{}
 	if paymentResponse.RequestPayload != nil {
-		payAttempts.ProviderRequest = datatypes.JSONMap(paymentResponse.RequestPayload)
+		for k, v := range paymentResponse.RequestPayload {
+			reqPayload[k] = v
+		}
+	}
+	if clientIdempotencyKey != "" {
+		reqPayload["client_idempotency_key"] = clientIdempotencyKey
+	}
+	if len(reqPayload) > 0 {
+		payAttempts.ProviderRequest = datatypes.JSONMap(reqPayload)
 	}
 	return payAttempts
 }

@@ -6,13 +6,14 @@ import (
 	"hospital-backend/appinit"
 	"hospital-backend/config"
 	"hospital-backend/database"
+	"hospital-backend/pkg/logger"
 	"hospital-backend/pkg/middleware"
 	"hospital-backend/pkg/middleware/routers"
 	"hospital-backend/shared/migration"
 	"log"
-	"runtime"
 
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 /*
@@ -23,17 +24,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
+	logger.Init(cfg.Env, cfg.LogLevel)
+	defer logger.Sync()
+
+	logger.Log.Info("starting hospital backend",
+		zap.String("env", cfg.Env),
+		zap.String("log_level", cfg.LogLevel),
+	)
+
 	err = database.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Log.Fatal("database connection failed", zap.Error(err))
 	}
 
 	migration.Migrate()
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	fmt.Println("HeapAlloc", m.HeapAlloc)
-	fmt.Println("Heap Sys", m.HeapSys)
-	fmt.Println("stack in use", m.StackInuse)
 	clientConfig := fiber.Config{}
 	clientConfig.AppName = "Hospital Management"
 	clientConfig.CaseSensitive = true
@@ -46,11 +51,11 @@ func main() {
 	containers := appinit.NewContainer(database.PostgreClient.GormDriver, cfg)
 	err = containers.PermissionService.DefaultPerm()
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Log.Fatal("failed to seed default permissions", zap.Error(err))
 	}
 	err = containers.ModuleService.DefaultModule()
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Log.Fatal("failed to seed default modules", zap.Error(err))
 	}
 	ctx := context.Background()
 	containers.NotificationContainer.Start(ctx)
@@ -72,6 +77,6 @@ func main() {
 	routers.RegisterPaymentRoutes(app, containers.PaymentContainer.Mod.Paymentservice, containers.PaymentContainer.Mod.WebhookService)
 	err = app.Listen(fmt.Sprintf(":%s", cfg.ServerPort))
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Log.Fatal("server failed to start", zap.Error(err))
 	}
 }

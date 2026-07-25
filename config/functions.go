@@ -38,8 +38,21 @@ func Load() (*Config, error) {
 	if razorpayBaseUrl == "" {
 		razorpayBaseUrl = "https://api.razorpay.com/v1"
 	}
+
+	appEnv := viper.GetString("APP_ENV")
+	env := viper.GetString("ENV")
+	if env == "" {
+		env = appEnv
+	}
+	if env == "" {
+		env = "development"
+	}
+	logLevel := viper.GetString("LOG_LEVEL")
+
 	return &Config{
-		AppEnv:         viper.GetString("APP_ENV"),
+		AppEnv:         appEnv,
+		Env:            env,
+		LogLevel:       logLevel,
 		ServerPort:     port,
 		DatabaseURL:    viper.GetString("DATABASE_URL"),
 		PrivateKeyPath: viper.GetString("PRIVATE_KEY_PATH"),

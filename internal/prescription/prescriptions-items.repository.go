@@ -15,6 +15,7 @@ type PrescItemsRepo interface {
 	GetTotalCountByPrescID(prescriptionID string) (int64, error)
 	FindMedicineInfoByPID(ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
 	GetQtyInfoByMed(prescriptionID string) ([]PrescriptionItems, error)
+	GetItemStatusesByPrescriptionID(tx *gorm.DB, prescriptionID string) ([]PrescriptionItems, error)
 	UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error
 	UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error
 }
@@ -81,8 +82,20 @@ func (pdb *PrescriptionDB) GetQtyInfoByMed(prescriptionID string) ([]Prescriptio
 	}
 	return prescriptionItems, nil
 }
+func (pdb *PrescriptionDB) GetItemStatusesByPrescriptionID(tx *gorm.DB, prescriptionID string) ([]PrescriptionItems, error) {
+	db := pdb.db
+	if tx != nil {
+		db = tx
+	}
+	var items []PrescriptionItems
+	err := db.Model(&PrescriptionItems{}).
+		Where("prescription_id = ?", prescriptionID).
+		Select("id", "status", "quantity", "balance_after_dispense").
+		Find(&items).Error
+	return items, err
+}
 func (pdb *PrescriptionDB) UpdateDispenseItemQty(tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error {
-	// placeholders: balance_after_dispense + ?  then  WHERE id = ?
+	// placeholders: balance_after_dispense - ?  then  WHERE id = ?
 	return tx.Exec(query, dispensedQty, prescriptionItemID).Error
 }
 func (pdb *PrescriptionDB) UpdatePrescriptionItemStatus(tx *gorm.DB, item PrescriptionItems) error {

@@ -19,8 +19,8 @@ type Prescription struct {
 	AppointmentID  string `json:"appointment_id" gorm:"type:uuid"`
 	PrescribedBy   string `json:"prescribed_by" gorm:"type:uuid;column:prescribed_by"`
 	OrganisationID string `json:"organisation_id" gorm:"type:uuid;column:organisation_id"`
+	Status         string `json:"status" gorm:"column:status"`
 	//Medicines       MedicineList `json:"medicines" gorm:"type:jsonb"`
-	Status    string    `json:"status" gorm:"type:text"`
 	CreatedAt time.Time `json:"created_at" gorm:"column:created_at"`
 
 	UpdatedAt time.Time           `json:"updated_at" gorm:"column:updated_at"`
@@ -74,20 +74,23 @@ type MixedPrescriptionItem struct {
 	MedicineStrength   string  `json:"medicine_strength"`
 }
 type MedicineDetInfo struct {
-	PrescriptionCode      string       `json:"prescription_code"`
-	PrescriptionStatus    string       `json:"prescription_status"`
-	PrescriptionCreatedAt time.Time    `json:"prescription_created_at"`
-	PrescribedQuantity    int          `json:"prescribed_quantity"`
-	PrescriptionID        string       `json:"prescription_id"`
-	PrescriptionItemID    string       `json:"prescription_item_id"`
-	MedicineID            string       `json:"medicine_id"`
-	MedicineName          string       `json:"medicine_name"`
-	MedicineForm          string       `json:"medicine_form"`
-	MedicineStrength      string       `json:"medicine_strength"`
-	Frequency             Freq         `json:"frequency" gorm:"type:jsonb"`
-	ReorderLevel          int          `json:"reorder_level"`
-	MaxStockTarget        int          `json:"max_stock_target"`
-	MedicineBatches       MedBatchList `json:"medicine_batches" gorm:"type:jsonb"`
+	PrescriptionCode       string       `json:"prescription_code"`
+	PrescriptionStatus     string       `json:"prescription_status"`
+	PrescriptionCreatedAt  time.Time    `json:"prescription_created_at"`
+	PrescribedQuantity     int          `json:"prescribed_quantity"`
+	RemainingQuantity      int          `json:"remaining_quantity"`
+	PrescriptionID         string       `json:"prescription_id"`
+	PrescriptionItemID     string       `json:"prescription_item_id"`
+	MedicineID             string       `json:"medicine_id"`
+	MedicineName           string       `json:"medicine_name"`
+	MedicineForm           string       `json:"medicine_form"`
+	MedicineStrength       string       `json:"medicine_strength"`
+	Frequency              Freq         `json:"frequency" gorm:"type:jsonb"`
+	ReorderLevel           int          `json:"reorder_level"`
+	PrescriptionItemStatus string       `json:"prescription_item_status"`
+	FoodInstruction        string       `json:"food_instruction"`
+	MaxStockTarget         int          `json:"max_stock_target"`
+	MedicineBatches        MedBatchList `json:"medicine_batches" gorm:"type:jsonb"`
 }
 type PrescriptionAppointmentData struct {
 	PrescriptionID        string               `gorm:"column:prescription_id"`
