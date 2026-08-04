@@ -7,10 +7,12 @@ import (
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
 	"hospital-backend/pkg/constants"
+	wrapError "hospital-backend/shared/error"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -41,20 +43,44 @@ func NewPaymentsService(
 	}
 }
 
-func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand) (paymentRespone dto.CreatePaymentResponse, err error) {
+func (p *PaymentsService) CreateLinkPayment(log *zap.Logger, paymentReq dto.CreatePaymentCommand) (paymentRespone dto.CreatePaymentResponse, err error) {
+	log = ensureLog(log)
 	if err = validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		log.Warn("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "idempotency_required"),
+		)
 		return
 	}
 
-	// Same client key → return existing payment link (double-click / retry safe)
-	if existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey); findErr == nil {
-		return p.responseFromExistingPayment(existing)
+	if existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(log, paymentReq.IdempotencyKey); findErr == nil {
+		resp, respErr := p.responseFromExistingPayment(log, existing)
+		if respErr == nil {
+			log.Info("payment link create success",
+				zap.String("payment_id", existing.ID),
+				zap.String("invoice_id", existing.InvoiceID),
+				zap.String("idempotency_key", paymentReq.IdempotencyKey),
+				zap.Bool("idempotent_replay", true),
+				zap.Bool("has_payment_url", resp.PaymentURL != ""),
+			)
+		}
+		return resp, respErr
 	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "idempotency_lookup"),
+			zap.Error(findErr),
+		)
 		return paymentRespone, findErr
 	}
 
 	provider, err := p.PaymentFactory.GetProvider(constants.ProviderNameRazorpay)
 	if err != nil {
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "provider"),
+			zap.Error(err),
+		)
 		return
 	}
 	providerName := provider.Name()
@@ -63,82 +89,160 @@ func (p *PaymentsService) CreateLinkPayment(paymentReq dto.CreatePaymentCommand)
 
 	paymentRespone, err = provider.CreatePayment(ctx, paymentReq)
 	if err != nil {
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "gateway_create"),
+			zap.Error(err),
+		)
 		return
 	}
 
 	tx := p.db.Begin()
 	paymentModel := p.toPaymentModel(paymentReq)
-	err = p.PaymentsRepository.Create(tx, paymentModel)
+	err = p.PaymentsRepository.Create(log, tx, paymentModel)
 	if err != nil {
 		tx.Rollback()
 		if isUniqueViolation(err) {
-			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey)
+			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(log, paymentReq.IdempotencyKey)
 			if findErr == nil {
-				return p.responseFromExistingPayment(existing)
+				resp, respErr := p.responseFromExistingPayment(log, existing)
+				if respErr == nil {
+					log.Info("payment link create success",
+						zap.String("payment_id", existing.ID),
+						zap.String("invoice_id", existing.InvoiceID),
+						zap.String("idempotency_key", paymentReq.IdempotencyKey),
+						zap.Bool("idempotent_replay", true),
+						zap.Bool("has_payment_url", resp.PaymentURL != ""),
+					)
+				}
+				return resp, respErr
 			}
 		}
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
 		return
 	}
-	err = p.PaymentAttempt.CreateAttempt(tx, paymentModel.ID, paymentRespone, providerName)
+	err = p.PaymentAttempt.CreateAttempt(log, tx, paymentModel.ID, paymentRespone, providerName)
 	if err != nil {
 		tx.Rollback()
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_id", paymentModel.ID),
+			zap.String("reason", "db_attempt"),
+			zap.Error(err),
+		)
 		return
 	}
 	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
 	if err != nil {
 		tx.Rollback()
+		log.Error("payment link create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("prescription_id", paymentReq.PrescriptionID),
+			zap.String("reason", "prescription_status"),
+			zap.Error(err),
+		)
 		return
 	}
 	tx.Commit()
+	log.Info("payment link create success",
+		zap.String("payment_id", paymentModel.ID),
+		zap.String("invoice_id", paymentReq.InvoiceID),
+		zap.String("prescription_id", paymentReq.PrescriptionID),
+		zap.String("provider_link_id", paymentRespone.PaymentLinkID),
+		zap.String("idempotency_key", paymentReq.IdempotencyKey),
+		zap.Bool("has_payment_url", paymentRespone.PaymentURL != ""),
+	)
 	return
 }
 
-// RetryLinkPayment creates a new Razorpay link + payment_attempt for an existing unpaid invoice.
-// Invoice and payments row stay unchanged.
-func (p *PaymentsService) RetryLinkPayment(paymentReq dto.CreatePaymentCommand) (dto.CreatePaymentResponse, error) {
+func (p *PaymentsService) RetryLinkPayment(log *zap.Logger, paymentReq dto.CreatePaymentCommand) (dto.CreatePaymentResponse, error) {
+	log = ensureLog(log)
 	if err := validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		log.Warn("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "idempotency_required"),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
-	if paymentReq.InvoiceID == "" {
-		return dto.CreatePaymentResponse{}, fmt.Errorf("invoice_id is required")
-	}
-	if paymentReq.PrescriptionID == "" {
-		return dto.CreatePaymentResponse{}, fmt.Errorf("prescription_id is required")
+	if paymentReq.InvoiceID == "" || paymentReq.PrescriptionID == "" {
+		log.Warn("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "missing_ids"),
+		)
+		return dto.CreatePaymentResponse{}, fmt.Errorf("invoice_id and prescription_id are required")
 	}
 
-	if existingAttempt, findErr := p.PaymentAttempt.FindByClientIdempotencyKey(paymentReq.IdempotencyKey); findErr == nil {
-		return dto.CreatePaymentResponse{
+	if existingAttempt, findErr := p.PaymentAttempt.FindByClientIdempotencyKey(log, paymentReq.IdempotencyKey); findErr == nil {
+		resp := dto.CreatePaymentResponse{
 			PaymentLinkID: existingAttempt.ProviderLinkID,
 			PaymentURL:    existingAttempt.PaymentLink,
 			ReferenceID:   existingAttempt.ProviderReferenceID,
-		}, nil
+		}
+		log.Info("payment link retry success",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_id", existingAttempt.PaymentID),
+			zap.String("idempotency_key", paymentReq.IdempotencyKey),
+			zap.Bool("idempotent_replay", true),
+			zap.Bool("has_payment_url", resp.PaymentURL != ""),
+		)
+		return resp, nil
 	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "idempotency_lookup"),
+			zap.Error(findErr),
+		)
 		return dto.CreatePaymentResponse{}, findErr
 	}
 
-	payment, err := p.GetPaymentByInvoiceID(paymentReq.InvoiceID)
+	payment, err := p.GetPaymentByInvoiceID(log, paymentReq.InvoiceID)
 	if err != nil {
 		return dto.CreatePaymentResponse{}, err
 	}
 	if payment.Source != constants.PaymentLink {
+		log.Warn("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("source", payment.Source),
+			zap.String("reason", "unsupported_payment_mode"),
+		)
 		return dto.CreatePaymentResponse{}, fmt.Errorf("retry link is only supported for payment_mode %s", constants.PaymentLink)
 	}
 
-	// Live pending link → reuse (avoid duplicate active links)
-	if latest, findErr := p.PaymentAttempt.FindByPaymentID(payment.ID); findErr == nil {
+	if latest, findErr := p.PaymentAttempt.FindByPaymentID(log, payment.ID); findErr == nil {
 		if latest.PaymentStatus == constants.StatusPending {
-			return dto.CreatePaymentResponse{
+			resp := dto.CreatePaymentResponse{
 				PaymentLinkID: latest.ProviderLinkID,
 				PaymentURL:    latest.PaymentLink,
 				ReferenceID:   latest.ProviderReferenceID,
-			}, nil
+			}
+			log.Info("payment link retry success",
+				zap.String("invoice_id", paymentReq.InvoiceID),
+				zap.String("payment_id", payment.ID),
+				zap.String("reason", "reuse_pending_attempt"),
+				zap.Bool("has_payment_url", resp.PaymentURL != ""),
+			)
+			return resp, nil
 		}
 	} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "attempt_lookup"),
+			zap.Error(findErr),
+		)
 		return dto.CreatePaymentResponse{}, findErr
 	}
 
 	provider, err := p.PaymentFactory.GetProvider(constants.ProviderNameRazorpay)
 	if err != nil {
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "provider"),
+			zap.Error(err),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.TODO(), 20*time.Second)
@@ -146,107 +250,275 @@ func (p *PaymentsService) RetryLinkPayment(paymentReq dto.CreatePaymentCommand) 
 
 	paymentResponse, err := provider.CreatePayment(ctx, paymentReq)
 	if err != nil {
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "gateway_create"),
+			zap.Error(err),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
 
 	tx := p.db.Begin()
-	err = p.PaymentAttempt.CreateAttemptWithIdempotency(tx, payment.ID, paymentResponse, provider.Name(), paymentReq.IdempotencyKey)
+	err = p.PaymentAttempt.CreateAttemptWithIdempotency(log, tx, payment.ID, paymentResponse, provider.Name(), paymentReq.IdempotencyKey)
 	if err != nil {
 		tx.Rollback()
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_id", payment.ID),
+			zap.String("reason", "db_attempt"),
+			zap.Error(err),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
 	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
 	if err != nil {
 		tx.Rollback()
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("prescription_id", paymentReq.PrescriptionID),
+			zap.String("reason", "prescription_status"),
+			zap.Error(err),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
 	if err = tx.Commit().Error; err != nil {
+		log.Error("payment link retry failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "db_commit"),
+			zap.Error(err),
+		)
 		return dto.CreatePaymentResponse{}, err
 	}
+	log.Info("payment link retry success",
+		zap.String("payment_id", payment.ID),
+		zap.String("invoice_id", paymentReq.InvoiceID),
+		zap.String("provider_link_id", paymentResponse.PaymentLinkID),
+		zap.String("idempotency_key", paymentReq.IdempotencyKey),
+		zap.Bool("has_payment_url", paymentResponse.PaymentURL != ""),
+	)
 	return paymentResponse, nil
 }
 
-// CreatePendingPayment creates a payments row for cash/qr. No gateway call, no payment_attempt.
-func (p *PaymentsService) CreatePendingPayment(paymentReq dto.CreatePaymentCommand) (Payments, error) {
+func (p *PaymentsService) CreatePendingPayment(log *zap.Logger, paymentReq dto.CreatePaymentCommand) (Payments, error) {
+	log = ensureLog(log)
 	if err := validateIdempotencyKey(paymentReq.IdempotencyKey); err != nil {
+		log.Warn("payment pending create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_mode", paymentReq.Source),
+			zap.String("reason", "idempotency_required"),
+		)
 		return Payments{}, err
 	}
 
-	if existing, err := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey); err == nil {
+	if existing, err := p.PaymentsRepository.FindByIdempotencyKey(log, paymentReq.IdempotencyKey); err == nil {
+		log.Info("payment pending create success",
+			zap.String("payment_id", existing.ID),
+			zap.String("invoice_id", existing.InvoiceID),
+			zap.String("payment_mode", existing.Source),
+			zap.Bool("idempotent_replay", true),
+		)
 		return existing, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Error("payment pending create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_mode", paymentReq.Source),
+			zap.String("reason", "idempotency_lookup"),
+			zap.Error(err),
+		)
 		return Payments{}, err
 	}
 
 	tx := p.db.Begin()
 	paymentModel := p.toPaymentModel(paymentReq)
-	err := p.PaymentsRepository.Create(tx, paymentModel)
+	err := p.PaymentsRepository.Create(log, tx, paymentModel)
 	if err != nil {
 		tx.Rollback()
 		if isUniqueViolation(err) {
-			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(paymentReq.IdempotencyKey)
+			existing, findErr := p.PaymentsRepository.FindByIdempotencyKey(log, paymentReq.IdempotencyKey)
 			if findErr == nil {
+				log.Info("payment pending create success",
+					zap.String("payment_id", existing.ID),
+					zap.String("invoice_id", existing.InvoiceID),
+					zap.String("payment_mode", existing.Source),
+					zap.Bool("idempotent_replay", true),
+				)
 				return existing, nil
 			}
 		}
+		log.Error("payment pending create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("payment_mode", paymentReq.Source),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
 		return Payments{}, err
 	}
 	if paymentReq.PrescriptionID != "" {
 		if err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending); err != nil {
 			tx.Rollback()
+			log.Error("payment pending create failed",
+				zap.String("invoice_id", paymentReq.InvoiceID),
+				zap.String("prescription_id", paymentReq.PrescriptionID),
+				zap.String("reason", "prescription_status"),
+				zap.Error(err),
+			)
 			return Payments{}, err
 		}
 	}
 	if err = tx.Commit().Error; err != nil {
+		log.Error("payment pending create failed",
+			zap.String("invoice_id", paymentReq.InvoiceID),
+			zap.String("reason", "db_commit"),
+			zap.Error(err),
+		)
 		return Payments{}, err
 	}
+	log.Info("payment pending create success",
+		zap.String("payment_id", paymentModel.ID),
+		zap.String("invoice_id", paymentReq.InvoiceID),
+		zap.String("payment_mode", paymentReq.Source),
+	)
 	return paymentModel, nil
 }
 
-// ConfirmManualPayment confirms cash/qr payment and runs shared fulfillment (no payment_attempt).
-func (p *PaymentsService) ConfirmManualPayment(invoiceID, paymentMode, txnRef string) error {
+func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organisationID, paymentMode, txnRef string) error {
+	log = ensureLog(log)
+	_ = txnRef
 	if invoiceID == "" {
-		return fmt.Errorf("invoice_id is required")
+		log.Warn("payment confirm failed",
+			zap.String("reason", "missing_invoice_id"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+	if organisationID == "" {
+		log.Warn("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("reason", "missing_organisation_id"),
+		)
+		return wrapError.ErrInvalidRequest
 	}
 	if paymentMode != constants.PaymentCash && paymentMode != constants.PaymentQR {
-		return fmt.Errorf("payment_mode must be %s or %s", constants.PaymentCash, constants.PaymentQR)
+		log.Warn("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("payment_mode", paymentMode),
+			zap.String("reason", "unsupported_payment_mode"),
+		)
+		return wrapError.ErrUnsupportedPaymentMode
 	}
-	_ = txnRef // optional audit field; store later if payments gains a reference column
 
-	payment, err := p.GetPaymentByInvoiceID(invoiceID)
+	payment, err := p.GetPaymentByInvoiceIDAndOrganisationID(log, invoiceID, organisationID)
 	if err != nil {
-		return err
+		if errors.Is(err, wrapError.ErrPaymentNotFound) {
+			log.Warn("payment confirm failed",
+				zap.String("invoice_id", invoiceID),
+				zap.String("organisation_id", organisationID),
+				zap.String("reason", "not_found"),
+			)
+			return wrapError.ErrPaymentNotFound
+		}
+		log.Error("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "payment_lookup"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPaymentConfirmFailed
 	}
 	if payment.Source != constants.PaymentCash && payment.Source != constants.PaymentQR {
-		return fmt.Errorf("invoice payment source %s cannot be confirmed manually", payment.Source)
-	}
-	if paymentMode != payment.Source {
-		return fmt.Errorf("payment_mode %s does not match payment source %s", paymentMode, payment.Source)
+		log.Warn("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("payment_mode", paymentMode),
+			zap.String("source", payment.Source),
+			zap.String("reason", "source_mismatch"),
+		)
+		return wrapError.ErrInvalidRequest
 	}
 
 	tx := p.db.Begin()
-	err = p.FulfillmentSvc.FulfillPaidInvoice(tx, invoiceID)
+	if paymentMode != payment.Source {
+		channel := constants.PaymentCash
+		if paymentMode == constants.PaymentQR {
+			channel = constants.PaymentUPI
+		}
+		if err = p.PaymentsRepository.UpdateSource(log, tx, payment.ID, paymentMode, channel); err != nil {
+			tx.Rollback()
+			log.Error("payment confirm failed",
+				zap.String("invoice_id", invoiceID),
+				zap.String("organisation_id", organisationID),
+				zap.String("payment_id", payment.ID),
+				zap.String("payment_mode", paymentMode),
+				zap.String("source", payment.Source),
+				zap.String("reason", "source_update"),
+				zap.Error(err),
+			)
+			return wrapError.ErrPaymentConfirmFailed
+		}
+		log.Info("payment source updated on confirm",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("payment_id", payment.ID),
+			zap.String("from_source", payment.Source),
+			zap.String("to_source", paymentMode),
+		)
+		payment.Source = paymentMode
+		payment.Channel = channel
+	}
+	err = p.FulfillmentSvc.FulfillPaidInvoice(log, tx, invoiceID)
 	if err != nil {
 		tx.Rollback()
-		return err
+		log.Error("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "fulfillment_failed"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPaymentConfirmFailed
 	}
 	if err = tx.Commit().Error; err != nil {
-		return err
+		log.Error("payment confirm failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_commit"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPaymentConfirmFailed
 	}
 
 	paidAt := time.Now()
-	return p.FulfillmentSvc.NotifyPaymentReceived(payment, paidAt)
+	notifyErr := p.FulfillmentSvc.NotifyPaymentReceived(log, payment, paidAt)
+	notificationEnqueued := notifyErr == nil
+	if notifyErr != nil {
+		log.Error("payment notification failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("organisation_id", organisationID),
+			zap.String("payment_id", payment.ID),
+			zap.String("reason", "notification"),
+			zap.Error(notifyErr),
+		)
+	}
+	log.Info("payment confirm success",
+		zap.String("invoice_id", invoiceID),
+		zap.String("organisation_id", organisationID),
+		zap.String("payment_id", payment.ID),
+		zap.String("payment_mode", paymentMode),
+		zap.Bool("notification_enqueued", notificationEnqueued),
+	)
+	return nil
 }
 
-func (p *PaymentsService) GetPaymentByIdempotencyKey(key string) (Payments, error) {
+func (p *PaymentsService) GetPaymentByIdempotencyKey(log *zap.Logger, key string) (Payments, error) {
+	log = ensureLog(log)
 	if err := validateIdempotencyKey(key); err != nil {
 		return Payments{}, err
 	}
-	return p.PaymentsRepository.FindByIdempotencyKey(key)
+	return p.PaymentsRepository.FindByIdempotencyKey(log, key)
 }
 
-func (p *PaymentsService) GetPaymentURLByPaymentID(paymentID string) (string, error) {
-	attempt, err := p.PaymentAttempt.FindByPaymentID(paymentID)
+func (p *PaymentsService) GetPaymentURLByPaymentID(log *zap.Logger, paymentID string) (string, error) {
+	log = ensureLog(log)
+	attempt, err := p.PaymentAttempt.FindByPaymentID(log, paymentID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", nil
@@ -256,8 +528,8 @@ func (p *PaymentsService) GetPaymentURLByPaymentID(paymentID string) (string, er
 	return attempt.PaymentLink, nil
 }
 
-func (p *PaymentsService) responseFromExistingPayment(payment Payments) (dto.CreatePaymentResponse, error) {
-	attempt, err := p.PaymentAttempt.FindByPaymentID(payment.ID)
+func (p *PaymentsService) responseFromExistingPayment(log *zap.Logger, payment Payments) (dto.CreatePaymentResponse, error) {
+	attempt, err := p.PaymentAttempt.FindByPaymentID(log, payment.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return dto.CreatePaymentResponse{}, nil
@@ -286,20 +558,46 @@ func (p *PaymentsService) toPaymentModel(paymentReq dto.CreatePaymentCommand) Pa
 	return payment
 }
 
-func (p *PaymentsService) FindInvoiceByPaymentAttempt(query string, args ...interface{}) (Payments, error) {
-	return p.PaymentsRepository.FindInvoiceByPaymentAttempt(query, args...)
+func (p *PaymentsService) FindInvoiceByPaymentAttempt(log *zap.Logger, query string, args ...interface{}) (Payments, error) {
+	return p.PaymentsRepository.FindInvoiceByPaymentAttempt(ensureLog(log), query, args...)
 }
 
-func (p *PaymentsService) GetPaymentByInvoiceID(invoiceID string) (Payments, error) {
+func (p *PaymentsService) GetPaymentByInvoiceID(log *zap.Logger, invoiceID string) (Payments, error) {
+	log = ensureLog(log)
 	if invoiceID == "" {
-		return Payments{}, fmt.Errorf("invoice_id is required")
+		return Payments{}, wrapError.ErrInvalidRequest
 	}
-	payment, err := p.PaymentsRepository.FindByInvoiceID(invoiceID)
+	payment, err := p.PaymentsRepository.FindByInvoiceID(log, invoiceID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return Payments{}, fmt.Errorf("payment not found for invoice_id: %s", invoiceID)
+			return Payments{}, wrapError.ErrPaymentNotFound
 		}
 		return Payments{}, err
+	}
+	return payment, nil
+}
+
+func (p *PaymentsService) GetPaymentByInvoiceIDAndOrganisationID(log *zap.Logger, invoiceID, organisationID string) (Payments, error) {
+	log = ensureLog(log)
+	if invoiceID == "" || organisationID == "" {
+		return Payments{}, wrapError.ErrInvalidRequest
+	}
+	query := `
+		SELECT payments.*
+		FROM payments
+		JOIN invoices ON invoices.id = payments.invoice_id
+		WHERE payments.invoice_id = ?
+		  AND invoices.organisation_id = ?
+		ORDER BY payments.created_at DESC
+		LIMIT 1
+	`
+	payment, err := p.PaymentsRepository.FindInvoiceByPaymentAttempt(log, query, invoiceID, organisationID)
+	if err != nil {
+		return Payments{}, err
+	}
+	// Raw().Scan() returns nil error with zero rows — treat empty ID as not found.
+	if payment.ID == "" {
+		return Payments{}, wrapError.ErrPaymentNotFound
 	}
 	return payment, nil
 }

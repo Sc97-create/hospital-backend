@@ -3,6 +3,7 @@ package medicine
 import (
 	"time"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -14,13 +15,12 @@ func NewPurchaseEntryService(PurchaseEntryRepo RPurchaseEntry) *PurchaseEntrySer
 	return &PurchaseEntryService{VPurchaseEntry: PurchaseEntryRepo}
 }
 
-func (PService *PurchaseEntryService) CreatePurchaseEntry(db *gorm.DB, purchaseEntry *MPurchaseEntry, paymentTerms Paymentterms) error {
+func (PService *PurchaseEntryService) CreatePurchaseEntry(log *zap.Logger, db *gorm.DB, purchaseEntry *MPurchaseEntry, paymentTerms Paymentterms) error {
 	PService.calculatePaymentDueDate(purchaseEntry.InvoiceDate, paymentTerms)
-	return PService.VPurchaseEntry.CreatePurchaseEntry(db, purchaseEntry)
+	return PService.VPurchaseEntry.CreatePurchaseEntry(ensureLog(log), db, purchaseEntry)
 }
+
 func (Pservice *PurchaseEntryService) calculatePaymentDueDate(invoiceDate time.Time, paymentTerms Paymentterms) time.Time {
-	// Parse the invoice date
-	// layout := "2006-01-02" // Assuming the date is in YYYY-MM-DD format
 	switch paymentTerms {
 	case ICash:
 		return invoiceDate
@@ -35,5 +35,4 @@ func (Pservice *PurchaseEntryService) calculatePaymentDueDate(invoiceDate time.T
 	default:
 		return invoiceDate.AddDate(0, 0, 30)
 	}
-
 }

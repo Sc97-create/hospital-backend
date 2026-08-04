@@ -21,7 +21,7 @@ type IPaymentFulfillment interface {
 	UpdateMedInventoryStock(tx *gorm.DB, medicineInventoryID string, dispensedQty int64) error
 	CreateMedicineMvmt(tx *gorm.DB, medicineMvmt []types.MedicineStockMovements) error
 	UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error
-	UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error // item-level status
+	UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string, outOfStock bool) error // item-level status + oos flag
 	UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error   // prescription-level status
 	ResolveAndUpdateParentPrescriptionStatus(tx *gorm.DB, prescriptionID string, medicineInventoryDet []invoiceDto.MedInvoiceItemResponse) error
 	UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error

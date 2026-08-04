@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hospital-backend/config"
 	"hospital-backend/internal/notifications/dto"
+	"time"
 
 	"github.com/wneessen/go-mail"
 )
@@ -23,6 +24,7 @@ func NewSmtpProvider(cfg config.NotificationConfig) (*SMTPProvider, error) {
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		mail.WithUsername(cfg.SMTPUsername),
 		mail.WithPassword(cfg.SMTPPassword),
+		mail.WithTimeout(60*time.Second),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SMTP client: %w", err)

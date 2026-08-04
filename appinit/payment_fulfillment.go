@@ -50,35 +50,35 @@ func newPaymentFulfillment(
 }
 
 func (f *paymentFulfillment) GetMedicineInventoryDetByInvoiceID(invoiceID string) ([]invoiceDto.MedInvoiceItemResponse, error) {
-	return f.invoiceItems.GetMedicineInventoryDetByInvoiceID(invoiceID)
+	return f.invoiceItems.GetMedicineInventoryDetByInvoiceID(logger.Log, invoiceID)
 }
 
 func (f *paymentFulfillment) UpdateMedInventoryStock(tx *gorm.DB, medicineInventoryID string, dispensedQty int64) error {
-	return f.medInventory.MedInventory.UpdateMedInventoryStock(tx, medicineInventoryID, dispensedQty)
+	return f.medInventory.UpdateMedInventoryStock(logger.Log, tx, medicineInventoryID, dispensedQty)
 }
 
 func (f *paymentFulfillment) CreateMedicineMvmt(tx *gorm.DB, medicineMvmt []types.MedicineStockMovements) error {
-	return f.medMvmt.CreateMedicineMvmt(tx, medicineMvmt)
+	return f.medMvmt.CreateMedicineMvmt(logger.Log, tx, medicineMvmt)
 }
 
 func (f *paymentFulfillment) UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error {
-	return f.prescriptionItems.UpdateDispenseItemQty(tx, prescriptionItemID, dispensedQty)
+	return f.prescriptionItems.UpdateDispenseItemQty(logger.Log, tx, prescriptionItemID, dispensedQty)
 }
 
-func (f *paymentFulfillment) UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error {
-	return f.prescriptionItems.UpdateIPrescriptionStatus(tx, prescriptionItemID, status)
+func (f *paymentFulfillment) UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string, outOfStock bool) error {
+	return f.prescriptionItems.UpdateIPrescriptionStatus(logger.Log, tx, prescriptionItemID, status, outOfStock)
 }
 
 func (f *paymentFulfillment) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
-	return f.prescription.UpdateExtPrescriptionStatus(tx, prescriptionID, status)
+	return f.prescription.UpdateExtPrescriptionStatus(logger.Log, tx, prescriptionID, status)
 }
 
 func (f *paymentFulfillment) ResolveAndUpdateParentPrescriptionStatus(tx *gorm.DB, prescriptionID string, medicineInventoryDet []invoiceDto.MedInvoiceItemResponse) error {
-	return f.prescription.ResolveAndUpdateParentStatus(tx, prescriptionID, medicineInventoryDet)
+	return f.prescription.ResolveAndUpdateParentStatus(logger.Log, tx, prescriptionID, medicineInventoryDet)
 }
 
 func (f *paymentFulfillment) UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error {
-	return f.invoiceRepo.UpdateInvoiceStatus(tx, invoiceID, status)
+	return f.invoiceRepo.UpdateInvoiceStatus(logger.Log, tx, invoiceID, status)
 }
 func (f *paymentFulfillment) GetNotificationPatientByID(patientID string) (map[string]interface{}, error) {
 	return f.patientService.GetNotificationPatientByID(logger.Log, patientID)

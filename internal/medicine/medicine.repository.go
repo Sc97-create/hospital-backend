@@ -3,42 +3,58 @@ package medicine
 import (
 	"hospital-backend/internal/medicine/dto"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type MedicineRepository interface {
-	CreateInBatches(db *gorm.DB, M []Medicine) (err error)
-	FindOne(id string) (*Medicine, error)
-	FindMany(query string, args ...any) ([]Medicine, error)
-	SearchMedicine(name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error)
-	Update(id string, update map[string]interface{}) error
-	FindNamesByIds([]string) ([]Medicine, error)
-	GetMedicineByID(medicineID string) (medicine Medicine, err error)
+	CreateInBatches(log *zap.Logger, db *gorm.DB, M []Medicine) (err error)
+	FindOne(log *zap.Logger, id string) (*Medicine, error)
+	FindMany(log *zap.Logger, query string, args ...any) ([]Medicine, error)
+	SearchMedicine(log *zap.Logger, name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error)
+	Update(log *zap.Logger, id string, update map[string]interface{}) error
+	FindNamesByIds(log *zap.Logger, ids []string) ([]Medicine, error)
+	GetMedicineByID(log *zap.Logger, medicineID string) (medicine Medicine, err error)
 }
 
-func (MRepo *MedicineRepo) CreateInBatches(db *gorm.DB, M []Medicine) (err error) {
+func (MRepo *MedicineRepo) CreateInBatches(log *zap.Logger, db *gorm.DB, M []Medicine) (err error) {
+	log = ensureLog(log)
+	if len(M) == 0 {
+		return nil
+	}
 	err = db.CreateInBatches(&M, len(M)).Error
 	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "CreateInBatches"), zap.Error(err))
 		return
 	}
 	return
 }
-func (MRepo *MedicineRepo) FindOne(id string) (*Medicine, error) {
+
+func (MRepo *MedicineRepo) FindOne(log *zap.Logger, id string) (*Medicine, error) {
+	log = ensureLog(log)
 	var Med Medicine
 	err := MRepo.db.First(&Med, "id=?", id).Error
 	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			log.Error("medicine repo error", zap.String("op", "FindOne"), zap.Error(err))
+		}
 		return nil, err
 	}
 	return &Med, nil
 }
-func (MRepo *MedicineRepo) FindMany(query string, args ...any) (Med []Medicine, err error) {
+
+func (MRepo *MedicineRepo) FindMany(log *zap.Logger, query string, args ...any) (Med []Medicine, err error) {
+	log = ensureLog(log)
 	err = MRepo.db.Model(&Medicine{}).Select("id,name,form,strength").Where(query, args...).Find(&Med).Error
 	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "FindMany"), zap.Error(err))
 		return
 	}
 	return
 }
-func (MRepo *MedicineRepo) SearchMedicine(name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error) {
+
+func (MRepo *MedicineRepo) SearchMedicine(log *zap.Logger, name string, pattern string, organisationID string) ([]dto.SearchMedicineItem, error) {
+	log = ensureLog(log)
 	var results []dto.SearchMedicineItem
 	sql := `
 		SELECT
@@ -69,6 +85,7 @@ func (MRepo *MedicineRepo) SearchMedicine(name string, pattern string, organisat
 		  AND m.organisation_id = $3`
 	err := MRepo.db.Raw(sql, name, pattern, organisationID).Scan(&results).Error
 	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "SearchMedicine"), zap.Error(err))
 		return nil, err
 	}
 	if results == nil {
@@ -76,24 +93,36 @@ func (MRepo *MedicineRepo) SearchMedicine(name string, pattern string, organisat
 	}
 	return results, nil
 }
-func (Mrepo *MedicineRepo) Update(id string, updates map[string]interface{}) (err error) {
-	err = Mrepo.db.Model(&Medicine{}).Where("id=?", id).Updates(updates).Error
+
+func (MRepo *MedicineRepo) Update(log *zap.Logger, id string, updates map[string]interface{}) (err error) {
+	log = ensureLog(log)
+	err = MRepo.db.Model(&Medicine{}).Where("id=?", id).Updates(updates).Error
 	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "Update"), zap.Error(err))
 		return
 	}
 	return
 }
-func (MRepo *MedicineRepo) FindNamesByIds(ids []string) (Med []Medicine, err error) {
+
+func (MRepo *MedicineRepo) FindNamesByIds(log *zap.Logger, ids []string) (Med []Medicine, err error) {
+	log = ensureLog(log)
 	err = MRepo.db.Model(&Medicine{}).Select("id,name").Where("id IN ?", ids).Find(&Med).Error
 	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "FindNamesByIds"), zap.Error(err))
 		return
 	}
 	return
 }
-func (MRepo *MedicineRepo) GetMedicineByID(medicineID string) (medicine Medicine, err error) {
+
+func (MRepo *MedicineRepo) GetMedicineByID(log *zap.Logger, medicineID string) (medicine Medicine, err error) {
+	log = ensureLog(log)
 	err = MRepo.db.Where("id=?", medicineID).First(&medicine).Error
 	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			log.Error("medicine repo error", zap.String("op", "GetMedicineByID"), zap.Error(err))
+		}
 		return
 	}
 	return
 }
+

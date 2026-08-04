@@ -43,6 +43,7 @@ type PrescriptionItems struct {
 	DurationType         string    `json:"duration_type" gorm:"column:duration_type"`
 	FoodInstruction      string    `json:"food_instruction" gorm:"column:food_instruction"`
 	Status               string    `json:"status" gorm:"column:status"`
+	OutOfStock           bool      `json:"out_of_stock" gorm:"column:out_of_stock;default:false"`
 	BalanceAfterDispense int       `json:"balance_after_dispense" gorm:"column:balance_after_dispense"`
 	CreatedAt            time.Time `json:"created_at" gorm:"type:timestamptz"`
 	CreatedBy            string    `json:"created_by" gorm:"type:uuid"`
@@ -88,6 +89,7 @@ type MedicineDetInfo struct {
 	Frequency              Freq         `json:"frequency" gorm:"type:jsonb"`
 	ReorderLevel           int          `json:"reorder_level"`
 	PrescriptionItemStatus string       `json:"prescription_item_status"`
+	OutOfStock             bool         `json:"out_of_stock"`
 	FoodInstruction        string       `json:"food_instruction"`
 	MaxStockTarget         int          `json:"max_stock_target"`
 	MedicineBatches        MedBatchList `json:"medicine_batches" gorm:"type:jsonb"`

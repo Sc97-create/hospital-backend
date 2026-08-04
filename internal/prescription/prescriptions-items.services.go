@@ -3,16 +3,15 @@ package prescription
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
+	wrapError "hospital-backend/shared/error"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
-
-var ErrMedicineAlreadyPresent = errors.New("medicine already present in prescription")
 
 type PrescriptionItemServ struct {
 	PrescRepo PrescItemsRepo
@@ -21,20 +20,24 @@ type PrescriptionItemServ struct {
 func NewPrescriptionItemService(PItems PrescItemsRepo) *PrescriptionItemServ {
 	return &PrescriptionItemServ{PrescRepo: PItems}
 }
-func (s *PrescriptionItemServ) AddItems(db *gorm.DB, medicine []dto.MedicineArray, prescriptionID string, userID string) (err error) {
-	prescriptionItems, err := s.toPrescItems(db, medicine, prescriptionID, userID)
+
+func (s *PrescriptionItemServ) AddItems(log *zap.Logger, db *gorm.DB, medicine []dto.MedicineArray, prescriptionID string, userID string) (err error) {
+	log = ensureLog(log)
+	prescriptionItems, err := s.toPrescItems(log, db, medicine, prescriptionID, userID)
 	if err != nil {
 		return err
 	}
-	err = s.PrescRepo.AddItems(db, prescriptionItems)
+	err = s.PrescRepo.AddItems(log, db, prescriptionItems)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray, pID string, userID string) ([]PrescriptionItems, error) {
+
+func (s *PrescriptionItemServ) toPrescItems(log *zap.Logger, db *gorm.DB, med []dto.MedicineArray, pID string, userID string) ([]PrescriptionItems, error) {
+	log = ensureLog(log)
 	var prescItems []PrescriptionItems
-	medicineIDs, err := s.PrescRepo.GetMedicineIDsByPrescriptionID(db, pID)
+	medicineIDs, err := s.PrescRepo.GetMedicineIDsByPrescriptionID(log, db, pID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +47,11 @@ func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray
 	}
 
 	for _, each := range med {
+		if each.MedicineID == "" {
+			return nil, &validationError{Field: "medicine_id", Msg: "medicine_id is required"}
+		}
 		if _, exists := existingMedicines[each.MedicineID]; exists {
-			return nil, ErrMedicineAlreadyPresent
+			return nil, wrapError.ErrMedicineAlreadyPresent
 		}
 		existingMedicines[each.MedicineID] = struct{}{}
 
@@ -59,25 +65,54 @@ func (s *PrescriptionItemServ) toPrescItems(db *gorm.DB, med []dto.MedicineArray
 		pItem.DurationDay = each.DurationDay
 		pItem.DurationType = s.parseDurationtype(each.DurationType)
 		pItem.Quantity = int64(s.calculateQuantity(pItem.Frequency, int(each.DurationDay), each.DurationType))
-		pItem.BalanceAfterDispense = int(pItem.Quantity) // remaining starts as full prescribed qty
+		pItem.BalanceAfterDispense = int(pItem.Quantity)
 		pItem.PrescriptionID = pID
 		pItem.Status = constants.StatusPending
+		pItem.OutOfStock = false
 		pItem.CreatedAt = time.Now()
 		pItem.CreatedBy = userID
 		prescItems = append(prescItems, pItem)
 	}
 	return prescItems, nil
 }
-func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescriptionItemRequest) error {
-	existing, err := s.PrescRepo.GetPrescriptionItemByID(req.PrescriptionItemID)
+
+type validationError struct {
+	Field string
+	Msg   string
+}
+
+func (e *validationError) Error() string {
+	return e.Msg
+}
+
+func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(log *zap.Logger, req dto.UpdatePrescriptionItemRequest) error {
+	log = ensureLog(log)
+	existing, err := s.PrescRepo.GetPrescriptionItemByID(log, req.PrescriptionItemID)
 	if err != nil {
-		return err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("prescription item update failed",
+				zap.String("prescription_item_id", req.PrescriptionItemID),
+				zap.String("reason", "not_found"),
+			)
+			return wrapError.ErrPrescriptionItemNotFound
+		}
+		log.Error("prescription item update failed",
+			zap.String("prescription_item_id", req.PrescriptionItemID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionItemUpdateFailed
 	}
-	// don't allow editing once dispensing has started, otherwise it desyncs with invoices
+
 	if existing.BalanceAfterDispense < int(existing.Quantity) ||
 		existing.Status == constants.StatusFullyDispensed ||
 		existing.Status == constants.StatusPartiallyDispensed {
-		return fmt.Errorf("cannot edit prescription item %s: it has already been dispensed", req.PrescriptionItemID)
+		log.Warn("prescription item update failed",
+			zap.String("prescription_item_id", req.PrescriptionItemID),
+			zap.String("reason", "already_dispensed"),
+			zap.String("status", existing.Status),
+		)
+		return wrapError.ErrCannotEditDispensedItem
 	}
 
 	var item PrescriptionItems
@@ -91,8 +126,22 @@ func (s *PrescriptionItemServ) UpdatePrescriptionItemByID(req dto.UpdatePrescrip
 	item.BalanceAfterDispense = int(item.Quantity)
 	item.UpdatedAt = time.Now()
 
-	return s.PrescRepo.UpdatePrescriptionItem(item)
+	if err = s.PrescRepo.UpdatePrescriptionItem(log, item); err != nil {
+		log.Error("prescription item update failed",
+			zap.String("prescription_item_id", req.PrescriptionItemID),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionItemUpdateFailed
+	}
+
+	log.Info("prescription item update success",
+		zap.String("prescription_item_id", req.PrescriptionItemID),
+		zap.String("medicine_id", req.MedicineID),
+	)
+	return nil
 }
+
 func (s *PrescriptionItemServ) parseDurationtype(durationtype string) string {
 	switch durationtype {
 	case constants.Days:
@@ -105,6 +154,7 @@ func (s *PrescriptionItemServ) parseDurationtype(durationtype string) string {
 		return constants.Days
 	}
 }
+
 func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, durationtype string) int {
 	count := 0
 	if freq.Morning != 0 {
@@ -127,7 +177,9 @@ func (s *PrescriptionItemServ) calculateQuantity(freq Freq, durationDay int, dur
 	}
 	return qty
 }
-func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
+
+func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(log *zap.Logger, pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error) {
+	log = ensureLog(log)
 	query := `select p.id as prescription_item_id, p.frequency,p.duration_day,p.duration_type,p.quantity,p.food_instruction,m.id as medicine_id, 
 	m.name as medicine_name,m.form as medicine_form, m.strength as medicine_strength 
 	from prescription_items p
@@ -136,17 +188,34 @@ func (s *PrescriptionItemServ) GetPrescriptionsByPIDWithLimit(pID string, limit 
 	limit $2
 	offset $3`
 	dblimit, dbpageno := s.parsePagination(limit, pageno)
-	MixedResponse, err := s.PrescRepo.GetItemsByPrescriptionID(query, pID, dblimit, dbpageno)
+	MixedResponse, err := s.PrescRepo.GetItemsByPrescriptionID(log, query, pID, dblimit, dbpageno)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription items get failed",
+			zap.String("prescription_id", pID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionFetchFailed
 	}
 
-	totalCount, err := s.PrescRepo.GetTotalCountByPrescID(pID)
+	totalCount, err := s.PrescRepo.GetTotalCountByPrescID(log, pID)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription items get failed",
+			zap.String("prescription_id", pID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionFetchFailed
 	}
+
+	log.Info("prescription items get success",
+		zap.String("prescription_id", pID),
+		zap.Int("count", len(MixedResponse)),
+		zap.Int64("total", totalCount),
+	)
 	return MixedResponse, totalCount, nil
 }
+
 func (s *PrescriptionItemServ) parsePagination(limit float64, pageno float64) (int, int) {
 	numLimit := int(limit)
 	numpageno := int(pageno)
@@ -156,7 +225,9 @@ func (s *PrescriptionItemServ) parsePagination(limit float64, pageno float64) (i
 	}
 	return numLimit, skip
 }
-func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]MedicineDetInfo, int64, error) {
+
+func (p *PrescriptionItemServ) GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, int64, error) {
+	log = ensureLog(log)
 	query := `SELECT 
     p.code AS prescription_code,
     p.status AS prescription_status,
@@ -166,6 +237,7 @@ func (p *PrescriptionItemServ) getMedicineInfo(prescriptionID string) ([]Medicin
 	pI.quantity AS prescribed_quantity,
 	pI.balance_after_dispense AS remaining_quantity,
 	pI.status AS prescription_item_status,
+	pI.out_of_stock AS out_of_stock,
 	pI.food_instruction AS food_instruction,
     m.id AS medicine_id,
     m.name AS medicine_name,
@@ -200,20 +272,43 @@ JOIN prescriptions p ON pI.prescription_id = p.id
 JOIN medicines m ON pI.medicine_id = m.id
 WHERE pI.prescription_id = $1;
 	`
-	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(context.TODO(), query, prescriptionID)
+	medicineDet, err := p.PrescRepo.FindMedicineInfoByPID(log, context.TODO(), query, prescriptionID)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription medicine info failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrMedicineInfoFetchFailed
 	}
-	totalCount, err := p.PrescRepo.GetTotalCountByPrescID(prescriptionID)
+	totalCount, err := p.PrescRepo.GetTotalCountByPrescID(log, prescriptionID)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription medicine info failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrMedicineInfoFetchFailed
 	}
+
+	log.Info("prescription medicine info success",
+		zap.String("prescription_id", prescriptionID),
+		zap.Int("count", len(medicineDet)),
+		zap.Int64("total", totalCount),
+	)
 	return medicineDet, totalCount, nil
 }
-func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {
-	prescriptionItems, err := p.PrescRepo.GetQtyInfoByMed(prescriptionID)
+
+func (p *PrescriptionItemServ) GetqtyByMedicine(log *zap.Logger, prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {
+	log = ensureLog(log)
+	prescriptionItems, err := p.PrescRepo.GetQtyInfoByMed(log, prescriptionID)
 	if err != nil {
-		return nil, err
+		log.Error("prescription qty map failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, wrapError.ErrPrescriptionFetchFailed
 	}
 	prescriptionMap := make(map[string]dto.PrescriptionQtyInfo)
 	for _, each := range prescriptionItems {
@@ -224,33 +319,69 @@ func (p *PrescriptionItemServ) GetqtyByMedicine(prescriptionID string) (map[stri
 		eachPrescription.BalanceAfterDispense = each.BalanceAfterDispense
 		prescriptionMap[each.MedicineID] = eachPrescription
 	}
+	log.Debug("prescription qty map success",
+		zap.String("prescription_id", prescriptionID),
+		zap.Int("medicine_count", len(prescriptionMap)),
+	)
 	return prescriptionMap, nil
 }
-func (p *PrescriptionItemServ) UpdateDispenseItemQty(tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error {
-	// remaining balance: qty 12, dispense 5 → balance_after_dispense = 7
+
+func (p *PrescriptionItemServ) UpdateDispenseItemQty(log *zap.Logger, tx *gorm.DB, prescriptionItemID string, dispensedQty int64) error {
+	log = ensureLog(log)
 	query := "UPDATE prescription_items SET balance_after_dispense = balance_after_dispense - ? WHERE id = ?"
-	return p.PrescRepo.UpdateDispenseItemQty(tx, query, prescriptionItemID, dispensedQty)
-}
-func (p *PrescriptionItemServ) UpdateIPrescriptionStatus(tx *gorm.DB, prescriptionItemID string, status string) error {
-	var item PrescriptionItems
-	item.ID = prescriptionItemID
-	item.Status = status
-	item.UpdatedAt = time.Now()
-	err := p.PrescRepo.UpdatePrescriptionItemStatus(tx, item)
+	err := p.PrescRepo.UpdateDispenseItemQty(log, tx, query, prescriptionItemID, dispensedQty)
 	if err != nil {
-		return err
+		log.Error("prescription item dispense qty update failed",
+			zap.String("prescription_item_id", prescriptionItemID),
+			zap.Int64("dispensed_qty", dispensedQty),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionItemUpdateFailed
 	}
+	log.Debug("prescription item dispense qty updated",
+		zap.String("prescription_item_id", prescriptionItemID),
+		zap.Int64("dispensed_qty", dispensedQty),
+	)
 	return nil
 }
-func (p *PrescriptionItemServ) GetPrescriptionItemsByPID(pID string) ([]MixedPrescriptionItem, error) {
+
+func (p *PrescriptionItemServ) UpdateIPrescriptionStatus(log *zap.Logger, tx *gorm.DB, prescriptionItemID string, status string, outOfStock bool) error {
+	log = ensureLog(log)
+	err := p.PrescRepo.UpdatePrescriptionItemStatus(log, tx, prescriptionItemID, status, outOfStock)
+	if err != nil {
+		log.Error("prescription item status update failed",
+			zap.String("prescription_item_id", prescriptionItemID),
+			zap.String("status", status),
+			zap.Bool("out_of_stock", outOfStock),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionItemUpdateFailed
+	}
+	log.Info("prescription item status update success",
+		zap.String("prescription_item_id", prescriptionItemID),
+		zap.String("status", status),
+		zap.Bool("out_of_stock", outOfStock),
+	)
+	return nil
+}
+
+func (p *PrescriptionItemServ) GetPrescriptionItemsByPID(log *zap.Logger, pID string) ([]MixedPrescriptionItem, error) {
+	log = ensureLog(log)
 	query := `select p.id as prescription_id, p.frequency,p.duration_day,p.duration_type, p.quantity,p.food_instruction,m.id as medicine_id, m.name as medicine_name,m.form as medicine_form,
 	m.strength as medicine_strength 
 	from prescription_items p
 	join medicines m on p.medicine_id = m.id
 	where p.prescription_id = $1`
-	prescriptionItems, err := p.PrescRepo.GetItemsByPrescriptionID(query, pID)
+	prescriptionItems, err := p.PrescRepo.GetItemsByPrescriptionID(log, query, pID)
 	if err != nil {
-		return nil, err
+		log.Error("prescription items get failed",
+			zap.String("prescription_id", pID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, wrapError.ErrPrescriptionFetchFailed
 	}
 	return prescriptionItems, nil
 }

@@ -1,11 +1,20 @@
 package medicine
 
-import "gorm.io/gorm"
+import (
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
 
 type RPurchaseEntry interface {
-	CreatePurchaseEntry(db *gorm.DB, purchaseEntry *MPurchaseEntry) error
+	CreatePurchaseEntry(log *zap.Logger, db *gorm.DB, purchaseEntry *MPurchaseEntry) error
 }
 
-func (r *MedicineRepo) CreatePurchaseEntry(db *gorm.DB, purchaseEntry *MPurchaseEntry) error {
-	return db.Create(&purchaseEntry).Error
+func (r *MedicineRepo) CreatePurchaseEntry(log *zap.Logger, db *gorm.DB, purchaseEntry *MPurchaseEntry) error {
+	log = ensureLog(log)
+	err := db.Create(&purchaseEntry).Error
+	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "CreatePurchaseEntry"), zap.Error(err))
+		return err
+	}
+	return nil
 }

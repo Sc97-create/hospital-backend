@@ -41,10 +41,10 @@ func NewPatientService(p PatientRepository, orgService *organisation.Organisatio
 func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientInfo) (string, error) {
 	log = ensureLog(log)
 
-	org, err := p.OrgService.GetOrgByID(payload.OrganisationID)
+	org, err := p.OrgService.GetOrgByID(log, payload.OrganisationID)
 	if err != nil {
 		reason := "org_lookup"
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, wrapError.ErrOrganisationNotFound) {
 			reason = "org_not_found"
 		}
 		log.Warn("patient create failed",

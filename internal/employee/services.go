@@ -10,6 +10,7 @@ import (
 	"hospital-backend/internal/employee/utils"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/logger"
 	"strings"
 	"time"
 
@@ -53,7 +54,7 @@ func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id stri
 	if err != nil {
 		return
 	}
-	organisationData, err := EService.OranisationRepo.GetOrganisationByID(payload.OrganisationID)
+	organisationData, err := EService.OranisationRepo.GetOrganisationByID(logger.Log, payload.OrganisationID)
 	if err != nil {
 		return
 	}

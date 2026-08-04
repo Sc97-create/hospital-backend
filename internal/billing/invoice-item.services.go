@@ -1,12 +1,13 @@
 package billing
 
 import (
-	"fmt"
 	"hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/prescription"
+	wrapError "hospital-backend/shared/error"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -19,34 +20,48 @@ func NewInvoiceItemServ(InvoiceItemRepo InvoiceItemRepo, PrescriptionItem *presc
 	return &InvoiceItemServ{InvItemRepo: InvoiceItemRepo, PrescriptionItem: PrescriptionItem}
 }
 
-func (IItemServ *InvoiceItemServ) addInvoiceItems(db *gorm.DB, prescriptionID string, invoiceID string, invoiceItems []dto.DispensedItem) error {
+func (IItemServ *InvoiceItemServ) addInvoiceItems(log *zap.Logger, db *gorm.DB, prescriptionID string, invoiceID string, invoiceItems []dto.DispensedItem) error {
+	log = ensureLog(log)
 
-	prescriptionQtyMap, err := IItemServ.PrescriptionItem.GetqtyByMedicine(prescriptionID)
+	prescriptionQtyMap, err := IItemServ.PrescriptionItem.GetqtyByMedicine(log, prescriptionID)
 	if err != nil {
 		return err
 	}
-	// item 4: validate dispensed qty against inventory stock and remaining prescription allowance
+
 	for _, each := range invoiceItems {
 		info, ok := prescriptionQtyMap[each.MedicineID]
 		if !ok {
-			return fmt.Errorf("medicine %s not found in prescription", each.MedicineID)
+			log.Warn("invoice checkout failed",
+				zap.String("prescription_id", prescriptionID),
+				zap.String("medicine_id", each.MedicineID),
+				zap.String("reason", "medicine_not_in_prescription"),
+			)
+			return wrapError.ErrMedicineNotInPrescription
 		}
 		remaining := int64(info.BalanceAfterDispense)
 		if int64(each.QuantitySoldUnits) > remaining {
-			return fmt.Errorf("dispensed qty %.2f exceeds remaining prescribed qty %d for medicine %s",
-				each.QuantitySoldUnits, remaining, each.MedicineID)
+			log.Warn("invoice checkout failed",
+				zap.String("prescription_id", prescriptionID),
+				zap.String("medicine_id", each.MedicineID),
+				zap.String("reason", "qty_exceeds_remaining"),
+			)
+			return wrapError.ErrQtyExceedsRemaining
 		}
-		// qty 0 = patient skipped this med — skip inventory/stock checks
 		if each.QuantitySoldUnits == 0 {
 			continue
 		}
 		if each.QuantitySoldUnits > each.CurrentStockUnits {
-			return fmt.Errorf("insufficient stock in batch %s: requested %d, available %d",
-				each.BatchNo, each.QuantitySoldUnits, each.CurrentStockUnits)
+			log.Warn("invoice checkout failed",
+				zap.String("prescription_id", prescriptionID),
+				zap.String("medicine_id", each.MedicineID),
+				zap.String("reason", "insufficient_stock"),
+			)
+			return wrapError.ErrInsufficientStock
 		}
 	}
+
 	inoviceItems := IItemServ.toInvoiceItem(invoiceID, invoiceItems)
-	err = IItemServ.InvItemRepo.Create(db, inoviceItems)
+	err = IItemServ.InvItemRepo.Create(log, db, inoviceItems)
 	if err != nil {
 		return err
 	}
@@ -71,7 +86,9 @@ func (IItemServ *InvoiceItemServ) toInvoiceItem(invoiceID string, items []dto.Di
 	}
 	return InvoiceItems
 }
-func (IItemServ *InvoiceItemServ) GetMedicineInventoryDetByInvoiceID(invoiceID string) ([]dto.MedInvoiceItemResponse, error) {
+
+func (IItemServ *InvoiceItemServ) GetMedicineInventoryDetByInvoiceID(log *zap.Logger, invoiceID string) ([]dto.MedInvoiceItemResponse, error) {
+	log = ensureLog(log)
 	query := `SELECT
     ii.prescription_item_id,
     ii.medicine_inventory_id,
@@ -91,9 +108,18 @@ func (IItemServ *InvoiceItemServ) GetMedicineInventoryDetByInvoiceID(invoiceID s
 	JOIN invoices inv              ON inv.id = ii.invoice_id
 	JOIN prescription_items pi    ON pi.id  = ii.prescription_item_id
 	WHERE ii.invoice_id = ?`
-	invoiceItems, err := IItemServ.InvItemRepo.GetInvoiceItemsByInvoiceID(query, invoiceID)
+	invoiceItems, err := IItemServ.InvItemRepo.GetInvoiceItemsByInvoiceID(log, query, invoiceID)
 	if err != nil {
-		return nil, err
+		log.Error("invoice items for fulfillment failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, wrapError.ErrInvoiceFetchFailed
 	}
+	log.Debug("invoice items for fulfillment success",
+		zap.String("invoice_id", invoiceID),
+		zap.Int("item_count", len(invoiceItems)),
+	)
 	return invoiceItems, nil
 }

@@ -2,6 +2,7 @@ package prescription
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hospital-backend/internal/appointments"
 	invoicedto "hospital-backend/internal/billing/dto"
@@ -13,11 +14,13 @@ import (
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
 	"hospital-backend/shared/commonfunctions"
+	wrapError "hospital-backend/shared/error"
 	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -36,32 +39,93 @@ func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepository
 	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ, notificationService: notificationService, orgService: orgService, userService: userService}
 }
 
-func (p *PrescriptionService) CreatePrescription(requestdto dto.CreatePrescriptionRequest) (string, error) {
-	var prescription Prescription
+func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto.CreatePrescriptionRequest) (string, error) {
+	log = ensureLog(log)
 
-	appointmentModel, err := p.appointmentService.GetAppntmentByID(requestdto.AppointmentID)
+	appointmentModel, err := p.appointmentService.GetAppntmentByID(log, requestdto.AppointmentID)
 	if err != nil {
-		return "", err
+		reason := "appointment_lookup"
+		if errors.Is(err, wrapError.ErrAppointmentNotFound) {
+			reason = "appointment_not_found"
+			log.Warn("prescription create failed",
+				zap.String("appointment_id", requestdto.AppointmentID),
+				zap.String("organisation_id", requestdto.OrganisationID),
+				zap.String("reason", reason),
+				zap.Error(err),
+			)
+			return "", wrapError.ErrAppointmentNotFound
+		}
+		log.Error("prescription create failed",
+			zap.String("appointment_id", requestdto.AppointmentID),
+			zap.String("organisation_id", requestdto.OrganisationID),
+			zap.String("reason", reason),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPrescriptionCreateFailed
 	}
+
 	requestdto.PatientID = appointmentModel.PatientID
-	prescription = p.createRequest(requestdto)
+	prescription := p.createRequest(requestdto)
+
 	tx := p.DB.Begin()
-	err = p.prescriptionRepo.CreatePrescription(tx, prescription)
+	err = p.prescriptionRepo.CreatePrescription(log, tx, prescription)
 	if err != nil {
 		tx.Rollback()
-		return "", err
+		log.Error("prescription create failed",
+			zap.String("organisation_id", requestdto.OrganisationID),
+			zap.String("appointment_id", requestdto.AppointmentID),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPrescriptionCreateFailed
 	}
-	// with transaction needs to be done
-	err = p.prescriptionItemService.AddItems(tx, requestdto.MedicineArray, prescription.ID, prescription.PrescribedBy)
+
+	err = p.prescriptionItemService.AddItems(log, tx, requestdto.MedicineArray, prescription.ID, prescription.PrescribedBy)
 	if err != nil {
 		tx.Rollback()
-		return "", err
+		if errors.Is(err, wrapError.ErrMedicineAlreadyPresent) {
+			log.Warn("prescription create failed",
+				zap.String("prescription_id", prescription.ID),
+				zap.String("organisation_id", requestdto.OrganisationID),
+				zap.String("reason", "duplicate_medicine"),
+				zap.Error(err),
+			)
+			return "", wrapError.ErrMedicineAlreadyPresent
+		}
+		log.Error("prescription create failed",
+			zap.String("prescription_id", prescription.ID),
+			zap.String("organisation_id", requestdto.OrganisationID),
+			zap.String("reason", "db_add_items"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPrescriptionCreateFailed
 	}
-	tx.Commit()
-	//fire and forget
+
+	if err = tx.Commit().Error; err != nil {
+		log.Error("prescription create failed",
+			zap.String("prescription_id", prescription.ID),
+			zap.String("organisation_id", requestdto.OrganisationID),
+			zap.String("reason", "db_commit"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPrescriptionCreateFailed
+	}
+
+	log.Info("prescription create success",
+		zap.String("prescription_id", prescription.ID),
+		zap.String("prescription_code", prescription.Code),
+		zap.String("organisation_id", prescription.OrganisationID),
+		zap.String("patient_id", prescription.PatientID),
+		zap.String("appointment_id", prescription.AppointmentID),
+		zap.String("prescribed_by", prescription.PrescribedBy),
+		zap.Int("item_count", len(requestdto.MedicineArray)),
+		zap.String("status", prescription.Status),
+	)
 	return prescription.ID, nil
 }
-func (p *PrescriptionService) getNotificationDetails(prescriptionID string) (map[string]interface{}, error) {
+
+func (p *PrescriptionService) getNotificationDetails(log *zap.Logger, prescriptionID string) (map[string]interface{}, error) {
+	log = ensureLog(log)
 	query := `
 SELECT
 	p.code AS prescription_code,
@@ -99,13 +163,13 @@ JOIN users u ON u.id = p.prescribed_by
 JOIN patients pa ON pa.id = p.patient_id
 WHERE p.id = $1`
 
-	data, err := p.prescriptionRepo.GetNotificationDetails(query, prescriptionID)
+	data, err := p.prescriptionRepo.GetNotificationDetails(log, query, prescriptionID)
 	if err != nil {
 		return nil, err
 	}
-
 	return p.parseNotificationStruct(data), nil
 }
+
 func (p *PrescriptionService) parseNotificationStruct(data PrescriptionNotificationData) map[string]interface{} {
 	var notificationData = map[string]interface{}{
 		"hospital_name":     data.HospitalName,
@@ -134,6 +198,7 @@ func (p *PrescriptionService) parseNotificationStruct(data PrescriptionNotificat
 	notificationData["medicines"] = medicines
 	return notificationData
 }
+
 func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionRequest) Prescription {
 	return Prescription{
 		ID:             uuid.NewString(),
@@ -147,19 +212,42 @@ func (p *PrescriptionService) createRequest(requestdto dto.CreatePrescriptionReq
 		UpdatedAt:      time.Now(),
 	}
 }
-func (p *PrescriptionService) AddPrescriptionItems(payload dto.UpdateRequest) (err error) {
-	err = p.prescriptionItemService.AddItems(p.DB, payload.MedicineArr, payload.PrescriptionID, payload.UserID)
+
+func (p *PrescriptionService) AddPrescriptionItems(log *zap.Logger, payload dto.UpdateRequest) (err error) {
+	log = ensureLog(log)
+	err = p.prescriptionItemService.AddItems(log, p.DB, payload.MedicineArr, payload.PrescriptionID, payload.UserID)
 	if err != nil {
-		return err
+		if errors.Is(err, wrapError.ErrMedicineAlreadyPresent) {
+			log.Warn("prescription items add failed",
+				zap.String("prescription_id", payload.PrescriptionID),
+				zap.String("reason", "duplicate_medicine"),
+				zap.Error(err),
+			)
+			return wrapError.ErrMedicineAlreadyPresent
+		}
+		log.Error("prescription items add failed",
+			zap.String("prescription_id", payload.PrescriptionID),
+			zap.String("reason", "db_add_items"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionUpdateFailed
 	}
+	log.Info("prescription items add success",
+		zap.String("prescription_id", payload.PrescriptionID),
+		zap.Int("item_count", len(payload.MedicineArr)),
+		zap.String("prescribed_by", payload.UserID),
+	)
 	return nil
 }
+
 func (p *PrescriptionService) generateCode() string {
 	date := time.Now().Format("060102") // YYMMDD
 	random := rand.Intn(9000) + 1000
 	return fmt.Sprintf("PRX%s%d", date, random)
 }
-func (p *PrescriptionService) FindMany(limit int, offset int, organisationID string, search string) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
+
+func (p *PrescriptionService) FindMany(log *zap.Logger, limit int, offset int, organisationID string, search string) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
+	log = ensureLog(log)
 	skip := commonfunctions.Getskip(limit, offset)
 	search = strings.TrimSpace(search)
 
@@ -183,41 +271,81 @@ func (p *PrescriptionService) FindMany(limit int, offset int, organisationID str
 	listQuery += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
 	listArgs = append(listArgs, limit, skip)
 
-	prescription, err = p.prescriptionRepo.FindMany(listQuery, listArgs...)
+	prescription, err = p.prescriptionRepo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
-		return
+		log.Error("prescription list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionsFetchFailed
 	}
 	if prescription == nil {
 		prescription = []dto.PrescriptionListItem{}
 	}
-	totalInt, err = p.prescriptionRepo.Count(countQuery, countArgs...)
+	totalInt, err = p.prescriptionRepo.Count(log, countQuery, countArgs...)
 	if err != nil {
-		return
+		log.Error("prescription list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionsFetchFailed
 	}
 
+	log.Info("prescription list success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(prescription)),
+		zap.Int64("total", totalInt),
+	)
 	return prescription, totalInt, nil
 }
 
-func (p *PrescriptionService) FindByStatus(limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error) {
+func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error) {
+	log = ensureLog(log)
 	parsedStatus, err := p.parseFilterStatus(status)
 	if err != nil {
-		return nil, 0, err
+		log.Warn("prescription status list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("status", status),
+			zap.String("reason", "invalid_status"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrInvalidRequest
 	}
 
 	skip := commonfunctions.Getskip(limit, offset)
-	prescriptions, err := p.prescriptionRepo.FindByStatus(organisationID, parsedStatus, limit, skip)
+	prescriptions, err := p.prescriptionRepo.FindByStatus(log, organisationID, parsedStatus, limit, skip)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription status list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("status", parsedStatus),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionsFetchFailed
 	}
 	if prescriptions == nil {
 		prescriptions = []dto.PrescriptionListItem{}
 	}
 
-	total, err := p.prescriptionRepo.CountByStatus(organisationID, parsedStatus)
+	total, err := p.prescriptionRepo.CountByStatus(log, organisationID, parsedStatus)
 	if err != nil {
-		return nil, 0, err
+		log.Error("prescription status list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("status", parsedStatus),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPrescriptionsFetchFailed
 	}
 
+	log.Info("prescription status list success",
+		zap.String("organisation_id", organisationID),
+		zap.String("status", parsedStatus),
+		zap.Int("count", len(prescriptions)),
+		zap.Int64("total", total),
+	)
 	return prescriptions, total, nil
 }
 
@@ -260,6 +388,7 @@ func (p *PrescriptionService) tofreqResponse(freq Freq) dto.Freq {
 		Night:     freq.Night,
 	}
 }
+
 func (p *PrescriptionService) mapMedicineIDtoName(medMap map[string]string, med []dto.MedicineResponse) []dto.MedicineResponse {
 	for i := range med {
 		if val, ok := medMap[med[i].MedicineID]; ok {
@@ -270,6 +399,7 @@ func (p *PrescriptionService) mapMedicineIDtoName(medMap map[string]string, med 
 	}
 	return med
 }
+
 func (p *PrescriptionService) getMedicineIDS(med []dto.MedicineResponse) []string {
 	medids := []string{}
 	for _, each := range med {
@@ -277,44 +407,108 @@ func (p *PrescriptionService) getMedicineIDS(med []dto.MedicineResponse) []strin
 	}
 	return medids
 }
-func (p *PrescriptionService) UpdateManualStatus(prescriptionID string, appointmentID string, status string) error {
-	//sent
-	//cancelled
+
+func (p *PrescriptionService) UpdateManualStatus(log *zap.Logger, prescriptionID string, appointmentID string, status string) error {
+	log = ensureLog(log)
+
+	if _, err := p.parseManualStatus(status); err != nil {
+		log.Warn("prescription status update failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("status", status),
+			zap.String("reason", "invalid_status"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+
+	if status == constants.StatusSent && appointmentID == "" {
+		log.Warn("prescription status update failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("status", status),
+			zap.String("reason", "missing_appointment_id"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
 		if status == constants.StatusSent {
-			err := p.appointmentService.Repository.UpdateStatus(tx, constants.StatusCompleted, appointmentID)
+			err := p.appointmentService.Repository.UpdateStatus(log, tx, constants.StatusCompleted, appointmentID)
 			if err != nil {
-				return err
+				log.Error("prescription status update failed",
+					zap.String("prescription_id", prescriptionID),
+					zap.String("appointment_id", appointmentID),
+					zap.String("reason", "appointment_status"),
+					zap.Error(err),
+				)
+				return wrapError.ErrPrescriptionUpdateFailed
 			}
 		}
 
-		err := p.prescriptionRepo.UpdateStatus(tx, status, prescriptionID)
+		err := p.prescriptionRepo.UpdateStatus(log, tx, status, prescriptionID)
 		if err != nil {
-			return err
+			log.Error("prescription status update failed",
+				zap.String("prescription_id", prescriptionID),
+				zap.String("status", status),
+				zap.String("reason", "db_update"),
+				zap.Error(err),
+			)
+			return wrapError.ErrPrescriptionUpdateFailed
 		}
-
 		return nil
 	})
-	//send notification to patient
 	if err != nil {
 		return err
 	}
+
+	notificationEnqueued := false
 	if status == constants.StatusSent {
-		var notificationRequest notificationdto.CreateRequest
-		notifData, err := p.getNotificationDetails(prescriptionID)
-		if err != nil {
-			return err
+		notifData, notifyErr := p.getNotificationDetails(log, prescriptionID)
+		if notifyErr != nil {
+			log.Error("prescription status notify failed",
+				zap.String("prescription_id", prescriptionID),
+				zap.String("reason", "notification_payload"),
+				zap.Error(notifyErr),
+			)
+		} else {
+			var notificationRequest notificationdto.CreateRequest
+			notificationRequest.Data = notifData
+			notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
+			notificationRequest.Subject = constants.PrescriptionCreatedSubject
+			ctx := context.Background()
+			p.notificationService.Create(ctx, notificationRequest)
+			notificationEnqueued = true
 		}
-		notificationRequest.Data = notifData
-		notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
-		notificationRequest.Subject = constants.PrescriptionCreatedSubject
-		ctx := context.Background()
-		p.notificationService.Create(ctx, notificationRequest)
 	}
 
+	log.Info("prescription status update success",
+		zap.String("prescription_id", prescriptionID),
+		zap.String("status", status),
+		zap.String("appointment_id", appointmentID),
+		zap.Bool("notification_enqueued", notificationEnqueued),
+	)
 	return nil
 }
-func (p *PrescriptionService) GetPrescriptionByAppointmentID(reqmodel dto.PresPatients) (dto.Response, error) {
+
+func (p *PrescriptionService) parseManualStatus(status string) (string, error) {
+	switch strings.TrimSpace(strings.ToLower(status)) {
+	case constants.StatusDraft:
+		return constants.StatusDraft, nil
+	case constants.StatusSent:
+		return constants.StatusSent, nil
+	case constants.StatusPaymentPending, constants.StatusPaymentLinkCreated:
+		return constants.StatusPaymentPending, nil
+	case constants.StatusCompleted:
+		return constants.StatusCompleted, nil
+	case constants.StatusTentative:
+		return constants.StatusTentative, nil
+	case constants.StatusCancelled:
+		return constants.StatusCancelled, nil
+	default:
+		return "", wrapError.ErrInvalidRequest
+	}
+}
+
+func (p *PrescriptionService) GetPrescriptionByAppointmentID(log *zap.Logger, reqmodel dto.PresPatients) (dto.Response, error) {
+	log = ensureLog(log)
 	dblimit, dbskip := p.parsePagination(reqmodel.Limit, reqmodel.Pageno)
 	query := `SELECT
     p.id AS prescription_id,
@@ -351,6 +545,7 @@ LIMIT $3
 OFFSET $4`
 
 	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByAppointmentID(
+		log,
 		query,
 		reqmodel.AppointmentID,
 		reqmodel.OrganisationID,
@@ -358,22 +553,41 @@ OFFSET $4`
 		dbskip,
 	)
 	if err != nil {
-		return dto.Response{}, err
+		log.Error("prescription appointment list failed",
+			zap.String("appointment_id", reqmodel.AppointmentID),
+			zap.String("organisation_id", reqmodel.OrganisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return dto.Response{}, wrapError.ErrPrescriptionsFetchFailed
 	}
 	presResponse := p.toAppointmentPrescriptionResponse(prescriptions)
-	totalCount, err := p.prescriptionRepo.GetPrescriptionByAppointmentIDCount(reqmodel.AppointmentID, reqmodel.OrganisationID)
+	totalCount, err := p.prescriptionRepo.GetPrescriptionByAppointmentIDCount(log, reqmodel.AppointmentID, reqmodel.OrganisationID)
 	if err != nil {
-		return dto.Response{}, err
+		log.Error("prescription appointment list failed",
+			zap.String("appointment_id", reqmodel.AppointmentID),
+			zap.String("organisation_id", reqmodel.OrganisationID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return dto.Response{}, wrapError.ErrPrescriptionsFetchFailed
 	}
 	var response dto.Response
 	response.Data = presResponse
 	response.Total = int(totalCount)
 	response.Code = "200"
 	response.Message = "fetched data successfully"
+	log.Info("prescription appointment list success",
+		zap.String("appointment_id", reqmodel.AppointmentID),
+		zap.String("organisation_id", reqmodel.OrganisationID),
+		zap.Int("count", len(presResponse)),
+		zap.Int("total", response.Total),
+	)
 	return response, nil
 }
 
-func (p *PrescriptionService) GetPrescriptionsByPatientID(reqmodel dto.PatientPrescriptionsRequest) (dto.Response, error) {
+func (p *PrescriptionService) GetPrescriptionsByPatientID(log *zap.Logger, reqmodel dto.PatientPrescriptionsRequest) (dto.Response, error) {
+	log = ensureLog(log)
 	limit := reqmodel.Limit
 	if limit <= 0 {
 		limit = 10
@@ -396,22 +610,38 @@ LIMIT $2
 OFFSET $3`
 
 	prescriptions, err := p.prescriptionRepo.GetPrescriptionsByPatientID(
+		log,
 		query,
 		reqmodel.PatientID,
 		limit,
 		skip,
 	)
 	if err != nil {
-		return dto.Response{}, err
+		log.Error("prescription patient list failed",
+			zap.String("patient_id", reqmodel.PatientID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return dto.Response{}, wrapError.ErrPrescriptionsFetchFailed
 	}
 	if prescriptions == nil {
 		prescriptions = []dto.PrescriptionListItem{}
 	}
-	totalCount, err := p.prescriptionRepo.GetPrescriptionByPatientIDCount(reqmodel.PatientID)
+	totalCount, err := p.prescriptionRepo.GetPrescriptionByPatientIDCount(log, reqmodel.PatientID)
 	if err != nil {
-		return dto.Response{}, err
+		log.Error("prescription patient list failed",
+			zap.String("patient_id", reqmodel.PatientID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return dto.Response{}, wrapError.ErrPrescriptionsFetchFailed
 	}
 
+	log.Info("prescription patient list success",
+		zap.String("patient_id", reqmodel.PatientID),
+		zap.Int("count", len(prescriptions)),
+		zap.Int("total", int(totalCount)),
+	)
 	return dto.Response{
 		Data:    prescriptions,
 		Code:    "200",
@@ -461,7 +691,9 @@ func (p *PrescriptionService) parsePagination(limit float64, pageno float64) (in
 	skip := (numpageno - 1) * numLimit
 	return numLimit, skip
 }
-func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error {
+
+func (p *PrescriptionService) UpdateExtPrescriptionStatus(log *zap.Logger, tx *gorm.DB, prescriptionID string, status string) error {
+	log = ensureLog(log)
 	var Pstatus string
 	switch status {
 	case constants.StatusPaymentPending, constants.StatusPaymentLinkCreated:
@@ -473,18 +705,34 @@ func (p *PrescriptionService) UpdateExtPrescriptionStatus(tx *gorm.DB, prescript
 	case constants.StatusSent:
 		Pstatus = constants.StatusSent
 	default:
-		return fmt.Errorf("invalid prescription status: %s", status)
+		log.Warn("prescription external status update failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("status", status),
+			zap.String("reason", "invalid_status"),
+		)
+		return wrapError.ErrInvalidRequest
 	}
-	err := p.prescriptionRepo.UpdateStatus(tx, Pstatus, prescriptionID)
+	err := p.prescriptionRepo.UpdateStatus(log, tx, Pstatus, prescriptionID)
 	if err != nil {
-		return err
+		log.Error("prescription external status update failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("status", Pstatus),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPrescriptionUpdateFailed
 	}
+	log.Info("prescription external status update success",
+		zap.String("prescription_id", prescriptionID),
+		zap.String("status", Pstatus),
+	)
 	return nil
 }
 
 // ResolveAndUpdateParentStatus sets parent status from all items:
 // completed if every item is fully dispensed; otherwise tentative.
-func (p *PrescriptionService) ResolveAndUpdateParentStatus(tx *gorm.DB, prescriptionID string, invoiceItems []invoicedto.MedInvoiceItemResponse) error {
+func (p *PrescriptionService) ResolveAndUpdateParentStatus(log *zap.Logger, tx *gorm.DB, prescriptionID string, invoiceItems []invoicedto.MedInvoiceItemResponse) error {
+	log = ensureLog(log)
 	partiallyDispensed := 0
 	for _, each := range invoiceItems {
 		if each.PrescriptionItemStatus != constants.StatusFullyDispensed {
@@ -495,5 +743,10 @@ func (p *PrescriptionService) ResolveAndUpdateParentStatus(tx *gorm.DB, prescrip
 	if partiallyDispensed > 0 {
 		status = constants.StatusTentative
 	}
-	return p.UpdateExtPrescriptionStatus(tx, prescriptionID, status)
+	log.Info("prescription parent status resolved",
+		zap.String("prescription_id", prescriptionID),
+		zap.String("status", status),
+		zap.Int("partial_item_count", partiallyDispensed),
+	)
+	return p.UpdateExtPrescriptionStatus(log, tx, prescriptionID, status)
 }

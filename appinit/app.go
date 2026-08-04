@@ -96,7 +96,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		patientService,
 		notificationContainer.Service,
 	)
-	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, prescriptionService, fulfillment)
+	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, fulfillment, fulfillment)
 	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService)
 	return &Container{
 		PatientService:         patientService,
