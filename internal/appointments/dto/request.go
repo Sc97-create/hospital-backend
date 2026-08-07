@@ -18,6 +18,7 @@ type GetDataReq struct {
 	Date           string  `json:"date"`
 	Status         string  `json:"status"`
 	VisitType      string  `json:"visit_type"`
+	Search         string  `json:"search"`
 	Limit          float64 `json:"limit"`
 	PageNo         float64 `json:"page_no"`
 	Dblimit        int     `json:"dblimit"`

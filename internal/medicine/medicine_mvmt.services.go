@@ -1,6 +1,11 @@
 package medicine
 
-import "gorm.io/gorm"
+import (
+	"hospital-backend/pkg/types"
+
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
 
 type SMedicineMvmt struct {
 	MedMvmt RMedicineMvmt
@@ -9,6 +14,7 @@ type SMedicineMvmt struct {
 func NewMedicineMvmt(medMvmt RMedicineMvmt) *SMedicineMvmt {
 	return &SMedicineMvmt{MedMvmt: medMvmt}
 }
-func (s *SMedicineMvmt) CreateMedicineMvmt(db *gorm.DB, medicineMvmt []MedicineStockMovements) error {
-	return s.MedMvmt.CreateMedicineMvmtInBatch(db, medicineMvmt)
+
+func (s *SMedicineMvmt) CreateMedicineMvmt(log *zap.Logger, db *gorm.DB, medicineMvmt []types.MedicineStockMovements) error {
+	return s.MedMvmt.CreateMedicineMvmtInBatch(ensureLog(log), db, medicineMvmt)
 }

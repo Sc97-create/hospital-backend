@@ -1,72 +1,192 @@
 package patient
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	notificationdto "hospital-backend/internal/notifications/dto"
+	"hospital-backend/internal/notifications/service"
+	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient/dto"
+	"hospital-backend/pkg/constants"
+	wrapError "hospital-backend/shared/error"
 	"math/rand"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type PatientService struct {
-	PRepo PatientRepository
+	PRepo         PatientRepository
+	OrgService    *organisation.OrganisationService
+	notifications *service.Notificationservice
 }
 
-func NewPatientService(p PatientRepository) *PatientService {
-	return &PatientService{PRepo: p}
+type validationError struct {
+	Field string
+	Msg   string
 }
-func (p *PatientService) CreatePatientSrv(payload dto.PatientInfo) (string, error) {
+
+func (e *validationError) Error() string {
+	return e.Msg
+}
+
+func NewPatientService(p PatientRepository, orgService *organisation.OrganisationService, notifications *service.Notificationservice) *PatientService {
+	return &PatientService{PRepo: p, OrgService: orgService, notifications: notifications}
+}
+
+func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientInfo) (string, error) {
+	log = ensureLog(log)
+
+	org, err := p.OrgService.GetOrgByID(log, payload.OrganisationID)
+	if err != nil {
+		reason := "org_lookup"
+		if errors.Is(err, wrapError.ErrOrganisationNotFound) {
+			reason = "org_not_found"
+		}
+		log.Warn("patient create failed",
+			zap.String("organisation_id", payload.OrganisationID),
+			zap.String("reason", reason),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrOrganisationNotFound
+	}
+
 	age, weight, err := p.ValidatePatient(payload)
 	if err != nil {
+		field := ""
+		var ve *validationError
+		if errors.As(err, &ve) {
+			field = ve.Field
+		}
+		log.Warn("patient create failed",
+			zap.String("organisation_id", payload.OrganisationID),
+			zap.String("reason", "validation"),
+			zap.String("field", field),
+			zap.Error(err),
+		)
 		return "", err
 	}
+
 	patientModel, err := p.ToPatientModel(age, weight, payload)
 	if err != nil {
-		return "", err
+		log.Error("patient create failed",
+			zap.String("organisation_id", payload.OrganisationID),
+			zap.String("reason", "model_build"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPatientCreateFailed
 	}
-	err = p.PRepo.Create(&patientModel)
+
+	err = p.PRepo.Create(log, &patientModel)
 	if err != nil {
-		return "", err
+		if isUniqueViolation(err) {
+			log.Error("patient create failed",
+				zap.String("organisation_id", payload.OrganisationID),
+				zap.String("reason", "duplicate"),
+				zap.Error(err),
+			)
+			return "", wrapError.ErrPatientAlreadyExists
+		}
+		log.Error("patient create failed",
+			zap.String("organisation_id", payload.OrganisationID),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPatientCreateFailed
 	}
+
+	notificationData, err := p.parseNotificationDetails(patientModel, org)
+	if err != nil {
+		log.Error("patient create failed",
+			zap.String("patient_id", patientModel.ID),
+			zap.String("organisation_id", org.ID),
+			zap.String("reason", "notification_payload"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrPatientCreateFailed
+	}
+
+	patientModel.OrganisationID = org.ID
+	var notificationRequest notificationdto.CreateRequest
+	notificationRequest.Data = notificationData
+	notificationRequest.NotificationType = constants.PatientCreatedEvent
+	notificationRequest.Subject = constants.PatientCreatedSubject
+	ctx := context.Background()
+	p.notifications.Create(ctx, notificationRequest) // fire and forget
+
+	log.Info("patient create success",
+		zap.String("patient_id", patientModel.ID),
+		zap.String("uhid", patientModel.UHID),
+		zap.String("organisation_id", org.ID),
+		zap.String("created_by", payload.UserID),
+		zap.Bool("notification_enqueued", true),
+	)
 	return patientModel.ID, nil
 }
+
+func (p *PatientService) parseNotificationDetails(patientModel Patient, orgData organisation.Organisation) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"patient_name":     patientModel.Name,
+		"patient_email_id": patientModel.EmailID,
+		"patient_code":     patientModel.UHID,
+		"patient_id":       patientModel.ID,
+		"organisation_id":  orgData.ID,
+		"hospital_name":    orgData.OrganisationName,
+	}, nil
+}
+
 func (p *PatientService) ValidatePatient(payload dto.PatientInfo) (int, float64, error) {
 	if payload.Name == "" {
-		err := errors.New("please provide name")
-		return 0, 0.0, err
+		return 0, 0.0, &validationError{Field: "name", Msg: "please provide name"}
 	}
 	if payload.Gender == "" {
-		err := errors.New("please provide valid gender")
-		return 0, 0.0, err
+		return 0, 0.0, &validationError{Field: "gender", Msg: "please provide valid gender"}
 	}
 	age, _ := strconv.Atoi(payload.Age)
 	if age < 0 {
-		err := errors.New("age should be greater then 0")
-		return 0, 0.0, err
+		return 0, 0.0, &validationError{Field: "age", Msg: "age should be greater then 0"}
 	}
 	weight, _ := strconv.ParseFloat(payload.Weight, 64)
 	if weight <= 0.0 {
-		err := errors.New("weight should not be 0")
-		return 0, 0.0, err
+		return 0, 0.0, &validationError{Field: "weight", Msg: "weight should not be 0"}
 	}
 	return age, weight, nil
 }
-func (p *PatientService) FindMany(limit string, pageno string, organisationID string) (patientResp []dto.PatientResponse, total int64, err error) {
+
+func (p *PatientService) FindMany(log *zap.Logger, limit string, pageno string, organisationID string) (patientResp []dto.PatientResponse, total int64, err error) {
+	log = ensureLog(log)
 	limitInt, skip := p.GetPageSkip(limit, pageno)
-	patient, err := p.PRepo.ReadMany(limitInt, skip, organisationID)
+	patient, err := p.PRepo.ReadMany(log, limitInt, skip, organisationID)
 	if err != nil {
-		return
+		log.Error("patient list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPatientsFetchFailed
 	}
-	total, err = p.PRepo.Count(organisationID)
+	total, err = p.PRepo.Count(log, organisationID)
 	if err != nil {
-		return
+		log.Error("patient list failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrPatientsFetchFailed
 	}
 	patientResp = p.arraymaptopatientResponse(patient)
+	log.Info("patient list success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(patientResp)),
+		zap.Int64("total", total),
+	)
 	return
 }
+
 func (p *PatientService) ToPatientModel(age int, weight float64, payload dto.PatientInfo) (patientModel Patient, err error) {
 	patientModel = Patient{
 		ID:             uuid.New().String(),
@@ -87,19 +207,39 @@ func (p *PatientService) ToPatientModel(age int, weight float64, payload dto.Pat
 	}
 	return
 }
+
 func (p *PatientService) createPatientCode() string {
 	return fmt.Sprintf("%s-%d", Code, rand.Intn(1000))
 }
-func (p *PatientService) FindOne(id string) (pat dto.PatientResponse, err error) {
-	patient, err := p.PRepo.ReadOne(id)
+
+func (p *PatientService) FindOne(log *zap.Logger, id string) (pat dto.PatientResponse, err error) {
+	log = ensureLog(log)
+	patient, err := p.PRepo.ReadOne(log, id)
 	if err != nil {
-		return
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("patient get failed",
+				zap.String("patient_id", id),
+				zap.String("reason", "not_found"),
+			)
+			return pat, wrapError.ErrPatientNotFound
+		}
+		log.Error("patient get failed",
+			zap.String("patient_id", id),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return pat, wrapError.ErrPatientFetchFailed
 	}
 
 	pat = p.maptopatientResponse(patient)
-
+	log.Info("patient get success",
+		zap.String("patient_id", patient.ID),
+		zap.String("organisation_id", patient.OrganisationID),
+		zap.String("uhid", patient.UHID),
+	)
 	return
 }
+
 func (p *PatientService) GetPageSkip(limit string, pageno string) (int, int) {
 	skip := 0
 	limitInt, _ := strconv.Atoi(limit)
@@ -109,26 +249,29 @@ func (p *PatientService) GetPageSkip(limit string, pageno string) (int, int) {
 	}
 	return limitInt, skip
 }
+
 func (p *PatientService) arraymaptopatientResponse(patient []Patient) []dto.PatientResponse {
 	patientResponse := []dto.PatientResponse{}
 	for _, each := range patient {
 		patientResponse = append(patientResponse, dto.PatientResponse{
-			PatientID:      each.ID,
-			PatientCode:    each.UHID,
-			PatientName:    each.Name,
-			PatientWeight:  each.Weight,
-			PatientGender:  each.Gender,
-			PatientPhone:   each.MobileNumber,
-			PatientEmail:   each.EmailID,
-			PatientAge:     each.Age,
-			PatientStatus:  string(each.Status),
-			PatientBG:      each.BloodGroup,
-			PatientLVD:     each.LastVisitDate,
-			PatientAddress: each.Address,
+			PatientID:        each.ID,
+			PatientCode:      each.UHID,
+			PatientName:      each.Name,
+			PatientWeight:    each.Weight,
+			PatientGender:    each.Gender,
+			PatientPhone:     each.MobileNumber,
+			PatientEmail:     each.EmailID,
+			PatientAge:       each.Age,
+			PatientStatus:    string(each.Status),
+			PatientBG:        each.BloodGroup,
+			PatientLVD:       each.LastVisitDate,
+			PatientAddress:   each.Address,
+			PatientCreatedAt: each.CreatedAt,
 		})
 	}
 	return patientResponse
 }
+
 func (p *PatientService) maptopatientResponse(patient Patient) dto.PatientResponse {
 	waitingTime := p.formatWaitingTime(patient.LastVisitDate)
 	return dto.PatientResponse{
@@ -147,30 +290,56 @@ func (p *PatientService) maptopatientResponse(patient Patient) dto.PatientRespon
 		WaitingTime:    waitingTime,
 	}
 }
-func (p *PatientService) formatWaitingTime(lastVisit time.Time) string {
 
+func (p *PatientService) formatWaitingTime(lastVisit time.Time) string {
 	duration := time.Since(lastVisit)
 
 	minutes := duration.Minutes()
 	hours := duration.Hours()
 	days := hours / 24
 
-	// More than 30 days
 	if days >= 30 {
 		return "0"
 	}
-
-	// More than 24 hours
 	if hours >= 24 {
 		return fmt.Sprintf("%.0f days", days)
 	}
-
-	// More than 60 minutes
 	if minutes >= 60 {
 		return fmt.Sprintf("%.0f hrs", hours)
 	}
-
-	// Less than 60 minutes
 	return fmt.Sprintf("%.0f mins", minutes)
+}
 
+func (p *PatientService) GetNotificationPatientByID(log *zap.Logger, patientID string) (map[string]interface{}, error) {
+	log = ensureLog(log)
+	log.Debug("patient notification lookup", zap.String("patient_id", patientID))
+
+	query := `select p.uh_id as patient_code,p.name as patient_name,p.email_id as patient_email_id,p.mobile_number as patient_phone,p.blood_group as patient_bg,p.address as patient_address,o.organisation_name as hospital_name,p.organisation_id,p.id as patient_id from patients p 
+	join organisations o on p.organisation_id=o.id where p.id = $1`
+	patient, err := p.PRepo.ReadOneWithOrganisationID(log, query, patientID)
+	if err != nil {
+		log.Error("patient notification lookup failed",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+	if len(patient) == 0 {
+		log.Error("patient notification lookup failed",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "not_found"),
+		)
+		return nil, wrapError.ErrPatientNotFound
+	}
+
+	orgID := ""
+	if v, ok := patient["organisation_id"]; ok {
+		orgID = fmt.Sprint(v)
+	}
+	log.Debug("patient notification lookup success",
+		zap.String("patient_id", patientID),
+		zap.String("organisation_id", orgID),
+	)
+	return patient, nil
 }

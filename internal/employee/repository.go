@@ -4,9 +4,10 @@ type EmployeeRepository interface {
 	Create(*User) error
 	Update(string, map[string]interface{}) (err error)
 	DeleteOne(string) (err error)
-	ReadMany(limit int, skip int) ([]User, error)
+	ReadMany(limit int, skip int, organisationID string) ([]User, error)
 	ReadOne(id string) (*User, error)
 	ReadDoctors(query string, args ...any) ([]User, error)
+	Count(organisationID string) (int64, error)
 }
 
 func (E *EmployeeRepo) Create(employee *User) (err error) {
@@ -32,12 +33,22 @@ func (E *EmployeeRepo) DeleteOne(id string) (err error) {
 	}
 	return
 }
-func (E *EmployeeRepo) ReadMany(limit int, offset int) (u []User, err error) {
-	err = E.db.Find(&u, "limit ?,offset ?", limit, offset).Error
+func (E *EmployeeRepo) ReadMany(limit int, offset int, organisationID string) (u []User, err error) {
+	query := `select id, username, first_name, last_name, email_id, phone_number, organisation_id, role_id, department_id, is_active from users where organisation_id=? limit ? offset ?`
+	err = E.db.Raw(query, organisationID, limit, offset).Scan(&u).Error
 	if err != nil {
 		return
 	}
 	return
+}
+
+func (E *EmployeeRepo) Count(organisationID string) (int64, error) {
+	var count int64
+	err := E.db.Model(&User{}).Where("organisation_id=?", organisationID).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 func (E *EmployeeRepo) ReadOne(id string) (*User, error) {
 	var u User

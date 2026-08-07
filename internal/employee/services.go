@@ -3,12 +3,14 @@ package employee
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/email"
 	"hospital-backend/internal/employee/dto"
 	"hospital-backend/internal/employee/utils"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/logger"
 	"strings"
 	"time"
 
@@ -52,7 +54,7 @@ func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id stri
 	if err != nil {
 		return
 	}
-	organisationData, err := EService.OranisationRepo.GetOrganisationByID(payload.OrganisationID)
+	organisationData, err := EService.OranisationRepo.GetOrganisationByID(logger.Log, payload.OrganisationID)
 	if err != nil {
 		return
 	}
@@ -81,16 +83,59 @@ func (Eservice *EmployeeService) FindOne(id string) (u *User, err error) {
 	}
 	return
 }
-func (Eservice *EmployeeService) FindMany(limit int, pageno int) (u []User, err error) {
-	skip := 0
-	if pageno != 0 {
-		skip = (pageno - 1) * limit
-	}
-	u, err = Eservice.EmpRepo.ReadMany(limit, skip)
+func (Eservice *EmployeeService) FindMany(limit string, pageNo string, organisationID string) (employeeResp []dto.EmployeeResponse, total int64, err error) {
+	limitInt, skip := Eservice.getPageSkip(limit, pageNo)
+	users, err := Eservice.EmpRepo.ReadMany(limitInt, skip, organisationID)
 	if err != nil {
 		return
 	}
+	total, err = Eservice.EmpRepo.Count(organisationID)
+	if err != nil {
+		return
+	}
+	employeeResp = Eservice.arrayMapToEmployeeResponse(users)
 	return
+}
+
+func (Eservice *EmployeeService) getPageSkip(limit string, pageNo string) (int, int) {
+	skip := 0
+	limitInt, _ := strconv.Atoi(limit)
+	pageNoInt, _ := strconv.Atoi(pageNo)
+	if pageNoInt != 0 {
+		skip = (pageNoInt - 1) * limitInt
+	}
+	return limitInt, skip
+}
+
+func (Eservice *EmployeeService) arrayMapToEmployeeResponse(users []User) []dto.EmployeeResponse {
+	employeeResponse := []dto.EmployeeResponse{}
+	for _, each := range users {
+		employeeResponse = append(employeeResponse, Eservice.mapToEmployeeResponse(each))
+	}
+	return employeeResponse
+}
+
+func (Eservice *EmployeeService) mapToEmployeeResponse(user User) dto.EmployeeResponse {
+	name := user.Username
+	if name == "" {
+		name = strings.TrimSpace(user.FirstName + " " + user.LastName)
+	}
+	status := "inactive"
+	if user.IsActive {
+		status = "active"
+	}
+	return dto.EmployeeResponse{
+		EmployeeID:             user.ID,
+		EmployeeName:           name,
+		EmployeeFirstName:      user.FirstName,
+		EmployeeLastName:       user.LastName,
+		EmployeeEmail:          user.EmailID,
+		EmployeePhone:          user.PhoneNumber,
+		EmployeeRoleID:         user.RoleID,
+		EmployeeDepartmentID:   user.DepartmentID,
+		EmployeeStatus:         status,
+		EmployeeOrganisationID: user.OrganisationID,
+	}
 }
 func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID string, err error) {
 	passwordHash, err := Eservice.hashPassword(payload.Password)

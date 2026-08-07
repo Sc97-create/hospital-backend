@@ -1,11 +1,25 @@
 package medicine
 
-import "gorm.io/gorm"
+import (
+	"hospital-backend/pkg/types"
+
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
 
 type RMedicineMvmt interface {
-	CreateMedicineMvmtInBatch(db *gorm.DB, medicineMvmt []MedicineStockMovements) error
+	CreateMedicineMvmtInBatch(log *zap.Logger, db *gorm.DB, medicineMvmt []types.MedicineStockMovements) error
 }
 
-func (r *MedicineRepo) CreateMedicineMvmtInBatch(db *gorm.DB, medicineMvmt []MedicineStockMovements) error {
-	return db.CreateInBatches(&medicineMvmt, len(medicineMvmt)).Error
+func (r *MedicineRepo) CreateMedicineMvmtInBatch(log *zap.Logger, db *gorm.DB, medicineMvmt []types.MedicineStockMovements) error {
+	log = ensureLog(log)
+	if len(medicineMvmt) == 0 {
+		return nil
+	}
+	err := db.CreateInBatches(&medicineMvmt, len(medicineMvmt)).Error
+	if err != nil {
+		log.Error("medicine repo error", zap.String("op", "CreateMedicineMvmtInBatch"), zap.Error(err))
+		return err
+	}
+	return nil
 }

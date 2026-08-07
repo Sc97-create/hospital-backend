@@ -1,0 +1,54 @@
+{{define "content"}}
+<p style="margin:0 0 16px 0;">Dear {{.PatientName}},</p>
+
+<p style="margin:0 0 20px 0;">
+  Your appointment has been successfully booked. Please find the details below.
+</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f9fafb; border-radius:6px; border:1px solid #eef0f2;">
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px; width:40%;">
+      Appointment Code
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.AppointmentCode}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px;">
+      Doctor
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      Dr. {{.DoctorName}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px;">
+      Hospital
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.HospitalName}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px;">
+      Date
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.AppointmentDate}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; color:#666666; font-size:13px;">
+      Time
+    </td>
+    <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.AppointmentTime}}
+    </td>
+  </tr>
+</table>
+
+<p style="margin:20px 0 0 0; color:#666666; font-size:14px;">
+  Please arrive a few minutes before your scheduled time.
+</p>
+{{end}}

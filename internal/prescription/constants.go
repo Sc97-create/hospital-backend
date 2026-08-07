@@ -1,11 +1,5 @@
 package prescription
 
-type Status string
+// type Status string
 
-const (
-	StatusActive   Status = "active"
-	StatusInactive Status = "inactive"
-	StatusPending  Status = "pending"
-	StatusDraft    Status = "draft"
-	StatusSent     Status = "sent"
-)
+const ()

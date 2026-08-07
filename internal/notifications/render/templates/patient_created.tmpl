@@ -1,0 +1,38 @@
+{{define "content"}}
+<p style="margin:0 0 16px 0;">Dear {{.PatientName}},</p>
+
+<p style="margin:0 0 20px 0;">
+  Your patient profile has been successfully created at <strong>{{.HospitalName}}</strong>.
+</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f9fafb; border-radius:6px; border:1px solid #eef0f2;">
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px; width:40%;">
+      Patient Name
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.PatientName}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#666666; font-size:13px;">
+      Hospital
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #eef0f2; color:#2c3e50; font-size:14px; font-weight:bold;">
+      {{.HospitalName}}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:14px 16px; color:#666666; font-size:13px;">
+      Patient Code
+    </td>
+    <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold; letter-spacing:1px;">
+      {{.PatientCode}}
+    </td>
+  </tr>
+</table>
+
+<p style="margin:20px 0 0 0; color:#666666; font-size:14px;">
+  Please keep this code for future reference during visits and appointments.
+</p>
+{{end}}

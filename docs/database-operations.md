@@ -607,6 +607,32 @@ deleted_at = CURRENT_TIMESTAMP
 
 ---
 
+----------
+# COALESCE
+the COALESCE function evaluates a list of arguments from left to right and 
+returns the first non-null value it encounters. If all arguments are null, it returns null.
+
+```sql
+
+SELECT 
+    name, 
+    COALESCE(email, 'No Email Provided') as contact_email
+FROM patients;
+
+```
+How it works: If a patient has an email, it shows their email. If their email is NULL, it displays "No Email Provided".
+
+```sql
+COALESCE(
+    (SELECT json_agg(...) FROM ...), 
+    '[]'::json -- Fallback
+) AS active_batches
+
+```
+If we don't use COALESCE, the API sends "active_batches": null to the browser, which will crash your frontend React/Angular code when it tries to run .map() or .length. By falling back to '[]'::json, the API cleanly sends "active_batches": [], which the frontend can render safely.
+
+------------
+
 # Decision Matrix
 
 | Requirement           | Recommended            |

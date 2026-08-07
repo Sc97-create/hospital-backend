@@ -5,18 +5,22 @@ import (
 	"hospital-backend/internal/admins"
 	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/bedmanagement"
+	"hospital-backend/internal/billing"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
 	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine/medmigration"
 	"hospital-backend/internal/modules"
+	"hospital-backend/internal/notifications"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
+	"hospital-backend/internal/payments"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/rolepermissions"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/types"
 	"log"
 )
 
@@ -65,6 +69,10 @@ func Migrate() (err error) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+	err = database.PostgreClient.AutoMigrate(&prescription.PrescriptionItems{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
 	err = database.PostgreClient.AutoMigrate(&modules.Modules{})
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -82,6 +90,26 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 	}
 	err = database.PostgreClient.AutoMigrate(&admins.OrganisationSchedule{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&notifications.Notification{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&notifications.NotificationAttempts{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = database.PostgreClient.AutoMigrate(&types.MedicineStockMovements{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = payments.Migrate(database.PostgreClient)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = billing.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

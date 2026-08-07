@@ -6,6 +6,7 @@ import (
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/bedmanagement"
 	bedcontroller "hospital-backend/internal/bedmanagement/controllers"
+	"hospital-backend/internal/billing"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
@@ -13,6 +14,7 @@ import (
 	"hospital-backend/internal/medicine"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
+	"hospital-backend/internal/payments"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/prescription"
 	"hospital-backend/internal/roles"
@@ -62,6 +64,7 @@ func RegisterAuthRoute(app *fiber.App, service *authentication.UserService) {
 	auth := authentication.NewAuthController(service)
 	authGroup.Post("/login", auth.Login)
 	authGroup.Post("/refresh", auth.Refresh)
+	authGroup.Post("/logout", auth.Logout)
 }
 func RegisterDepartmentRoutes(app *fiber.App, service *department.DepartmentService, jwtservice *jwt.JwtService) {
 	version := getVersion(app)
@@ -129,22 +132,29 @@ func RegisterMedicineRoutes(app *fiber.App, service *medicine.MedicineService) {
 	medicineGrp.Get("/GetMedicines", medicineController.GetAllHandler)
 	medicineGrp.Get("/searchMedicine", medicineController.SearchMedicine)
 }
-func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.PrescriptionService) {
+func RegisterPrescriptionRoutes(app *fiber.App, service *prescription.PrescriptionService, pitemService *prescription.PrescriptionItemServ) {
 	version := getVersion(app)
 	prescriptionGrp := version.Group("prescription")
-	prescriptionController := prescription.NewPrescriptionController(service)
+
+	prescriptionController := prescription.NewPrescriptionController(service, pitemService)
 	prescriptionGrp.Post("/create", prescriptionController.CreatePrescription)
 	prescriptionGrp.Get("/get", prescriptionController.FindMany)
-	prescriptionGrp.Patch("/update", prescriptionController.UpdatePrescription)
-	prescriptionGrp.Get("/getprescriptionbyid/:prescription_id", prescriptionController.FindPrescriptionByID)
-	prescriptionGrp.Get("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionByPatientID)
+	prescriptionGrp.Get("/getByStatus", prescriptionController.FindByStatus)
+	prescriptionGrp.Patch("/updatePrescriptions", prescriptionController.AddPrescriptionItems)
+	prescriptionGrp.Patch("/updatePrescriptionItem", prescriptionController.UpdatePrescriptionItem)
+	prescriptionGrp.Get("/getprescriptionbyPid", prescriptionController.FindPrescriptionByID)
+	prescriptionGrp.Post("/getPrescriptionByAppointmentID", prescriptionController.GetPrescriptionByAppointmentID)
+	prescriptionGrp.Get("/getPrescriptionByPatientID", prescriptionController.GetPrescriptionsByPatientID)
 	prescriptionGrp.Patch("/updateStatus", prescriptionController.UpdateStatus)
+	prescriptionGrp.Get("getMedicineInfo/:prescription_id", prescriptionController.FindMedicineDetInfo)
 }
 func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService) {
 	version := getVersion(app)
 	supplierGrp := version.Group("supplier")
 	supplierController := medicine.NewSupplierController(service)
 	supplierGrp.Get("/getSupplierByID", supplierController.GetSupplierByID)
+	supplierGrp.Get("/getSupplierByOrgID", supplierController.GetSupplierByOrgID)
+	supplierGrp.Get("/getTotalCount", supplierController.GetTotalCount)
 	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
 }
 func RegisterAppointments(app *fiber.App, service *appointments.AppointmentService) {
@@ -165,4 +175,19 @@ func RegisterOrgSchedule(app *fiber.App, service *admins.OrganisationScheduleSer
 	orgSchedController := admins.NewOrgSchedController(service)
 	orgSched.Post("/create", orgSchedController.Create)
 
+}
+func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ) {
+	version := getVersion(app)
+	billingGrp := version.Group("billing")
+	billingController := billing.NewBillingController(service)
+	billingGrp.Post("/create", billingController.Checkout)
+	billingGrp.Get("/getInvoiceByPrescriptionID/:prescriptionID", billingController.GetInvoiceByPrescriptionID)
+	billingGrp.Post("/invoices/:invoiceID/retry-payment-link", billingController.RetryPaymentLink)
+}
+func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, webhook *payments.IWebhookService) {
+	version := getVersion(app)
+	paymentGrp := version.Group("payment")
+	paymentController := payments.NewPaymentController(payment, webhook)
+	paymentGrp.Post("/webhook", paymentController.RazorPayWebhook)
+	paymentGrp.Post("/confirm", paymentController.UpdatePaymentManually)
 }
