@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"hospital-backend/internal/jwt"
+	"hospital-backend/internal/permissions"
+	rpdto "hospital-backend/internal/rolepermissions/dto"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,7 +15,7 @@ import (
 )
 
 func HandleMiddleware(app *fiber.App) {
-	app.Use(RequestLogger()) // must be first — request-scoped zap logger + X-Request-ID
+	app.Use(RequestLogger())
 	app.Use(helmet.New())
 	app.Use(logger.New())
 	app.Use(healthcheck.New())
@@ -51,8 +53,8 @@ func Authenticate(c *fiber.Ctx, jwtSvc *jwt.JwtService) error {
 			"error": "Invalid token format",
 		})
 	}
-	flag, err := jwtSvc.ValidateAccessToken(parts[1])
-	if err != nil || !flag {
+	userID, err := jwtSvc.AccessTokenSubject(parts[1])
+	if err != nil {
 		log.Warn("auth rejected",
 			zap.String("reason", "invalid_or_expired"),
 			zap.String("path", c.Path()),
@@ -63,6 +65,122 @@ func Authenticate(c *fiber.Ctx, jwtSvc *jwt.JwtService) error {
 			"error": "Invalid or expired token",
 		})
 	}
-
+	c.Locals(UserIDKey, userID)
 	return c.Next()
+}
+
+// LoadRoleAccess loads the caller's role permission matrix into locals after Authenticate.
+func LoadRoleAccess(c *fiber.Ctx, loader RoleAccessLoader, roleLookup RoleIDFinder) error {
+	log := GetLogger(c)
+	userID := GetUserID(c)
+	if userID == "" || loader == nil || roleLookup == nil {
+		log.Warn("rbac load rejected", zap.String("reason", "missing_deps_or_user"))
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	roleID, err := roleLookup.FindRoleIDByUserID(userID)
+	if err != nil {
+		log.Warn("rbac load rejected",
+			zap.String("reason", "role_id_lookup"),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	access, err := loader.FindModulesByRoleID(roleID)
+	if err != nil {
+		log.Warn("rbac load rejected",
+			zap.String("reason", "role_permissions"),
+			zap.String("user_id", userID),
+			zap.String("role_id", roleID),
+			zap.Error(err),
+		)
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	c.Locals(RoleAccessKey, toRoleAccessLocal(access))
+	return c.Next()
+}
+
+func toRoleAccessLocal(access rpdto.RoleAccess) RoleAccessLocal {
+	byModule := make(map[string]rpdto.ModulePermissionFlags, len(access.Permissions))
+	for _, item := range access.Permissions {
+		byModule[item.ModuleName] = item.Permissions
+	}
+	return RoleAccessLocal{IsAdmin: access.IsAdmin, ByModule: byModule}
+}
+
+func AuthorizeRBAC(c *fiber.Ctx) error {
+	log := GetLogger(c)
+	routePath := resolveRequestRoutePath(c)
+	if IsPublicRoute(routePath) || IsPublicRoute(c.Path()) {
+		return c.Next()
+	}
+	access, ok := c.Locals(RoleAccessKey).(RoleAccessLocal)
+	if !ok {
+		log.Warn("rbac denied",
+			zap.String("reason", "missing_role_access"),
+			zap.String("path", routePath),
+			zap.String("user_id", GetUserID(c)),
+		)
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	// Admins get full access — no route-map or module-action checks.
+	if access.IsAdmin {
+		return c.Next()
+	}
+	module, action, ok := ResolveRoutePermission(routePath)
+	if !ok {
+		log.Warn("rbac denied",
+			zap.String("reason", "unmapped_route"),
+			zap.String("path", routePath),
+			zap.String("user_id", GetUserID(c)),
+		)
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+	}
+	if hasModuleAction(access, module, action) {
+		return c.Next()
+	}
+	log.Warn("rbac denied",
+		zap.String("reason", "insufficient_permission"),
+		zap.String("path", routePath),
+		zap.String("module", module),
+		zap.String("action", action),
+		zap.String("user_id", GetUserID(c)),
+	)
+	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
+}
+
+func resolveRequestRoutePath(c *fiber.Ctx) string {
+	// Prefer the concrete request path. Group-level middleware often sees
+	// c.Route().Path as the group prefix (e.g. /api/v1/patients), not the handler.
+	return normalizeRoutePath(c.Path())
+}
+
+func hasModuleAction(access RoleAccessLocal, module, action string) bool {
+	flags, ok := access.ByModule[module]
+	if !ok {
+		return false
+	}
+	switch action {
+	case permissions.Create:
+		return flags.Create
+	case permissions.Update:
+		return flags.Update
+	case permissions.View:
+		return flags.View
+	case permissions.Delete:
+		return flags.Delete
+	default:
+		return false
+	}
+}
+
+// UseProtected attaches Authenticate → LoadRoleAccess → AuthorizeRBAC on a route group.
+func UseProtected(group fiber.Router, jwtSvc *jwt.JwtService, loader RoleAccessLoader, roleLookup RoleIDFinder) {
+	group.Use(func(c *fiber.Ctx) error {
+		return Authenticate(c, jwtSvc)
+	})
+	group.Use(func(c *fiber.Ctx) error {
+		return LoadRoleAccess(c, loader, roleLookup)
+	})
+	group.Use(AuthorizeRBAC)
 }

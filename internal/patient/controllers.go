@@ -151,22 +151,38 @@ func (p *PatientController) GetPatientByID(c *fiber.Ctx) (err error) {
 
 func (p *PatientController) Find(c *fiber.Ctx) (err error) {
 	logger := middleware.GetLogger(c)
-	limit := c.Query("limit")
-	pageNo := c.Query("page_no")
-	organisationID := c.Query("organisation_id")
-
-	if organisationID == "" {
-		logger.Warn("patient list request invalid", zap.String("reason", "missing_organisation_id"))
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("patient list request invalid", zap.Error(err))
 		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
+	var req dto.PatientListReq
+	req.OrganisationID, err = payload.Getstring("organisation_id")
+	if err != nil || req.OrganisationID == "" {
+		logger.Warn("patient list request invalid", zap.String("field", "organisation_id"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.Limit, err = payload.Getfloat("limit")
+	if err != nil {
+		logger.Warn("patient list request invalid", zap.String("field", "limit"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.PageNo, err = payload.Getfloat("page_no")
+	if err != nil {
+		logger.Warn("patient list request invalid", zap.String("field", "page_no"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.Search, _ = payload.Getstring("search")
+
 	logger.Info("patient list attempt",
-		zap.String("organisation_id", organisationID),
-		zap.String("limit", limit),
-		zap.String("page_no", pageNo),
+		zap.String("organisation_id", req.OrganisationID),
+		zap.Float64("limit", req.Limit),
+		zap.Float64("page_no", req.PageNo),
+		zap.Bool("has_search", req.Search != ""),
 	)
 
-	patient, total, err := p.PatientService.FindMany(logger, limit, pageNo, organisationID)
+	patient, total, err := p.PatientService.FindMany(logger, req)
 	if err != nil {
 		return errwrap.Wrap(err, c, fiber.StatusInternalServerError)
 	}
@@ -177,7 +193,7 @@ func (p *PatientController) Find(c *fiber.Ctx) (err error) {
 	response.Code = 200
 	if err = c.Status(fiber.StatusOK).JSON(&response); err != nil {
 		logger.Error("patient list response failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.Error(err),
 		)
 		return errwrap.Wrap(err, c, fiber.StatusInternalServerError)

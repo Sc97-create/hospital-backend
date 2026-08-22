@@ -57,6 +57,7 @@ func Load() (*Config, error) {
 		DatabaseURL:    viper.GetString("DATABASE_URL"),
 		PrivateKeyPath: viper.GetString("PRIVATE_KEY_PATH"),
 		PublicKeyPath:  viper.GetString("PUBLIC_KEY_PATH"),
+		LoginUrl:       viper.GetString("LOGIN_URL"),
 		NotificationConfig: NotificationConfig{
 			SMTPHost:     smtpHost,
 			SMTPPort:     smtpPort,

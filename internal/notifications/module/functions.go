@@ -29,6 +29,7 @@ func New(db *gorm.DB, cfg config.Config) (*Module, error) {
 		"Patient Created":      "Patient Created",
 		"Appointment Created":  "Appointment Created",
 		"Prescription Created": "Prescription Created",
+		"Employee Created":     "Your staff account is ready",
 	}
 	renderer, err := render.NewHTMLRenderer(subjects)
 	if err != nil {

@@ -7,9 +7,11 @@ import (
 type RoleRepository interface {
 	Create(tx *gorm.DB, role *Role) error
 	InsertMany(tx *gorm.DB, role []Role) error
-	FindMany(limit, offset int) ([]Role, error)
+	FindMany(organisationID string, limit, offset int) ([]Role, error)
+	Count(organisationID string) (int64, error)
 	FindRoleByOrgID(organisationID string) ([]Role, error)
 	FindRoleByNames(organisationID string, name string) (Role, error)
+	FindByID(id string) (Role, error)
 }
 
 func (r *RoleDB) Create(tx *gorm.DB, role *Role) error {
@@ -23,15 +25,25 @@ func (r *RoleDB) InsertMany(tx *gorm.DB, role []Role) (err error) {
 	return
 }
 
-func (r *RoleDB) FindMany(limit, offset int) ([]Role, error) {
+func (r *RoleDB) FindMany(organisationID string, limit, offset int) ([]Role, error) {
 	var roles []Role
-	query := `select id,name from roles where is_default=true LIMIT ? OFFSET ?`
-	err := r.DB.Raw(query, limit, offset).Scan(&roles).Error
+	query := `select id,name from roles where organisation_id=? LIMIT ? OFFSET ?`
+	err := r.DB.Raw(query, organisationID, limit, offset).Scan(&roles).Error
 	if err != nil {
 		return nil, err
 	}
 	return roles, nil
 }
+
+func (r *RoleDB) Count(organisationID string) (int64, error) {
+	var count int64
+	err := r.DB.Model(&Role{}).Where("organisation_id=?", organisationID).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *RoleDB) FindRoleByOrgID(organisationID string) ([]Role, error) {
 	var roles []Role
 	query := `select id,name from roles where organisation_id=?`
@@ -45,6 +57,16 @@ func (r *RoleDB) FindRoleByNames(organisationID string, name string) (Role, erro
 	var role Role
 	query := `select id,name from roles where organisation_id=? and name=?`
 	err := r.DB.Raw(query, organisationID, name).Scan(&role).Error
+	if err != nil {
+		return Role{}, err
+	}
+	return role, nil
+}
+
+func (r *RoleDB) FindByID(id string) (Role, error) {
+	var role Role
+	query := `select id,name from roles where id=?`
+	err := r.DB.Raw(query, id).Scan(&role).Error
 	if err != nil {
 		return Role{}, err
 	}

@@ -1,7 +1,10 @@
 package dto
 
 type CheckoutReq struct {
+	// PaymentType: "consultation" or "prescription". Empty/omitted defaults to "prescription" (back-compat).
+	PaymentType    string          `json:"payment_type"`
 	PrescriptionID string          `json:"prescription_id"`
+	AppointmentID  string          `json:"appointment_id"` // required when PaymentType == consultation
 	OrganisationID string          `json:"organisation_id"`
 	PatientID      string          `json:"patient_id"`
 	CashierID      string          `json:"cashier_id"`

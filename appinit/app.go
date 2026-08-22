@@ -71,13 +71,14 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	rolePermissionRepo := rolepermissions.NewRolePermissionDb(db)
 	rolePermService := rolepermissions.NewRolePermissionService(db, rolePermissionRepo)
 	departmentService := department.NewDepartmentService(DeptRepo)
-	employeeService := employee.NewEmpService(db, employeeRepo, organisationRepo, roleService, deptService)
-	authService := authentication.NewService(*authenticationRepo, *jwtService)
+	employeeService := employee.NewEmpService(db, employeeRepo, organisationRepo, roleService, deptService, cfg)
+	authService := authentication.NewService(*authenticationRepo, *jwtService, rolePermService)
 	licenseService := license.NewLicenseService(*licenseRepo)
 	prescriptionRepo := prescription.NewPrescriptionDB(db)
 	organisationSchedule := admins.NewCommonDB(db)
 	orgschedSrv := admins.NewOrganisationScheduleService(organisationSchedule)
 	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
+	employeeService.Notifications = notificationContainer.Service
 	appointmentSrv := appointments.AppointmentContainers(db, orgschedSrv, notificationContainer.Service)
 	prescriptionItemServ := prescription.NewPrescriptionItemService(prescriptionRepo)
 
@@ -97,7 +98,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		notificationContainer.Service,
 	)
 	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, fulfillment, fulfillment)
-	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService)
+	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService, appointmentSrv.Appointmentservice)
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
@@ -109,6 +110,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		DepartmentService:      departmentService,
 		ModuleService:          moduleService,
 		RoleService:            roleService,
+		RolePermissionService:  rolePermService,
 		BedManagement:          bedmanagement,
 		JwtManagement:          jwtService,
 		PrescriptionManagement: prescriptionService,

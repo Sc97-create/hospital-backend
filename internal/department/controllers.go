@@ -26,12 +26,13 @@ func (d *DepartmentController) FindMany(c *fiber.Ctx) error {
 		payload.Page = 1
 	}
 	offset := payload.Limit * (payload.Page - 1)
-	department, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
+	department, total, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
 	if err != nil {
 		return err
 	}
 	response := make(map[string]interface{})
 	response["data"] = department
+	response["total"] = total
 	response["code"] = 200
 	return c.JSON(response)
 }

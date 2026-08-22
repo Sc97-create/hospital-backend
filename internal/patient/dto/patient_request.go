@@ -16,6 +16,16 @@ type PatientInfo struct {
 	HospitalName   string `json:"hospital_name"`
 }
 
+// PatientListReq is the POST body for patient list (search + pagination).
+type PatientListReq struct {
+	OrganisationID string  `json:"organisation_id"`
+	Search         string  `json:"search"` // matches name OR mobile_number OR uh_id (code)
+	Limit          float64 `json:"limit"`
+	PageNo         float64 `json:"page_no"`
+	DBLimit        int     `json:"-"`
+	DBOffset       int     `json:"-"`
+}
+
 type PatientResponse struct {
 	PatientID        string    `json:"patient_id"`
 	PatientCode      string    `json:"patient_code"`

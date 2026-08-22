@@ -114,14 +114,38 @@ func (SController *SupplierController) GetSupplierByID(c *fiber.Ctx) error {
 
 func (SController *SupplierController) GetSupplierByOrgID(c *fiber.Ctx) error {
 	logger := middleware.GetLogger(c)
-	organisationID := strings.TrimSpace(c.Query("organisation_id"))
-	if organisationID == "" {
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("supplier list request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	var req dto.SupplierListReq
+	req.OrganisationID, err = payload.Getstring("organisation_id")
+	if err != nil || strings.TrimSpace(req.OrganisationID) == "" {
 		logger.Warn("supplier list request invalid", zap.String("field", "organisation_id"))
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
-	limit := c.QueryInt("limit", 10)
-	pageNo := c.QueryInt("page_no", 1)
-	suppliers, total, err := SController.SupplierSrv.GetSupplierByOrgID(logger, organisationID, limit, pageNo)
+	req.Limit, err = payload.Getfloat("limit")
+	if err != nil {
+		logger.Warn("supplier list request invalid", zap.String("field", "limit"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.PageNo, err = payload.Getfloat("page_no")
+	if err != nil {
+		logger.Warn("supplier list request invalid", zap.String("field", "page_no"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.Search, _ = payload.Getstring("search")
+
+	logger.Info("supplier list attempt",
+		zap.String("organisation_id", req.OrganisationID),
+		zap.Float64("limit", req.Limit),
+		zap.Float64("page_no", req.PageNo),
+		zap.Bool("has_search", strings.TrimSpace(req.Search) != ""),
+	)
+
+	suppliers, total, err := SController.SupplierSrv.GetSupplierByOrgID(logger, req)
 	if err != nil {
 		return wrapError.Wrap(wrapError.ErrSupplierFetchFailed, c, fiber.StatusInternalServerError)
 	}

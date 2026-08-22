@@ -10,8 +10,8 @@ import (
 type ISupplier interface {
 	CretateSupplier(log *zap.Logger, supplier *Supplier) error
 	GetSupplierByID(log *zap.Logger, supplierID string) (Supplier, error)
-	GetSupplierByOrgID(log *zap.Logger, organisationID string, limit int, offset int) ([]Supplier, error)
-	CountSupplierByOrgID(log *zap.Logger, organisationID string) (int64, error)
+	GetSupplierByOrgID(log *zap.Logger, query string, args ...any) ([]Supplier, error)
+	CountSupplierByOrgID(log *zap.Logger, query string, args ...any) (int64, error)
 }
 
 func (Srepo *MedicineRepo) CretateSupplier(log *zap.Logger, supplier *Supplier) error {
@@ -37,16 +37,10 @@ func (Srepo *MedicineRepo) GetSupplierByID(log *zap.Logger, supplierID string) (
 	return supplier, nil
 }
 
-func (Srepo *MedicineRepo) GetSupplierByOrgID(log *zap.Logger, organisationID string, limit int, offset int) ([]Supplier, error) {
+func (Srepo *MedicineRepo) GetSupplierByOrgID(log *zap.Logger, query string, args ...any) ([]Supplier, error) {
 	log = ensureLog(log)
 	var suppliers []Supplier
-	err := Srepo.db.Model(&Supplier{}).
-		Select("id, supplier_code, name, contact_number, email, payment_terms, supplier_status, created_at").
-		Where("organisation_id = ?", organisationID).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&suppliers).Error
+	err := Srepo.db.Raw(query, args...).Scan(&suppliers).Error
 	if err != nil {
 		log.Error("medicine repo error", zap.String("op", "GetSupplierByOrgID"), zap.Error(err))
 		return nil, err
@@ -57,10 +51,10 @@ func (Srepo *MedicineRepo) GetSupplierByOrgID(log *zap.Logger, organisationID st
 	return suppliers, nil
 }
 
-func (Srepo *MedicineRepo) CountSupplierByOrgID(log *zap.Logger, organisationID string) (int64, error) {
+func (Srepo *MedicineRepo) CountSupplierByOrgID(log *zap.Logger, query string, args ...any) (int64, error) {
 	log = ensureLog(log)
 	var count int64
-	err := Srepo.db.Model(&Supplier{}).Where("organisation_id = ?", organisationID).Count(&count).Error
+	err := Srepo.db.Raw(query, args...).Scan(&count).Error
 	if err != nil {
 		log.Error("medicine repo error", zap.String("op", "CountSupplierByOrgID"), zap.Error(err))
 		return 0, err
