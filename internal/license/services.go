@@ -13,11 +13,11 @@ import (
 )
 
 type LicenseService struct {
-	LicensRepo LicenseRepo
+	LicenseRepo LicenseRepository
 }
 
-func NewLicenseService(repo LicenseRepo) *LicenseService {
-	return &LicenseService{LicensRepo: repo}
+func NewLicenseService(repo LicenseRepository) *LicenseService {
+	return &LicenseService{LicenseRepo: repo}
 }
 
 func (LService *LicenseService) CreateLicenseSrv(log *zap.Logger, tx *gorm.DB, orgname string, planday int, organisationID string, planspan string, issuedAt time.Time) error {
@@ -29,7 +29,7 @@ func (LService *LicenseService) CreateLicenseSrv(log *zap.Logger, tx *gorm.DB, o
 	license.IssuedAt = time.Now()
 	license.LicenseKey = licenseKey
 	license.OrganisationID = organisationID
-	err := LService.LicensRepo.CreateLicense(log, tx, license)
+	err := LService.LicenseRepo.CreateLicense(log, tx, license)
 	if err != nil {
 		log.Error("license create failed",
 			zap.String("organisation_id", organisationID),
@@ -59,7 +59,7 @@ func (Lservice *LicenseService) VerifyLicense(log *zap.Logger, organisationID, l
 		return wrapError.ErrInvalidRequest
 	}
 
-	lic, err := Lservice.LicensRepo.GetLicense(log, organisationID, licensekey)
+	lic, err := Lservice.LicenseRepo.GetLicense(log, organisationID, licensekey)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("license verify failed",

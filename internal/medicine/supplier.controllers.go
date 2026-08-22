@@ -13,8 +13,15 @@ import (
 	"go.uber.org/zap"
 )
 
+type SupplierServicer interface {
+	CretateSupplier(log *zap.Logger, supplier dto.Supplier) (string, error)
+	GetSupplierByID(log *zap.Logger, supplierID string) (Supplier, error)
+	GetSupplierByOrgID(log *zap.Logger, req dto.SupplierListReq) ([]dto.SupplierListItem, int64, error)
+	GetTotalCount(log *zap.Logger, organisationID string) (int64, error)
+}
+
 type SupplierController struct {
-	SupplierSrv *SupplierService
+	SupplierSrv SupplierServicer
 }
 
 type ISupplierController interface {
@@ -24,7 +31,7 @@ type ISupplierController interface {
 	GetTotalCount(c *fiber.Ctx) error
 }
 
-func NewSupplierController(SupplierService *SupplierService) *SupplierController {
+func NewSupplierController(SupplierService SupplierServicer) *SupplierController {
 	return &SupplierController{SupplierSrv: SupplierService}
 }
 

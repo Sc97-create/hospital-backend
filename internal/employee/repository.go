@@ -10,8 +10,8 @@ type EmployeeRepository interface {
 	Create(*User) error
 	Update(string, map[string]interface{}) (err error)
 	DeleteOne(string) (err error)
-	ReadMany(limit int, skip int, organisationID string, search string) ([]employeeListRow, error)
-	ReadOne(id string) (*employeeListRow, error)
+	ReadMany(limit int, skip int, organisationID string, search string) ([]EmployeeListRow, error)
+	ReadOne(id string) (*EmployeeListRow, error)
 	ReadDoctors(query string, args ...any) ([]User, error)
 	Count(organisationID string, search string) (int64, error)
 	CountByCodePrefix(organisationID string, prefix string) (int64, error)
@@ -41,7 +41,7 @@ func (E *EmployeeRepo) DeleteOne(id string) (err error) {
 	}
 	return
 }
-func (E *EmployeeRepo) ReadMany(limit int, offset int, organisationID string, search string) (rows []employeeListRow, err error) {
+func (E *EmployeeRepo) ReadMany(limit int, offset int, organisationID string, search string) (rows []EmployeeListRow, err error) {
 	query := `SELECT u.id, u.employee_code, u.username, u.first_name, u.last_name, u.email_id, u.phone_number,
 		u.organisation_id, u.role_id, r.name AS role_name, u.department_id, d.name AS department_name, u.is_active
 		FROM users u
@@ -86,14 +86,14 @@ func (E *EmployeeRepo) CountByCodePrefix(organisationID string, prefix string) (
 	}
 	return count, nil
 }
-func (E *EmployeeRepo) ReadOne(id string) (*employeeListRow, error) {
+func (E *EmployeeRepo) ReadOne(id string) (*EmployeeListRow, error) {
 	query := `SELECT u.id, u.employee_code, u.username, u.first_name, u.last_name, u.email_id, u.phone_number,
 		u.organisation_id, u.role_id, r.name AS role_name, u.department_id, d.name AS department_name, u.is_active
 		FROM users u
 		LEFT JOIN roles r ON r.id = u.role_id
 		LEFT JOIN departments d ON d.id = u.department_id
 		WHERE u.id = ?`
-	var row employeeListRow
+	var row EmployeeListRow
 	err := E.db.Raw(query, id).Scan(&row).Error
 	if err != nil {
 		return nil, err

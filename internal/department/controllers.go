@@ -9,11 +9,15 @@ import (
 type DepartmentControllers interface {
 	FindMany(c *fiber.Ctx) error
 }
-type DepartmentController struct {
-	DepartmentService *DepartmentService
+type DepartmentServicer interface {
+	FindMany(organisationID string, limit int, skip int) ([]Department, int64, error)
 }
 
-func NewDepartmentControllerInterface(departmentService *DepartmentService) *DepartmentController {
+type DepartmentController struct {
+	DepartmentService DepartmentServicer
+}
+
+func NewDepartmentControllerInterface(departmentService DepartmentServicer) *DepartmentController {
 	return &DepartmentController{DepartmentService: departmentService}
 }
 

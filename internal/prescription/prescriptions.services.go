@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hospital-backend/internal/appointments"
 	invoicedto "hospital-backend/internal/billing/dto"
-	"hospital-backend/internal/employee"
 	"hospital-backend/internal/medicine"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
-	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
 	"hospital-backend/shared/commonfunctions"
@@ -27,22 +23,34 @@ import (
 type PrescriptionService struct {
 	DB                      *gorm.DB
 	prescriptionRepo        PrescriptionRepositoryInterface
-	medicineService         *medicine.MedicineService
-	appointmentService      *appointments.AppointmentService
-	prescriptionItemService *PrescriptionItemServ
-	notificationService     *service.Notificationservice
-	orgService              *organisation.OrganisationService
-	userService             *employee.EmployeeService
+	appointmentLookup       AppointmentLookup
+	appointmentStatus       AppointmentStatusUpdater
+	prescriptionItemService PrescriptionItemAdder
+	notificationService     NotificationEnqueuer
 }
 
-func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService, prescriptionItemServ *PrescriptionItemServ, notificationService *service.Notificationservice, orgService *organisation.OrganisationService, userService *employee.EmployeeService) *PrescriptionService {
-	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ, notificationService: notificationService, orgService: orgService, userService: userService}
+func NewPrescriptionService(
+	db *gorm.DB,
+	prescriptionRepo PrescriptionRepositoryInterface,
+	appointmentLookup AppointmentLookup,
+	appointmentStatus AppointmentStatusUpdater,
+	prescriptionItemServ PrescriptionItemAdder,
+	notificationService NotificationEnqueuer,
+) *PrescriptionService {
+	return &PrescriptionService{
+		DB:                      db,
+		prescriptionRepo:        prescriptionRepo,
+		appointmentLookup:       appointmentLookup,
+		appointmentStatus:       appointmentStatus,
+		prescriptionItemService: prescriptionItemServ,
+		notificationService:     notificationService,
+	}
 }
 
 func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto.CreatePrescriptionRequest) (string, error) {
 	log = ensureLog(log)
 
-	appointmentModel, err := p.appointmentService.GetAppntmentByID(log, requestdto.AppointmentID)
+	appointmentModel, err := p.appointmentLookup.GetAppntmentByID(log, requestdto.AppointmentID)
 	if err != nil {
 		reason := "appointment_lookup"
 		if errors.Is(err, wrapError.ErrAppointmentNotFound) {
@@ -480,7 +488,7 @@ func (p *PrescriptionService) UpdateManualStatus(log *zap.Logger, prescriptionID
 
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
 		if status == constants.StatusSent {
-			err := p.appointmentService.Repository.UpdateStatus(log, tx, constants.StatusCompleted, appointmentID)
+			err := p.appointmentStatus.UpdateStatusInTx(log, tx, constants.StatusCompleted, appointmentID)
 			if err != nil {
 				log.Error("prescription status update failed",
 					zap.String("prescription_id", prescriptionID),
@@ -523,8 +531,10 @@ func (p *PrescriptionService) UpdateManualStatus(log *zap.Logger, prescriptionID
 			notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
 			notificationRequest.Subject = constants.PrescriptionCreatedSubject
 			ctx := context.Background()
-			p.notificationService.Create(ctx, notificationRequest)
-			notificationEnqueued = true
+			if p.notificationService != nil {
+				_ = p.notificationService.Create(ctx, notificationRequest)
+				notificationEnqueued = true
+			}
 		}
 	}
 

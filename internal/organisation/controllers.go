@@ -12,8 +12,15 @@ import (
 	"go.uber.org/zap"
 )
 
+type OrganisationServicer interface {
+	CreateOrganisation(log *zap.Logger, payloadRequest dto.OrganisationPayload) (string, error)
+	UpdateOrganisationLoc(log *zap.Logger, payloadReques dto.OrganisationPayload) error
+	GetOrgByID(log *zap.Logger, organisationID string) (Organisation, error)
+	Update(log *zap.Logger, organisationID string, payload dto.OrganisationPayload) error
+}
+
 type OrganisationController struct {
-	Service *OrganisationService
+	Service OrganisationServicer
 }
 type IOrganisationController interface {
 	CreateOrganisation(c *fiber.Ctx) (err error)
@@ -22,7 +29,7 @@ type IOrganisationController interface {
 	Update(c *fiber.Ctx) (err error)
 }
 
-func NewIOrganisationController(service *OrganisationService) IOrganisationController {
+func NewIOrganisationController(service OrganisationServicer) IOrganisationController {
 	return &OrganisationController{Service: service}
 }
 

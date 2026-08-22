@@ -11,11 +11,15 @@ type RoleControllers interface {
 	FindMany(c *fiber.Ctx) error
 }
 
-type RoleController struct {
-	RoleService *RoleServices
+type RoleServicer interface {
+	FindMany(organisationID string, limit int, offset int) ([]dto.RoleResponse, int64, error)
 }
 
-func NewRoleControllerInterface(roleService *RoleServices) *RoleController {
+type RoleController struct {
+	RoleService RoleServicer
+}
+
+func NewRoleControllerInterface(roleService RoleServicer) *RoleController {
 	return &RoleController{RoleService: roleService}
 }
 

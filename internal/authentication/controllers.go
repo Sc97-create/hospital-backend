@@ -11,17 +11,18 @@ import (
 	"go.uber.org/zap"
 )
 
-type IAuthService interface {
-	Login(c *fiber.Ctx) (dto.LoginResponse, error)
-	Refresh(c *fiber.Ctx) error
-	Logout(c *fiber.Ctx) error
+type AuthServicer interface {
+	Login(log *zap.Logger, req dto.LoginUser) (dto.LoginResponse, error)
+	RefreshToken(log *zap.Logger, refreshToken string) (dto.LoginResponse, error)
+	Logout(log *zap.Logger, refreshToken string) error
+	UpdatePassword(log *zap.Logger, userID string, req dto.UpdatePasswordRequest) error
 }
 
 type AuthController struct {
-	AuthService *UserService
+	AuthService AuthServicer
 }
 
-func NewAuthController(service *UserService) *AuthController {
+func NewAuthController(service AuthServicer) *AuthController {
 	return &AuthController{AuthService: service}
 }
 

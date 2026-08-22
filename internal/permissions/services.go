@@ -9,11 +9,11 @@ import (
 
 type PermService struct {
 	PermissionRepo PermissionRepo
-	ModuleDb       *modules.ModuleDb
+	ModuleLookup   modules.ModuleRepo
 }
 
-func NewService(PermRepo PermissionRepo, ModuleDb *modules.ModuleDb) *PermService {
-	return &PermService{PermissionRepo: PermRepo, ModuleDb: ModuleDb}
+func NewService(PermRepo PermissionRepo, moduleLookup modules.ModuleRepo) *PermService {
+	return &PermService{PermissionRepo: PermRepo, ModuleLookup: moduleLookup}
 }
 func (PermSer *PermService) DefaultPerm() error {
 	now := time.Now()
@@ -37,7 +37,7 @@ func (PermSer *PermService) FindMany() ([]modules.Modules, []Permission, error) 
 	if err != nil {
 		return nil, nil, err
 	}
-	modules, err := PermSer.ModuleDb.FindMany()
+	modules, err := PermSer.ModuleLookup.FindMany()
 	if err != nil {
 		return nil, nil, err
 	}

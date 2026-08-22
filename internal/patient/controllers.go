@@ -18,11 +18,17 @@ type IPatientController interface {
 	GetPatientByID(c *fiber.Ctx) (err error)
 }
 
-type PatientController struct {
-	PatientService *PatientService
+type PatientServicer interface {
+	CreatePatientSrv(log *zap.Logger, payload dto.PatientInfo) (string, error)
+	FindOne(log *zap.Logger, id string) (dto.PatientResponse, error)
+	FindMany(log *zap.Logger, req dto.PatientListReq) ([]dto.PatientResponse, int64, error)
 }
 
-func NewPatientControllerInterface(service *PatientService) IPatientController {
+type PatientController struct {
+	PatientService PatientServicer
+}
+
+func NewPatientControllerInterface(service PatientServicer) IPatientController {
 	return &PatientController{PatientService: service}
 }
 

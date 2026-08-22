@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient/dto"
 	"hospital-backend/pkg/constants"
@@ -20,10 +19,14 @@ import (
 	"gorm.io/gorm"
 )
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type PatientService struct {
 	PRepo         PatientRepository
-	OrgService    *organisation.OrganisationService
-	notifications *service.Notificationservice
+	OrgService    organisation.OrganisationServicer
+	notifications NotificationEnqueuer
 }
 
 type validationError struct {
@@ -35,7 +38,7 @@ func (e *validationError) Error() string {
 	return e.Msg
 }
 
-func NewPatientService(p PatientRepository, orgService *organisation.OrganisationService, notifications *service.Notificationservice) *PatientService {
+func NewPatientService(p PatientRepository, orgService organisation.OrganisationServicer, notifications NotificationEnqueuer) *PatientService {
 	return &PatientService{PRepo: p, OrgService: orgService, notifications: notifications}
 }
 

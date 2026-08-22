@@ -12,8 +12,16 @@ import (
 	"go.uber.org/zap"
 )
 
+type InvoiceServicer interface {
+	CreateInvoice(log *zap.Logger, reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error)
+	GetInvoiceByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.InvoiceByPrescriptionResponse, error)
+	GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error)
+	GetBillDetailsByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.BillDetailsByPrescriptionResponse, error)
+	RetryPaymentLink(log *zap.Logger, invoiceID, idempotencyKey string) (dto.InvoiceResponse, error)
+}
+
 type Ibilling struct {
-	BillingServ *InvoiceServ
+	BillingServ InvoiceServicer
 }
 
 type BillingHandler interface {
@@ -24,7 +32,7 @@ type BillingHandler interface {
 	RetryPaymentLink(c *fiber.Ctx) error
 }
 
-func NewBillingController(BillingServ *InvoiceServ) *Ibilling {
+func NewBillingController(BillingServ InvoiceServicer) *Ibilling {
 	return &Ibilling{BillingServ: BillingServ}
 }
 

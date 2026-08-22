@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/billing/dto"
-	"hospital-backend/internal/patient"
 	patientDto "hospital-backend/internal/patient/dto"
 	"hospital-backend/internal/payments"
 	paymentDto "hospital-backend/internal/payments/dto"
@@ -21,16 +20,32 @@ import (
 	"gorm.io/gorm"
 )
 
+type PatientLookup interface {
+	FindOne(log *zap.Logger, id string) (patientDto.PatientResponse, error)
+}
+
+type AppointmentLookup interface {
+	GetAppntmentByID(log *zap.Logger, appointmentID string) (appointments.Appointment, error)
+}
+
+type PaymentCheckout interface {
+	GetPaymentByIdempotencyKey(log *zap.Logger, key string) (payments.Payments, error)
+	GetPaymentURLByPaymentID(log *zap.Logger, paymentID string) (string, error)
+	CreateLinkPayment(log *zap.Logger, paymentReq paymentDto.CreatePaymentCommand) (paymentDto.CreatePaymentResponse, error)
+	CreatePendingPayment(log *zap.Logger, paymentReq paymentDto.CreatePaymentCommand) (payments.Payments, error)
+	RetryLinkPayment(log *zap.Logger, paymentReq paymentDto.CreatePaymentCommand) (paymentDto.CreatePaymentResponse, error)
+}
+
 type InvoiceServ struct {
 	db           *gorm.DB
 	InvRepo      InvoiceRepo
-	PaymentServ  *payments.PaymentsService
+	PaymentServ  PaymentCheckout
 	InoviceItemS *InvoiceItemServ
-	PatientServ  *patient.PatientService
-	AppointmentS *appointments.AppointmentService
+	PatientServ  PatientLookup
+	AppointmentS AppointmentLookup
 }
 
-func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS *payments.PaymentsService, items *InvoiceItemServ, patientServ *patient.PatientService, appointmentServ *appointments.AppointmentService) *InvoiceServ {
+func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS PaymentCheckout, items *InvoiceItemServ, patientServ PatientLookup, appointmentServ AppointmentLookup) *InvoiceServ {
 	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ, AppointmentS: appointmentServ}
 }
 

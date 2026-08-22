@@ -43,7 +43,7 @@ func (RoleSer *RoleServices) mapToRoleResponse(role Role) dto.RoleResponse {
 	}
 }
 func (RoleSer *RoleServices) FindRoleByOrgID(organisationID string) ([]Role, error) {
-	roles, err := RoleSer.FindRoleByOrgID(organisationID)
+	roles, err := RoleSer.RoleRepo.FindRoleByOrgID(organisationID)
 	if err != nil {
 		return nil, err
 	}

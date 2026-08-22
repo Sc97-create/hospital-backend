@@ -12,12 +12,29 @@ import (
 	"go.uber.org/zap"
 )
 
-type PrescriptionController struct {
-	PService     *PrescriptionService
-	PItemService *PrescriptionItemServ
+type PrescriptionServicer interface {
+	CreatePrescription(log *zap.Logger, requestdto dto.CreatePrescriptionRequest) (string, error)
+	FindMany(log *zap.Logger, req dto.FindManyRequest) ([]dto.PrescriptionListItem, int64, error)
+	FindByStatus(log *zap.Logger, limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error)
+	AddPrescriptionItems(log *zap.Logger, payload dto.UpdateRequest) error
+	UpdateManualStatus(log *zap.Logger, prescriptionID string, appointmentID string, status string) error
+	GetPrescriptionByAppointmentID(log *zap.Logger, reqmodel dto.PresPatients) (dto.Response, error)
+	GetPrescriptionsByPatientID(log *zap.Logger, reqmodel dto.PatientPrescriptionsRequest) (dto.Response, error)
 }
 
-func NewPrescriptionController(PService *PrescriptionService, PItems *PrescriptionItemServ) *PrescriptionController {
+type PrescriptionItemServicer interface {
+	UpdatePrescriptionItemByID(log *zap.Logger, req dto.UpdatePrescriptionItemRequest) error
+	GetPrescriptionsByPIDWithLimit(log *zap.Logger, pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error)
+	GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, int64, error)
+	GetqtyByMedicine(log *zap.Logger, prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error)
+}
+
+type PrescriptionController struct {
+	PService     PrescriptionServicer
+	PItemService PrescriptionItemServicer
+}
+
+func NewPrescriptionController(PService PrescriptionServicer, PItems PrescriptionItemServicer) *PrescriptionController {
 	return &PrescriptionController{PService: PService, PItemService: PItems}
 }
 

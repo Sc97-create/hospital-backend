@@ -2,12 +2,7 @@ package organisation
 
 import (
 	"errors"
-	"hospital-backend/internal/department"
-	"hospital-backend/internal/license"
 	dto "hospital-backend/internal/organisation/DTO"
-	"hospital-backend/internal/permissions"
-	"hospital-backend/internal/rolepermissions"
-	"hospital-backend/internal/roles"
 	wrapError "hospital-backend/shared/error"
 	"time"
 
@@ -19,14 +14,14 @@ import (
 type OrganisationService struct {
 	DB                    *gorm.DB
 	OrganisationRepo      OrganisationRepo
-	LicenseRep            *license.LicenseService
-	RoleServices          *roles.RoleServices
-	DeptServices          *department.DepartmentService
-	PermService           *permissions.PermService
-	RolePermissionService *rolepermissions.RolePermissionService
+	LicenseRep            LicenseCreator
+	RoleServices          RoleSeeder
+	DeptServices          DepartmentSeeder
+	PermService           PermissionCatalogLookup
+	RolePermissionService RolePermissionSeeder
 }
 
-func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, license *license.LicenseService, roleRepo *roles.RoleServices, deptRepo *department.DepartmentService, permServ *permissions.PermService, rolePermissionRepo *rolepermissions.RolePermissionService) *OrganisationService {
+func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, license LicenseCreator, roleRepo RoleSeeder, deptRepo DepartmentSeeder, permServ PermissionCatalogLookup, rolePermissionRepo RolePermissionSeeder) *OrganisationService {
 	return &OrganisationService{DB: db, OrganisationRepo: orgRepo, LicenseRep: license, RoleServices: roleRepo, DeptServices: deptRepo, PermService: permServ, RolePermissionService: rolePermissionRepo}
 }
 

@@ -9,7 +9,6 @@ import (
 	"hospital-backend/internal/employee/dto"
 	"hospital-backend/internal/employee/utils"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/roles"
 	"hospital-backend/pkg/constants"
@@ -23,18 +22,22 @@ import (
 	"gorm.io/gorm"
 )
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type EmployeeService struct {
 	DB              *gorm.DB
 	EmpRepo         EmployeeRepository
 	OranisationRepo organisation.OrganisationRepo
 	RoleServices    *roles.RoleServices
 	DeptServices    *department.DepartmentService
-	Notifications   *service.Notificationservice
+	Notifications   NotificationEnqueuer
 	cfg             *config.Config
 }
 
-func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleServices *roles.RoleServices, deptServices *department.DepartmentService, cfg *config.Config) *EmployeeService {
-	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleServices: roleServices, DeptServices: deptServices, cfg: cfg}
+func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleServices *roles.RoleServices, deptServices *department.DepartmentService, notifications NotificationEnqueuer, cfg *config.Config) *EmployeeService {
+	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleServices: roleServices, DeptServices: deptServices, Notifications: notifications, cfg: cfg}
 }
 
 func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id string, err error) {
@@ -100,7 +103,7 @@ func (Eservice *EmployeeService) getPageSkip(limit int, pageNo int) (int, int) {
 	return limit, skip
 }
 
-func (Eservice *EmployeeService) arrayMapToEmployeeResponse(rows []employeeListRow) []dto.EmployeeResponse {
+func (Eservice *EmployeeService) arrayMapToEmployeeResponse(rows []EmployeeListRow) []dto.EmployeeResponse {
 	employeeResponse := []dto.EmployeeResponse{}
 	for _, each := range rows {
 		employeeResponse = append(employeeResponse, Eservice.mapToEmployeeResponse(each))
@@ -108,7 +111,7 @@ func (Eservice *EmployeeService) arrayMapToEmployeeResponse(rows []employeeListR
 	return employeeResponse
 }
 
-func (Eservice *EmployeeService) mapToEmployeeResponse(row employeeListRow) dto.EmployeeResponse {
+func (Eservice *EmployeeService) mapToEmployeeResponse(row EmployeeListRow) dto.EmployeeResponse {
 	name := row.Username
 	if name == "" {
 		name = strings.TrimSpace(row.FirstName + " " + row.LastName)
@@ -187,7 +190,7 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 	return Eservice.EmpRepo.Update(payload.UserID, updateUser)
 }
 
-func (Eservice *EmployeeService) FindDoctors(search string, organisationID string) (u []User, err error) {
+func (Eservice *EmployeeService) FindDoctors(search string, organisationID string) ([]dto.Doctor, error) {
 	query := `
         SELECT u.*
         FROM users u
@@ -207,11 +210,30 @@ func (Eservice *EmployeeService) FindDoctors(search string, organisationID strin
 		args = append(args, like, like)
 		idx += 2
 	}
-	u, err = Eservice.EmpRepo.ReadDoctors(query, args...)
+	users, err := Eservice.EmpRepo.ReadDoctors(query, args...)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return mapUsersToDoctors(users), nil
+}
+
+func mapUsersToDoctors(users []User) []dto.Doctor {
+	doctors := make([]dto.Doctor, 0, len(users))
+	for _, u := range users {
+		doctors = append(doctors, dto.Doctor{
+			ID:             u.ID,
+			Username:       u.Username,
+			FirstName:      u.FirstName,
+			LastName:       u.LastName,
+			EmailID:        u.EmailID,
+			PhoneNumber:    u.PhoneNumber,
+			OrganisationID: u.OrganisationID,
+			RoleID:         u.RoleID,
+			DepartmentID:   u.DepartmentID,
+			IsActive:       u.IsActive,
+		})
+	}
+	return doctors
 }
 func (Eservice *EmployeeService) hashPassword(password string) (hashedPwd []byte, err error) {
 	hashedPwd, err = bcrypt.GenerateFromPassword([]byte(password), 8)

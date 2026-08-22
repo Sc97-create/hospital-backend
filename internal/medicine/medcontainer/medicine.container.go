@@ -25,7 +25,7 @@ func MedicineContainer(db *gorm.DB) *MedContainer {
 	medMvmtService := medicine.NewMedicineMvmt(medMvmtRepo)
 	purchaseEntryService := medicine.NewPurchaseEntryService(purchaseEntryRepo)
 	supplierService := medicine.NewSupplierService(supplierRepo)
-	medicineService := medicine.NewMedicineService(db, medicineRepo, *medInventoryService, *medMvmtService, *purchaseEntryService, *supplierService)
+	medicineService := medicine.NewMedicineService(db, medicineRepo, medInventoryService, medMvmtService, purchaseEntryService, supplierService)
 
 	return &MedContainer{
 		Medicineservices:     medicineService,

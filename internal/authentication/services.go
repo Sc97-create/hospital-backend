@@ -5,11 +5,10 @@ import (
 	"hospital-backend/internal/authentication/dto"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
-	jwtAuth "hospital-backend/internal/jwt"
-	"hospital-backend/internal/rolepermissions"
 	rpdto "hospital-backend/internal/rolepermissions/dto"
 	wrapError "hospital-backend/shared/error"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -20,14 +19,28 @@ const (
 	minPasswordLen = 8
 )
 
-type UserService struct {
-	Repo              UserRepository
-	JwtService        jwtAuth.JwtService
-	RolePermissionSvc *rolepermissions.RolePermissionService
+type JwtServicer interface {
+	AccessToken(userID, organisationID string) (string, error)
+	FindIDByUserID(userID string) (string, error)
+	UpdateRefreshToken(refreshID, userID, organisationID string) (string, error)
+	RefreshToken(organisationID, userID, refreshID string) (jwt.Claims, error)
+	InsertRefreshToken(token string, expiry time.Time, userID, refreshID string) error
+	ValidateRefreshToken(log *zap.Logger, token string) (jwt.TokenResp, error)
+	LogoutRefreshToken(log *zap.Logger, refreshToken string) error
 }
 
-func NewService(repo AuthRepo, jwtService jwt.JwtService, rolePermSvc *rolepermissions.RolePermissionService) UserService {
-	return UserService{Repo: &repo, JwtService: jwtService, RolePermissionSvc: rolePermSvc}
+type RolePermissionServicer interface {
+	FindModulesByRoleID(roleID string) (rpdto.RoleAccess, error)
+}
+
+type UserService struct {
+	Repo              UserRepository
+	JwtService        JwtServicer
+	RolePermissionSvc RolePermissionServicer
+}
+
+func NewService(repo UserRepository, jwtService JwtServicer, rolePermSvc RolePermissionServicer) *UserService {
+	return &UserService{Repo: repo, JwtService: jwtService, RolePermissionSvc: rolePermSvc}
 }
 
 func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse, error) {
@@ -89,7 +102,7 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 		return dto.LoginResponse{}, wrapError.ErrLoginFailed
 	}
 
-	refreshID, err := a.JwtService.RefreshtokenRepo.FindIDByUserID(user.ID)
+	refreshID, err := a.JwtService.FindIDByUserID(user.ID)
 	if err != nil {
 		log.Error("login failed",
 			zap.String("user_id", user.ID),

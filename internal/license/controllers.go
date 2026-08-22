@@ -11,7 +11,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func VerifyLicense(c *fiber.Ctx, service *LicenseService) error {
+type LicenseServicer interface {
+	VerifyLicense(log *zap.Logger, organisationID, licensekey string) error
+}
+
+func VerifyLicense(c *fiber.Ctx, service LicenseServicer) error {
 	logger := middleware.GetLogger(c)
 
 	payload, err := params.New(c)

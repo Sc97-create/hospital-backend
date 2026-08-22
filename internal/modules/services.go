@@ -7,11 +7,11 @@ import (
 )
 
 type ModuleService struct {
-	ModuleDb *ModuleDb
+	repo ModuleRepo
 }
 
-func NewModuleService(ModuleDb *ModuleDb) *ModuleService {
-	return &ModuleService{ModuleDb: ModuleDb}
+func NewModuleService(repo ModuleRepo) *ModuleService {
+	return &ModuleService{repo: repo}
 }
 
 func (Mod *ModuleService) DefaultModule() error {
@@ -25,7 +25,7 @@ func (Mod *ModuleService) DefaultModule() error {
 			IsActive:  true,
 		})
 	}
-	err := Mod.ModuleDb.BatchInsert(moduleArr, 2)
+	err := Mod.repo.BatchInsert(moduleArr, 2)
 	if err != nil {
 		return err
 	}

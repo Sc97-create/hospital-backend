@@ -58,7 +58,7 @@ type User struct {
 	Organisation organisation.Organisation `gorm:"foreignKey:OrganisationID;references:ID"`
 }
 
-type employeeListRow struct {
+type EmployeeListRow struct {
 	ID             string `gorm:"column:id"`
 	EmployeeCode   string `gorm:"column:employee_code"`
 	Username       string `gorm:"column:username"`

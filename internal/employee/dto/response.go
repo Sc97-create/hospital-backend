@@ -22,3 +22,17 @@ type EmployeeListResponse struct {
 	TotalCount int64              `json:"total_count"`
 	Code       int                `json:"code"`
 }
+
+// Doctor is the API shape returned by FindDoctors (decouples servicer mocks from employee.User).
+type Doctor struct {
+	ID             string `json:"id"`
+	Username       string `json:"username"`
+	FirstName      string `json:"first_name"`
+	LastName       string `json:"last_name"`
+	EmailID        string `json:"email_id"`
+	PhoneNumber    string `json:"phone_number"`
+	OrganisationID string `json:"organisation_id"`
+	RoleID         string `json:"role_id"`
+	DepartmentID   string `json:"department_id"`
+	IsActive       bool   `json:"is_active"`
+}

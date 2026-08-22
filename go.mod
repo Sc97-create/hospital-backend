@@ -9,10 +9,12 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.7.3
+	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/datatypes v1.2.7
+	gorm.io/driver/sqlite v1.6.0
 )
 
 require (
@@ -24,6 +26,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect

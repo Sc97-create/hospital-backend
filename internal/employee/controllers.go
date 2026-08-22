@@ -21,11 +21,21 @@ type EmployeeControllers interface {
 	UpdateUser(c *fiber.Ctx) error
 	FindDoctors(c *fiber.Ctx) error
 }
-type EmployeeController struct {
-	EmployeeService *EmployeeService
+type EmployeeServicer interface {
+	CreateEmployee(payload dto.EmpRequest) (id string, err error)
+	DeleteEmployee(userID string) (err error)
+	FindOne(id string) (dto.EmployeeResponse, error)
+	FindMany(req dto.FindManyRequest) (employeeResp []dto.EmployeeResponse, total int64, err error)
+	CreateAdminProf(payload dto.EmpRequest) (userID string, err error)
+	UpdateAdminProf(payload dto.UpdateRequest) (err error)
+	FindDoctors(search string, organisationID string) (u []dto.Doctor, err error)
 }
 
-func NewEmployeeControllerInterface(employeeService *EmployeeService) *EmployeeController {
+type EmployeeController struct {
+	EmployeeService EmployeeServicer
+}
+
+func NewEmployeeControllerInterface(employeeService EmployeeServicer) *EmployeeController {
 	return &EmployeeController{EmployeeService: employeeService}
 }
 
@@ -290,7 +300,7 @@ func (e *EmployeeController) UpdateUser(c *fiber.Ctx) (err error) {
 	AdminReq.Password, _ = payload.Getstring("password")
 	confirmPassword, _ := payload.Getstring("confirm_password")
 	if AdminReq.Password != confirmPassword {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, 409)
 	}
 	err = e.EmployeeService.UpdateAdminProf(AdminReq)
 	if err != nil {
