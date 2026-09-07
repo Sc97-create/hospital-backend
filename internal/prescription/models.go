@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	patientdto "hospital-backend/internal/patient/dto"
 	"time"
 )
 
@@ -74,6 +75,28 @@ type MixedPrescriptionItem struct {
 	MedicineID         string  `json:"medicine_id"`
 	MedicineStrength   string  `json:"medicine_strength"`
 }
+type MedicineInfoPatientRow struct {
+	PatientID        string    `gorm:"column:patient_id"`
+	PatientCode      string    `gorm:"column:patient_code"`
+	PatientName      string    `gorm:"column:patient_name"`
+	PatientWeight    int       `gorm:"column:patient_weight"`
+	PatientGender    string    `gorm:"column:patient_gender"`
+	PatientPhone     string    `gorm:"column:patient_phone"`
+	PatientAddress   string    `gorm:"column:patient_address"`
+	PatientEmail     string    `gorm:"column:patient_email"`
+	PatientStatus    string    `gorm:"column:patient_status"`
+	PatientAge       int       `gorm:"column:patient_age"`
+	PatientBG        string    `gorm:"column:patient_bg"`
+	PatientLVD       time.Time `gorm:"column:patient_lvd"`
+	PatientCreatedAt time.Time `gorm:"column:patient_created_at"`
+}
+
+type MedicineInfoResult struct {
+	Items       []MedicineDetInfo
+	PatientData patientdto.PatientResponse
+	Total       int64
+}
+
 type MedicineDetInfo struct {
 	PrescriptionCode       string       `json:"prescription_code"`
 	PrescriptionStatus     string       `json:"prescription_status"`

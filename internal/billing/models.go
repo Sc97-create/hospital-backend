@@ -22,6 +22,13 @@ type Invoice struct {
 	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt      time.Time `json:"updated_at" gorm:"autoCreateTime"`
 }
+
+type TodayInvoiceCollectionRow struct {
+	PaymentMode string  `gorm:"column:payment_mode"`
+	Count       int     `gorm:"column:invoice_count"`
+	Amount      float64 `gorm:"column:total_amount"`
+}
+
 type InvoiceItem struct {
 	ID                  string    `json:"id" gorm:"type:uuid;not null;primaryKey"`
 	InvoiceID           string    `json:"invoice_id" gorm:"type:uuid;not null"`

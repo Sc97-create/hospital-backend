@@ -85,3 +85,23 @@ func TestResolvePaymentType(t *testing.T) {
 		t.Fatal("expected consultation type")
 	}
 }
+
+func TestBuildTodayInvoiceCollectionSummary(t *testing.T) {
+	summary := buildTodayInvoiceCollectionSummary([]TodayInvoiceCollectionRow{
+		{PaymentMode: "cash", Count: 2, Amount: 500},
+		{PaymentMode: "qr", Count: 1, Amount: 200},
+		{PaymentMode: "link", Count: 3, Amount: 1500},
+	})
+	if summary.TotalInvoices != 6 || summary.TotalAmount != 2200 {
+		t.Fatalf("unexpected totals: %+v", summary)
+	}
+	if summary.Cash.Count != 2 || summary.Cash.Amount != 500 {
+		t.Fatalf("unexpected cash: %+v", summary.Cash)
+	}
+	if summary.QR.Count != 1 || summary.QR.Amount != 200 {
+		t.Fatalf("unexpected qr: %+v", summary.QR)
+	}
+	if summary.Link.Count != 3 || summary.Link.Amount != 1500 {
+		t.Fatalf("unexpected link: %+v", summary.Link)
+	}
+}

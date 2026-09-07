@@ -1,34 +1,71 @@
 package authentication_test
 
 import (
+	"context"
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
+	"hospital-backend/config"
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/authentication/dto"
 	"hospital-backend/internal/authentication/mocks"
+	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
+	notificationdto "hospital-backend/internal/notifications/dto"
 	rpdto "hospital-backend/internal/rolepermissions/dto"
 	"hospital-backend/internal/testutil/servicetest"
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newAuthService(t *testing.T, repo authentication.UserRepository, jwtSvc authentication.JwtServicer, rolePerm authentication.RolePermissionServicer) *authentication.UserService {
 	t.Helper()
-	return authentication.NewService(repo, jwtSvc, rolePerm)
+	return authentication.NewService(repo, jwtSvc, rolePerm, servicetest.NoopNotifier{}, &config.Config{
+		PasswordResetBaseURL: "http://localhost:5173",
+	})
 }
 
 func TestServiceUpdatePassword(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	log := servicetest.NopLogger()
 	req := servicetest.ValidUpdatePasswordRequest()
+	tokenHash := authentication.HashPasswordResetToken(req.Token)
+	user := &employee.User{ID: "user-1"}
 
 	t.Run("validation fail", func(t *testing.T) {
 		svc := newAuthService(t, nil, nil, nil)
-		err := svc.UpdatePassword(log, "user-1", dto.UpdatePasswordRequest{Password: "short", ConfirmPassword: "short"})
+		err := svc.UpdatePassword(log, dto.UpdatePasswordRequest{
+			Token:           req.Token,
+			Password:        "short",
+			ConfirmPassword: "short",
+		})
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("missing token", func(t *testing.T) {
+		svc := newAuthService(t, nil, nil, nil)
+		err := svc.UpdatePassword(log, dto.UpdatePasswordRequest{
+			Password:        req.Password,
+			ConfirmPassword: req.ConfirmPassword,
+		})
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("invalid token", func(t *testing.T) {
+		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserByPasswordResetTokenHash(log, authentication.HashPasswordResetToken("wrong-token")).Return(nil, authentication.ErrUserNotFound)
+		svc := newAuthService(t, repo, nil, nil)
+		bad := req
+		bad.Token = "wrong-token"
+		err := svc.UpdatePassword(log, bad)
 		if !errors.Is(err, wrapError.ErrInvalidRequest) {
 			t.Fatalf("expected invalid request, got %v", err)
 		}
@@ -36,9 +73,9 @@ func TestServiceUpdatePassword(t *testing.T) {
 
 	t.Run("repo error", func(t *testing.T) {
 		repo := mocks.NewMockUserRepository(ctrl)
-		repo.EXPECT().UpdatePassword(log, "user-1", gomock.Any()).Return(errors.New("db error"))
+		repo.EXPECT().GetUserByPasswordResetTokenHash(log, tokenHash).Return(nil, errors.New("db error"))
 		svc := newAuthService(t, repo, nil, nil)
-		err := svc.UpdatePassword(log, "user-1", req)
+		err := svc.UpdatePassword(log, req)
 		if !errors.Is(err, wrapError.ErrPasswordUpdateFailed) {
 			t.Fatalf("expected password update failed, got %v", err)
 		}
@@ -46,22 +83,74 @@ func TestServiceUpdatePassword(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserByPasswordResetTokenHash(log, tokenHash).Return(user, nil)
 		repo.EXPECT().UpdatePassword(log, "user-1", gomock.Any()).Return(nil)
 		svc := newAuthService(t, repo, nil, nil)
-		if err := svc.UpdatePassword(log, "user-1", req); err != nil {
+		if err := svc.UpdatePassword(log, req); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("whitespace trim success", func(t *testing.T) {
 		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserByPasswordResetTokenHash(log, tokenHash).Return(user, nil)
 		repo.EXPECT().UpdatePassword(log, "user-1", gomock.Any()).Return(nil)
 		svc := newAuthService(t, repo, nil, nil)
 		reqWithSpace := dto.UpdatePasswordRequest{
+			Token:           "  " + req.Token + "  ",
 			Password:        "  " + req.Password + "  ",
 			ConfirmPassword: "  " + req.ConfirmPassword + "  ",
 		}
-		if err := svc.UpdatePassword(log, "user-1", reqWithSpace); err != nil {
+		if err := svc.UpdatePassword(log, reqWithSpace); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestServiceUpdatePasswordFirstLogin(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	log := servicetest.NopLogger()
+	req := dto.FirstLoginPasswordRequest{
+		Password:        "newpassword",
+		ConfirmPassword: "newpassword",
+	}
+	user := &employee.User{ID: "user-1"}
+
+	t.Run("validation fail", func(t *testing.T) {
+		svc := newAuthService(t, nil, nil, nil)
+		err := svc.UpdatePasswordFirstLogin(log, "user-1", dto.FirstLoginPasswordRequest{
+			Password:        "short",
+			ConfirmPassword: "short",
+		})
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("missing user id", func(t *testing.T) {
+		svc := newAuthService(t, nil, nil, nil)
+		err := svc.UpdatePasswordFirstLogin(log, "", req)
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("password already set", func(t *testing.T) {
+		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserByID(log, "user-1").Return(&employee.User{ID: "user-1", PasswordHash: "already-hashed"}, nil)
+		svc := newAuthService(t, repo, nil, nil)
+		err := svc.UpdatePasswordFirstLogin(log, "user-1", req)
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserByID(log, "user-1").Return(user, nil)
+		repo.EXPECT().UpdatePassword(log, "user-1", gomock.Any()).Return(nil)
+		svc := newAuthService(t, repo, nil, nil)
+		if err := svc.UpdatePasswordFirstLogin(log, "user-1", req); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -401,6 +490,98 @@ func TestServiceLogin(t *testing.T) {
 		}
 		if resp.Token != "access-token" || resp.UserID != user.ID || len(resp.Permissions) != 1 {
 			t.Fatalf("unexpected response: %+v", resp)
+		}
+	})
+}
+
+func TestServiceRequestPasswordReset(t *testing.T) {
+	log := servicetest.NopLogger()
+	cfg := &config.Config{PasswordResetBaseURL: "http://localhost:5173"}
+
+	t.Run("missing email", func(t *testing.T) {
+		svc := authentication.NewService(nil, nil, nil, servicetest.NoopNotifier{}, cfg)
+		err := svc.RequestPasswordReset(log, "  ")
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("unknown email returns success", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+		repo.EXPECT().GetUserID(log, "missing@example.com").Return(nil, authentication.ErrUserNotFound)
+		svc := authentication.NewService(repo, nil, nil, servicetest.NoopNotifier{}, cfg)
+		if err := svc.RequestPasswordReset(log, "missing@example.com"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("cooldown", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+		recent := time.Now().UTC().Add(-5 * time.Minute)
+		user := &employee.User{ID: "user-1", EmailID: "a@example.com", LastPwdUpdated: &recent}
+		repo.EXPECT().GetUserID(log, "a@example.com").Return(user, nil)
+		svc := authentication.NewService(repo, nil, nil, servicetest.NoopNotifier{}, cfg)
+		err := svc.RequestPasswordReset(log, "a@example.com")
+		if !errors.Is(err, wrapError.ErrPasswordResetTooSoon) {
+			t.Fatalf("expected too soon, got %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockUserRepository(ctrl)
+		notifier := mocks.NewMockNotificationEnqueuer(ctrl)
+		user := &employee.User{
+			ID:             "user-1",
+			EmailID:        "a@example.com",
+			FirstName:      "Ada",
+			LastName:       "Lovelace",
+			OrganisationID: "org-1",
+		}
+		var savedHash string
+		var plainToken string
+		repo.EXPECT().GetUserID(log, "a@example.com").Return(user, nil)
+		repo.EXPECT().SavePasswordResetToken(log, "user-1", gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ *zap.Logger, _ string, tokenHash string, _ time.Time) error {
+				savedHash = tokenHash
+				return nil
+			})
+		notifier.EXPECT().Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req notificationdto.CreateRequest) error {
+				data, ok := req.Data.(map[string]interface{})
+				if !ok {
+					t.Fatal("expected notification data map")
+				}
+				resetURL, _ := data["reset_url"].(string)
+				u, err := url.Parse(resetURL)
+				if err != nil {
+					t.Fatalf("parse reset url: %v", err)
+				}
+				plainToken = u.Query().Get("token")
+				return nil
+			})
+		svc := authentication.NewService(repo, nil, nil, notifier, cfg)
+		if err := svc.RequestPasswordReset(log, "a@example.com"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if plainToken == "" || savedHash == "" {
+			t.Fatal("expected plain token and saved hash")
+		}
+		if authentication.HashPasswordResetToken(plainToken) != savedHash {
+			t.Fatal("saved hash does not match hash of token from reset url")
+		}
+
+		repo.EXPECT().GetUserByPasswordResetTokenHash(log, savedHash).Return(&employee.User{ID: "user-1"}, nil)
+		repo.EXPECT().UpdatePassword(log, "user-1", gomock.Any()).Return(nil)
+		err := svc.UpdatePassword(log, dto.UpdatePasswordRequest{
+			Token:           plainToken,
+			Password:        "newpassword",
+			ConfirmPassword: "newpassword",
+		})
+		if err != nil {
+			t.Fatalf("update password with plain token: %v", err)
 		}
 	})
 }

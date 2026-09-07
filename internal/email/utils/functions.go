@@ -25,7 +25,7 @@ func SendEmail(emailID string, body string) (err error) {
 	m := gomail.NewMessage()
 	m.SetHeader("From", "sachinchate34@gmail.com")
 	m.SetHeader("To", emailID)
-	m.SetHeader("Subject", "Verify License and Get Started!!!")
+	m.SetHeader("Subject", "Get started with your hospital account")
 	m.SetBody("text/html", body)
 	d := gomail.NewDialer("smtp.gmail.com", 587, "sachinchate34@gmail.com", "affd ccib fwcn nijr")
 	if err := d.DialAndSend(m); err != nil {

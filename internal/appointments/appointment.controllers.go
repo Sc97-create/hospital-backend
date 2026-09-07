@@ -26,6 +26,7 @@ type AppointmentServicer interface {
 	CreateApptmnt(log *zap.Logger, requestPayload dto.NewApptmnt) (dto.NewApptmntResp, error)
 	GetSlots(log *zap.Logger, doctorID string, organisationID string, date string) (dto.SlotResponse, error)
 	GetAppointmentsByOrgID(log *zap.Logger, reqModel dto.GetDataReq) ([]dto.AppointmentList, int, error)
+	GetAppointmentsGroupedByStatus(log *zap.Logger, organisationID string) (dto.AppointmentStatusCounts, error)
 	GetAppointmentPreview(log *zap.Logger, organisationID string, appointmentID string) (dto.AppointmentDetails, error)
 	UpdateStatus(log *zap.Logger, updateReq dto.UpdateStatus) error
 	GetAppointmentByPatientID(log *zap.Logger, reqModel dto.PatientAppntment) (dto.Response, error)

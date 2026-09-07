@@ -62,16 +62,18 @@ func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 
 func parseEmployeeEvent(v map[string]interface{}) dto.NotificationModel {
 	return dto.NotificationModel{
-		EmployeeName:   mapString(v, "employee_name"),
-		EmployeeEmail:  mapString(v, "employee_email"),
-		RoleName:       mapString(v, "role_name"),
-		DepartmentName: mapString(v, "department_name"),
-		HospitalName:   mapString(v, "hospital_name"),
-		OrganisationID: mapString(v, "organisation_id"),
-		LoginURL:       mapString(v, "login_url"),
-		TempPassword:   mapString(v, "temp_password"),
-		PatientEmail:   mapString(v, "employee_email"),
-		EmployeeID:     mapString(v, "employee_id"),
+		EmployeeName:    mapString(v, "employee_name"),
+		EmployeeEmail:   mapString(v, "employee_email"),
+		RoleName:        mapString(v, "role_name"),
+		DepartmentName:  mapString(v, "department_name"),
+		HospitalName:    mapString(v, "hospital_name"),
+		OrganisationID:  mapString(v, "organisation_id"),
+		LoginURL:        mapString(v, "login_url"),
+		TempPassword:    mapString(v, "temp_password"),
+		ResetURL:        mapString(v, "reset_url"),
+		CooldownMinutes: mapString(v, "cooldown_minutes"),
+		PatientEmail:    mapString(v, "employee_email"),
+		EmployeeID:      mapString(v, "employee_id"),
 	}
 }
 

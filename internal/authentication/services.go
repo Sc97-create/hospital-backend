@@ -1,12 +1,21 @@
 package authentication
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"hospital-backend/config"
 	"hospital-backend/internal/authentication/dto"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
+	notificationdto "hospital-backend/internal/notifications/dto"
 	rpdto "hospital-backend/internal/rolepermissions/dto"
+	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,8 +24,9 @@ import (
 )
 
 const (
-	bcryptCost     = 8
-	minPasswordLen = 8
+	bcryptCost      = 8
+	minPasswordLen  = 8
+	resetTokenBytes = 32
 )
 
 type JwtServicer interface {
@@ -33,14 +43,26 @@ type RolePermissionServicer interface {
 	FindModulesByRoleID(roleID string) (rpdto.RoleAccess, error)
 }
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type UserService struct {
 	Repo              UserRepository
 	JwtService        JwtServicer
 	RolePermissionSvc RolePermissionServicer
+	Notifications     NotificationEnqueuer
+	cfg               *config.Config
 }
 
-func NewService(repo UserRepository, jwtService JwtServicer, rolePermSvc RolePermissionServicer) *UserService {
-	return &UserService{Repo: repo, JwtService: jwtService, RolePermissionSvc: rolePermSvc}
+func NewService(repo UserRepository, jwtService JwtServicer, rolePermSvc RolePermissionServicer, notifications NotificationEnqueuer, cfg *config.Config) *UserService {
+	return &UserService{
+		Repo:              repo,
+		JwtService:        jwtService,
+		RolePermissionSvc: rolePermSvc,
+		Notifications:     notifications,
+		cfg:               cfg,
+	}
 }
 
 func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse, error) {
@@ -261,18 +283,85 @@ func (a *UserService) toLoginResp(tokenresp jwt.TokenResp) dto.LoginResponse {
 	}
 }
 
-func (a *UserService) UpdatePassword(log *zap.Logger, userID string, req dto.UpdatePasswordRequest) error {
+func (a *UserService) UpdatePassword(log *zap.Logger, req dto.UpdatePasswordRequest) error {
+	log = ensureLog(log)
+	req.Token = normalizeResetToken(req.Token)
+	req.Password = strings.TrimSpace(req.Password)
+	req.ConfirmPassword = strings.TrimSpace(req.ConfirmPassword)
+
+	if req.Token == "" {
+		log.Warn("password update failed", zap.String("reason", "missing_token"))
+		return wrapError.ErrInvalidRequest
+	}
+	if err := a.validateNewPassword(req.Password, req.ConfirmPassword); err != nil {
+		log.Warn("password update failed", zap.String("reason", "invalid_request"))
+		return wrapError.ErrInvalidRequest
+	}
+
+	// Plain token from the reset link is hashed before lookup — DB stores SHA-256(plain_token), never the raw token.
+	tokenHash := hashPasswordResetToken(req.Token)
+	user, err := a.Repo.GetUserByPasswordResetTokenHash(log, tokenHash)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			log.Warn("password update failed", zap.String("reason", "invalid_token"))
+			return wrapError.ErrInvalidRequest
+		}
+		log.Error("password update failed",
+			zap.String("reason", "user_lookup"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordUpdateFailed
+	}
+
+	return a.persistPassword(log, user.ID, req.Password)
+}
+
+func (a *UserService) UpdatePasswordFirstLogin(log *zap.Logger, userID string, req dto.FirstLoginPasswordRequest) error {
 	log = ensureLog(log)
 	req.Password = strings.TrimSpace(req.Password)
 	req.ConfirmPassword = strings.TrimSpace(req.ConfirmPassword)
-	if err := a.validateNewPassword(req); err != nil {
-		log.Warn("password update failed",
+
+	if userID == "" {
+		log.Warn("first-login password update failed", zap.String("reason", "missing_user"))
+		return wrapError.ErrInvalidRequest
+	}
+	if err := a.validateNewPassword(req.Password, req.ConfirmPassword); err != nil {
+		log.Warn("first-login password update failed",
 			zap.String("user_id", userID),
 			zap.String("reason", "invalid_request"),
 		)
 		return wrapError.ErrInvalidRequest
 	}
-	passwordHash, err := a.hashPassword(req.Password)
+
+	user, err := a.Repo.GetUserByID(log, userID)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			log.Warn("first-login password update failed",
+				zap.String("user_id", userID),
+				zap.String("reason", "user_not_found"),
+			)
+			return wrapError.ErrInvalidRequest
+		}
+		log.Error("first-login password update failed",
+			zap.String("user_id", userID),
+			zap.String("reason", "user_lookup"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordUpdateFailed
+	}
+	if strings.TrimSpace(user.PasswordHash) != "" {
+		log.Warn("first-login password update failed",
+			zap.String("user_id", userID),
+			zap.String("reason", "password_already_set"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+
+	return a.persistPassword(log, user.ID, req.Password)
+}
+
+func (a *UserService) persistPassword(log *zap.Logger, userID, password string) error {
+	passwordHash, err := a.hashPassword(password)
 	if err != nil {
 		log.Error("password update failed",
 			zap.String("user_id", userID),
@@ -281,8 +370,7 @@ func (a *UserService) UpdatePassword(log *zap.Logger, userID string, req dto.Upd
 		)
 		return wrapError.ErrPasswordUpdateFailed
 	}
-	err = a.Repo.UpdatePassword(log, userID, passwordHash)
-	if err != nil {
+	if err := a.Repo.UpdatePassword(log, userID, passwordHash); err != nil {
 		log.Error("password update failed",
 			zap.String("user_id", userID),
 			zap.String("reason", "db_update"),
@@ -294,14 +382,167 @@ func (a *UserService) UpdatePassword(log *zap.Logger, userID string, req dto.Upd
 	return nil
 }
 
-func (a *UserService) validateNewPassword(req dto.UpdatePasswordRequest) error {
-	if req.Password == "" || req.ConfirmPassword == "" {
+func (a *UserService) RequestPasswordReset(log *zap.Logger, emailID string) error {
+	log = ensureLog(log)
+	emailID = strings.ToLower(strings.TrimSpace(emailID))
+	if emailID == "" {
+		log.Warn("password reset request invalid", zap.String("reason", "missing_email"))
 		return wrapError.ErrInvalidRequest
 	}
-	if req.Password != req.ConfirmPassword {
+
+	user, err := a.Repo.GetUserID(log, emailID)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			// Do not reveal whether the email exists.
+			log.Info("password reset request completed",
+				zap.String("reason", "user_not_found"),
+				zap.String("email_id", emailID),
+			)
+			return nil
+		}
+		log.Error("password reset failed",
+			zap.String("email_id", emailID),
+			zap.String("reason", "user_lookup"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordResetFailed
+	}
+
+	cooldown := time.Duration(constants.PasswordResetCooldownMinutes) * time.Minute
+	if user.LastPwdUpdated != nil && time.Since(*user.LastPwdUpdated) < cooldown {
+		log.Warn("password reset blocked",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "cooldown"),
+			zap.Time("last_pwd_updated", *user.LastPwdUpdated),
+		)
+		return wrapError.ErrPasswordResetTooSoon
+	}
+
+	plainToken, tokenHash, err := createPasswordResetToken()
+	if err != nil {
+		log.Error("password reset failed",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "token_generate"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordResetFailed
+	}
+
+	now := time.Now().UTC()
+	if err := a.Repo.SavePasswordResetToken(log, user.ID, tokenHash, now); err != nil {
+		log.Error("password reset failed",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordResetFailed
+	}
+
+	resetURL := a.buildPasswordResetURL(plainToken)
+	employeeName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+	if employeeName == "" {
+		employeeName = user.EmailID
+	}
+
+	if a.Notifications == nil {
+		log.Error("password reset failed",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "notifications_unavailable"),
+		)
+		return wrapError.ErrPasswordResetFailed
+	}
+
+	err = a.Notifications.Create(context.Background(), notificationdto.CreateRequest{
+		NotificationType: constants.PasswordResetEvent,
+		Subject:          constants.PasswordResetSubject,
+		Data: map[string]interface{}{
+			"employee_name":    employeeName,
+			"employee_email":   user.EmailID,
+			"employee_id":      user.ID,
+			"organisation_id":  user.OrganisationID,
+			"hospital_name":    "Hospital Portal",
+			"reset_url":        resetURL,
+			"cooldown_minutes": fmt.Sprintf("%d", constants.PasswordResetCooldownMinutes),
+		},
+	})
+	if err != nil {
+		log.Error("password reset failed",
+			zap.String("user_id", user.ID),
+			zap.String("reason", "enqueue_email"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPasswordResetFailed
+	}
+
+	log.Info("password reset link sent",
+		zap.String("user_id", user.ID),
+		zap.String("organisation_id", user.OrganisationID),
+	)
+	return nil
+}
+
+func (a *UserService) buildPasswordResetURL(token string) string {
+	base := constants.DefaultPasswordResetBaseURL
+	if a.cfg != nil && strings.TrimSpace(a.cfg.PasswordResetBaseURL) != "" {
+		base = strings.TrimRight(a.cfg.PasswordResetBaseURL, "/")
+	}
+	return fmt.Sprintf("%s%s?token=%s", base, constants.PasswordResetPath, url.QueryEscape(token))
+}
+
+func createPasswordResetToken() (plainToken string, tokenHash string, err error) {
+	raw := make([]byte, resetTokenBytes)
+	if _, err = rand.Read(raw); err != nil {
+		return "", "", err
+	}
+	plainToken = hex.EncodeToString(raw)
+	tokenHash = hashPasswordResetToken(plainToken)
+	return plainToken, tokenHash, nil
+}
+
+func hashPasswordResetToken(plainToken string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(plainToken)))
+	return hex.EncodeToString(sum[:])
+}
+
+// normalizeResetToken accepts the plain token from the reset link (or a full reset URL)
+// and returns the token value to hash for DB lookup.
+func normalizeResetToken(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	for i := 0; i < 2; i++ {
+		decoded, err := url.QueryUnescape(raw)
+		if err != nil || decoded == raw {
+			break
+		}
+		raw = strings.TrimSpace(decoded)
+	}
+	if strings.Contains(raw, "://") {
+		if u, err := url.Parse(raw); err == nil {
+			if token := strings.TrimSpace(u.Query().Get("token")); token != "" {
+				return normalizeResetToken(token)
+			}
+		}
+	}
+	if idx := strings.Index(raw, "token="); idx >= 0 {
+		fragment := raw[idx+len("token="):]
+		if amp := strings.Index(fragment, "&"); amp >= 0 {
+			fragment = fragment[:amp]
+		}
+		return normalizeResetToken(fragment)
+	}
+	return raw
+}
+
+func (a *UserService) validateNewPassword(password, confirmPassword string) error {
+	if password == "" || confirmPassword == "" {
 		return wrapError.ErrInvalidRequest
 	}
-	if len(req.Password) < minPasswordLen {
+	if password != confirmPassword {
+		return wrapError.ErrInvalidRequest
+	}
+	if len(password) < minPasswordLen {
 		return wrapError.ErrInvalidRequest
 	}
 	return nil

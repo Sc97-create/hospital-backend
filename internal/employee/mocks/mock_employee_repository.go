@@ -55,6 +55,21 @@ func (mr *MockEmployeeRepositoryMockRecorder) Count(organisationID, search any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockEmployeeRepository)(nil).Count), organisationID, search)
 }
 
+// CountByActiveStatus mocks base method.
+func (m *MockEmployeeRepository) CountByActiveStatus(organisationID string) (employee.EmployeeStatusCountRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByActiveStatus", organisationID)
+	ret0, _ := ret[0].(employee.EmployeeStatusCountRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByActiveStatus indicates an expected call of CountByActiveStatus.
+func (mr *MockEmployeeRepositoryMockRecorder) CountByActiveStatus(organisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByActiveStatus", reflect.TypeOf((*MockEmployeeRepository)(nil).CountByActiveStatus), organisationID)
+}
+
 // CountByCodePrefix mocks base method.
 func (m *MockEmployeeRepository) CountByCodePrefix(organisationID, prefix string) (int64, error) {
 	m.ctrl.T.Helper()

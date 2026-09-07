@@ -7,10 +7,10 @@ import (
 	"hospital-backend/internal/bedmanagement"
 	bedcontroller "hospital-backend/internal/bedmanagement/controllers"
 	"hospital-backend/internal/billing"
+	"hospital-backend/internal/dashboard"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
-	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
@@ -75,11 +75,13 @@ func RegisterAuthRoute(app *fiber.App, service *authentication.UserService, rbac
 	authGroup.Post("/login", auth.Login)
 	authGroup.Post("/refresh", auth.Refresh)
 	authGroup.Post("/logout", auth.Logout)
-	authGroup.Patch("/updatePassword",
+	authGroup.Post("/requestPasswordReset", auth.RequestPasswordReset)
+	// Public — password reset outside the authenticated app (email + reset token).
+	authGroup.Patch("/updatePassword", auth.UpdatePassword)
+	// Authenticated — first-time password change after temp-password login (JWT, RBAC-public).
+	authGroup.Patch("/updatePasswordFirstLogin",
 		func(c *fiber.Ctx) error { return middleware.Authenticate(c, rbac.JWT) },
-		func(c *fiber.Ctx) error { return middleware.LoadRoleAccess(c, rbac.RolePerm, rbac.RoleLookup) },
-		middleware.AuthorizeRBAC,
-		auth.UpdatePassword,
+		auth.UpdatePasswordFirstLogin,
 	)
 }
 
@@ -112,16 +114,28 @@ func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService, rbac
 
 func RegisterEmployeeRoutes(app *fiber.App, service *employee.EmployeeService, rbac RBACDeps) {
 	version := getVersion(app)
+	employeeController := employee.NewEmployeeControllerInterface(service)
+
+	// Authenticated but RBAC-public — used across modules (e.g. doctor lookup by id).
+	// Registered on its own group so UseProtected middleware below does not apply.
+	employeeSearch := version.Group("employee")
+	employeeSearch.Get("/getDoctors",
+		func(c *fiber.Ctx) error { return middleware.Authenticate(c, rbac.JWT) },
+		employeeController.FindDoctors,
+	)
+	employeeSearch.Get("/findbyID",
+		func(c *fiber.Ctx) error { return middleware.Authenticate(c, rbac.JWT) },
+		employeeController.FindByID,
+	)
+	// Public — first Super Admin after signupOrg; no JWT/RBAC yet.
+	version.Post("/employee/create", employeeController.CreateAdmin)
+
 	employeeGroup := version.Group("employee")
 	middleware.UseProtected(employeeGroup, rbac.JWT, rbac.RolePerm, rbac.RoleLookup)
-	employeeController := employee.NewEmployeeControllerInterface(service)
 	employeeGroup.Post("/addEmployee", employeeController.Add)
-	employeeGroup.Post("/create", employeeController.CreateAdmin)
 	employeeGroup.Patch("/update", employeeController.UpdateUser)
 	employeeGroup.Delete("/delete", employeeController.Delete)
-	employeeGroup.Get("/findbyID", employeeController.FindByID)
 	employeeGroup.Get("/getEmployees", employeeController.FindMany)
-	employeeGroup.Get("/getDoctors", employeeController.FindDoctors)
 }
 
 func RegisterOrganisationRoutes(app *fiber.App, service *organisation.OrganisationService) {
@@ -133,15 +147,6 @@ func RegisterOrganisationRoutes(app *fiber.App, service *organisation.Organisati
 	organisationGrp.Patch("/updateLocation", organisationController.UpdateOrganisationLoc)
 	organisationGrp.Get("/getbyid/:organisation_id", organisationController.GetByID)
 	organisationGrp.Patch("/update", organisationController.Update)
-}
-
-func RegisterLicenseRoutes(app *fiber.App, service *license.LicenseService, rbac RBACDeps) {
-	version := getVersion(app)
-	licenseGrp := version.Group("license")
-	middleware.UseProtected(licenseGrp, rbac.JWT, rbac.RolePerm, rbac.RoleLookup)
-	licenseGrp.Patch("/verifylicense/:organisationID", func(c *fiber.Ctx) error {
-		return license.VerifyLicense(c, service)
-	})
 }
 
 func RegisterMedicineRoutes(app *fiber.App, service *medicine.MedicineService, rbac RBACDeps) {
@@ -184,11 +189,24 @@ func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService, r
 	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
 }
 
+func RegisterDashboardRoutes(app *fiber.App, service *dashboard.DashboardService, rbac RBACDeps) {
+	version := getVersion(app)
+	dashboardGrp := version.Group("dashboard")
+	middleware.UseProtected(dashboardGrp, rbac.JWT, rbac.RolePerm, rbac.RoleLookup)
+	controller := dashboard.NewDashboardController(service)
+	dashboardGrp.Get("/getByStatus", controller.GetAppointmentsGroupedByStatus)
+	dashboardGrp.Get("/getTodayAppointments", controller.GetTodayLatestAppointments)
+	dashboardGrp.Get("/getTodayInvoiceSummary", controller.GetTodayCompletedInvoiceSummary)
+	dashboardGrp.Get("/getEmployeeStatusCounts", controller.GetEmployeeStatusCounts)
+	dashboardGrp.Get("/getTodayPrescriptions", controller.GetTodayPrescriptions)
+}
+
 func RegisterAppointments(app *fiber.App, service *appointments.AppointmentService, rbac RBACDeps) {
 	version := getVersion(app)
+	appointmentController := appointments.NewAppointmentController(service)
+
 	appointmentGrp := version.Group("appointment")
 	middleware.UseProtected(appointmentGrp, rbac.JWT, rbac.RolePerm, rbac.RoleLookup)
-	appointmentController := appointments.NewAppointmentController(service)
 	appointmentGrp.Post("/create", appointmentController.CreateAppointment)
 	appointmentGrp.Get("/getTimeSlots", appointmentController.GetSlots)
 	appointmentGrp.Post("/getappointmentbyOrgID", appointmentController.FindManyByOrganisationID)
@@ -223,6 +241,7 @@ func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, we
 	version := getVersion(app)
 	paymentGrp := version.Group("payment")
 	paymentController := payments.NewPaymentController(payment, webhook)
+	// Public — provider callbacks have no JWT; listed in PublicRoutes.
 	paymentGrp.Post("/webhook", paymentController.RazorPayWebhook)
 	paymentGrp.Post("/confirm",
 		func(c *fiber.Ctx) error { return middleware.Authenticate(c, rbac.JWT) },

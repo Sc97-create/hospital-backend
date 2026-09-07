@@ -49,15 +49,21 @@ func Load() (*Config, error) {
 	}
 	logLevel := viper.GetString("LOG_LEVEL")
 
+	passwordResetBaseURL := viper.GetString("PASSWORD_RESET_BASE_URL")
+	if passwordResetBaseURL == "" {
+		passwordResetBaseURL = "http://localhost:5173"
+	}
+
 	return &Config{
-		AppEnv:         appEnv,
-		Env:            env,
-		LogLevel:       logLevel,
-		ServerPort:     port,
-		DatabaseURL:    viper.GetString("DATABASE_URL"),
-		PrivateKeyPath: viper.GetString("PRIVATE_KEY_PATH"),
-		PublicKeyPath:  viper.GetString("PUBLIC_KEY_PATH"),
-		LoginUrl:       viper.GetString("LOGIN_URL"),
+		AppEnv:               appEnv,
+		Env:                  env,
+		LogLevel:             logLevel,
+		ServerPort:           port,
+		DatabaseURL:          viper.GetString("DATABASE_URL"),
+		PrivateKeyPath:       viper.GetString("PRIVATE_KEY_PATH"),
+		PublicKeyPath:        viper.GetString("PUBLIC_KEY_PATH"),
+		LoginUrl:             viper.GetString("LOGIN_URL"),
+		PasswordResetBaseURL: passwordResetBaseURL,
 		NotificationConfig: NotificationConfig{
 			SMTPHost:     smtpHost,
 			SMTPPort:     smtpPort,

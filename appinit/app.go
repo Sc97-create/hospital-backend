@@ -7,10 +7,10 @@ import (
 	"hospital-backend/internal/authentication"
 	"hospital-backend/internal/bedmanagement"
 	"hospital-backend/internal/billing"
+	"hospital-backend/internal/dashboard"
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	jwtAuth "hospital-backend/internal/jwt"
-	"hospital-backend/internal/license"
 	"hospital-backend/internal/medicine/medcontainer"
 	"hospital-backend/internal/modules"
 	notificationcontainer "hospital-backend/internal/notifications/notificationcontianer"
@@ -31,7 +31,6 @@ type Container struct {
 	//EmailService        *email.EmailService
 	OrganisationService    *organisation.OrganisationService
 	AuthService            *authentication.UserService
-	LicenseService         *license.LicenseService
 	PermissionService      *permissions.PermService
 	RolePermissionService  *rolepermissions.RolePermissionService
 	DepartmentService      *department.DepartmentService
@@ -43,6 +42,7 @@ type Container struct {
 	PrescriptionManagement *prescription.PrescriptionService
 	MedContainer           *medcontainer.MedContainer
 	AppointmentContainer   *appointments.AppntmentContainer
+	DashboardContainer     *dashboard.DashboardContainer
 	OrganisationSchedule   *admins.OrganisationScheduleService
 	NotificationContainer  *notificationcontainer.NotificationContainer
 	PaymentContainer       *paymentcontainer.PaymentContainer
@@ -62,7 +62,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	roleService := roles.NewRoleServices(roleRepo)
 	DeptRepo := department.NewDepartmentRepo(db)
 	deptService := department.NewDepartmentService(DeptRepo)
-	licenseRepo := license.NewLicenseRepo(db)
 	PermissionRepo := permissions.NewPermDB(db)
 	ModuleRepo := modules.NewModuleDb(db)
 	moduleService := modules.NewModuleService(ModuleRepo)
@@ -73,15 +72,14 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	departmentService := department.NewDepartmentService(DeptRepo)
 	notificationContainer := notificationcontainer.NewNotificationContainer(db, *cfg)
 	employeeService := employee.NewEmpService(db, employeeRepo, organisationRepo, roleService, deptService, notificationContainer.Service, cfg)
-	authService := authentication.NewService(authenticationRepo, jwtService, rolePermService)
-	licenseService := license.NewLicenseService(licenseRepo)
+	authService := authentication.NewService(authenticationRepo, jwtService, rolePermService, notificationContainer.Service, cfg)
 	prescriptionRepo := prescription.NewPrescriptionDB(db)
 	organisationSchedule := admins.NewCommonDB(db)
 	orgschedSrv := admins.NewOrganisationScheduleService(organisationSchedule)
 	appointmentSrv := appointments.AppointmentContainers(db, orgschedSrv, notificationContainer.Service)
 	prescriptionItemServ := prescription.NewPrescriptionItemService(prescriptionRepo)
 
-	orgService := organisation.NewOrganisationService(db, organisationRepo, licenseService, roleService, deptService, permService, rolePermService)
+	orgService := organisation.NewOrganisationService(db, organisationRepo, roleService, deptService, permService, rolePermService)
 	prescriptionService := prescription.NewPrescriptionService(db, prescriptionRepo, appointmentSrv.Appointmentservice, appointmentSrv.Appointmentservice, prescriptionItemServ, notificationContainer.Service)
 	patientService := patient.NewPatientService(patientRepo, orgService, notificationContainer.Service)
 	billingRepo := billing.NewDB(db)
@@ -98,12 +96,12 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	)
 	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, fulfillment, fulfillment)
 	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService, appointmentSrv.Appointmentservice)
+	dashboardContainer := dashboard.NewDashboardContainer(appointmentSrv.Appointmentservice, billingService, employeeService, prescriptionService)
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
 		AuthService:            authService,
 		OrganisationService:    orgService,
-		LicenseService:         licenseService,
 		MedContainer:           medicineContainer,
 		PermissionService:      permService,
 		DepartmentService:      departmentService,
@@ -114,6 +112,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		JwtManagement:          jwtService,
 		PrescriptionManagement: prescriptionService,
 		AppointmentContainer:   appointmentSrv,
+		DashboardContainer:     dashboardContainer,
 		OrganisationSchedule:   orgschedSrv,
 		NotificationContainer:  notificationContainer,
 		PrescriptionItems:      prescriptionItemServ,

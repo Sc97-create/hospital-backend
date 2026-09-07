@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"hospital-backend/internal/modules"
 	"hospital-backend/internal/permissions"
+	"hospital-backend/pkg/constants"
 	"strings"
 )
 
@@ -14,68 +14,74 @@ import (
 // organisation update/get (no organisation module).
 
 var PublicRoutes = map[string]struct{}{
-	"/api/v1/authentication/login":   {},
-	"/api/v1/authentication/refresh": {},
-	"/api/v1/authentication/logout":  {},
-	"/api/v1/payment/webhook":        {},
-	"/api/v1/organisation/signupOrg": {},
+	"/api/v1/authentication/login":                {},
+	"/api/v1/authentication/refresh":              {},
+	"/api/v1/authentication/logout":               {},
+	"/api/v1/authentication/updatePassword":            {},
+	"/api/v1/authentication/updatePasswordFirstLogin":  {},
+	"/api/v1/authentication/requestPasswordReset":      {},
+	"/api/v1/employee/getDoctors":           {},
+	"/api/v1/employee/findbyID":             {},
+	"/api/v1/employee/create":               {},
+	"/api/v1/payment/webhook":               {},
+	"/api/v1/organisation/signupOrg":        {},
 }
 
 var CreateRoutes = map[string]string{
-	"/api/v1/employee/addEmployee":    modules.Employee,
-	"/api/v1/employee/create":         modules.Employee,
-	"/api/v1/patients/addGeneralInfo": modules.Patient,
-	"/api/v1/prescription/create":     modules.Prescription,
-	"/api/v1/appointment/create":      modules.Appointment,
-	"/api/v1/billing/create":          modules.Billing,
-	"/api/v1/medicine/addMedicine":    modules.Medicine,
-	"/api/v1/supplier/createSupplier": modules.Medicine,
+	"/api/v1/employee/addEmployee":    constants.Employee,
+	"/api/v1/patients/addGeneralInfo": constants.Patient,
+	"/api/v1/prescription/create":     constants.Prescription,
+	"/api/v1/appointment/create":      constants.Appointment,
+	"/api/v1/billing/create":          constants.Billing,
+	"/api/v1/medicine/addMedicine":    constants.Medicine,
+	"/api/v1/supplier/createSupplier": constants.Medicine,
 }
 
 var UpdateRoutes = map[string]string{
-	"/api/v1/employee/update":                                modules.Employee,
-	"/api/v1/prescription/updatePrescriptions":               modules.Prescription,
-	"/api/v1/prescription/updatePrescriptionItem":            modules.Prescription,
-	"/api/v1/prescription/updateStatus":                      modules.Prescription,
-	"/api/v1/appointment/updateStatus":                       modules.Appointment,
-	"/api/v1/authentication/updatePassword":                  modules.Employee,
-	"/api/v1/payment/confirm":                                modules.Billing,
-	"/api/v1/license/verifylicense/:organisationID":          modules.License,
-	"/api/v1/billing/invoices/:invoiceID/retry-payment-link": modules.Billing,
+	"/api/v1/employee/update":                                constants.Employee,
+	"/api/v1/prescription/updatePrescriptions":               constants.Prescription,
+	"/api/v1/prescription/updatePrescriptionItem":            constants.Prescription,
+	"/api/v1/prescription/updateStatus":                      constants.Prescription,
+	"/api/v1/appointment/updateStatus":                       constants.Appointment,
+	"/api/v1/payment/confirm":                                constants.Billing,
+	"/api/v1/billing/invoices/:invoiceID/retry-payment-link": constants.Billing,
 }
 
 var ViewRoutes = map[string]string{
-	"/api/v1/role/getRoles":                                          modules.Role,
-	"/api/v1/department/getDepartments":                              modules.Department,
-	"/api/v1/permission/getAll":                                      modules.Role,
-	"/api/v1/patients/getPatients":                                   modules.Patient,
-	"/api/v1/patients/getpatientByID/:patientID":                     modules.Patient,
-	"/api/v1/employee/findbyID":                                      modules.Employee,
-	"/api/v1/employee/getEmployees":                                  modules.Employee,
-	"/api/v1/employee/getDoctors":                                    modules.Employee,
-	"/api/v1/medicine/getMedicineByID":                               modules.Medicine,
-	"/api/v1/medicine/GetMedicines":                                  modules.Medicine,
-	"/api/v1/medicine/searchMedicine":                                modules.Medicine,
-	"/api/v1/prescription/get":                                       modules.Prescription,
-	"/api/v1/prescription/getByStatus":                               modules.Prescription,
-	"/api/v1/prescription/getprescriptionbyPid":                      modules.Prescription,
-	"/api/v1/prescription/getPrescriptionByAppointmentID":            modules.Prescription,
-	"/api/v1/prescription/getPrescriptionByPatientID":                modules.Prescription,
-	"/api/v1/prescription/getMedicineInfo/:prescription_id":          modules.Prescription,
-	"/api/v1/supplier/getSupplierByID":                               modules.Medicine,
-	"/api/v1/supplier/getSupplierByOrgID":                            modules.Medicine,
-	"/api/v1/supplier/getTotalCount":                                 modules.Medicine,
-	"/api/v1/appointment/getTimeSlots":                               modules.Appointment,
-	"/api/v1/appointment/getappointmentbyOrgID":                      modules.Appointment,
-	"/api/v1/appointment/getAppointmentsPreview":                     modules.Appointment,
-	"/api/v1/appointment/getappointmentByPatientID":                  modules.Appointment,
-	"/api/v1/billing/getInvoiceByPrescriptionID/:prescriptionID":     modules.Billing,
-	"/api/v1/billing/getInvoiceByAppointmentID/:appointmentID":       modules.Billing,
-	"/api/v1/billing/getBillDetailsByPrescriptionID/:prescriptionID": modules.Billing,
+	"/api/v1/role/getRoles":                                          constants.Role,
+	"/api/v1/department/getDepartments":                              constants.Department,
+	"/api/v1/permission/getAll":                                      constants.Role,
+	"/api/v1/patients/getPatients":                                   constants.Patient,
+	"/api/v1/patients/getpatientByID/:patientID":                     constants.Patient,
+	"/api/v1/employee/getEmployees":                                  constants.Employee,
+	"/api/v1/medicine/getMedicineByID":                               constants.Medicine,
+	"/api/v1/medicine/GetMedicines":                                  constants.Medicine,
+	"/api/v1/medicine/searchMedicine":                                constants.Medicine,
+	"/api/v1/prescription/get":                                       constants.Prescription,
+	"/api/v1/prescription/getByStatus":                               constants.Prescription,
+	"/api/v1/prescription/getprescriptionbyPid":                      constants.Prescription,
+	"/api/v1/prescription/getPrescriptionByAppointmentID":            constants.Prescription,
+	"/api/v1/prescription/getPrescriptionByPatientID":                constants.Prescription,
+	"/api/v1/prescription/getMedicineInfo/:prescription_id":          constants.Prescription,
+	"/api/v1/supplier/getSupplierByID":                               constants.Medicine,
+	"/api/v1/supplier/getSupplierByOrgID":                            constants.Medicine,
+	"/api/v1/supplier/getTotalCount":                                 constants.Medicine,
+	"/api/v1/appointment/getTimeSlots":                               constants.Appointment,
+	"/api/v1/appointment/getappointmentbyOrgID":                      constants.Appointment,
+	"/api/v1/appointment/getAppointmentsPreview":                     constants.Appointment,
+	"/api/v1/appointment/getappointmentByPatientID":                  constants.Appointment,
+	"/api/v1/billing/getInvoiceByPrescriptionID/:prescriptionID":     constants.Billing,
+	"/api/v1/billing/getInvoiceByAppointmentID/:appointmentID":       constants.Billing,
+	"/api/v1/billing/getBillDetailsByPrescriptionID/:prescriptionID": constants.Billing,
+	"/api/v1/dashboard/getByStatus":            constants.Dashboard,
+	"/api/v1/dashboard/getTodayAppointments":   constants.Dashboard,
+	"/api/v1/dashboard/getTodayInvoiceSummary":  constants.Dashboard,
+	"/api/v1/dashboard/getEmployeeStatusCounts": constants.Dashboard,
+	"/api/v1/dashboard/getTodayPrescriptions":   constants.Dashboard,
 }
 
 var DeleteRoutes = map[string]string{
-	"/api/v1/employee/delete": modules.Employee,
+	"/api/v1/employee/delete": constants.Employee,
 }
 
 func normalizeRoutePath(path string) string {
@@ -86,9 +92,6 @@ func normalizeRoutePath(path string) string {
 }
 
 // ResolveRoutePermission returns module + action for a request path.
-// Matches exact map keys first, then Fiber-style :param patterns (needed because
-// group middleware often sees c.Route().Path as the group prefix, so callers
-// should pass c.Path()).
 func ResolveRoutePermission(path string) (module string, action string, ok bool) {
 	path = normalizeRoutePath(path)
 	if path == "" {

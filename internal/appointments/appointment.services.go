@@ -388,6 +388,122 @@ func (s *AppointmentService) timesOverlap(startA, endA, startB, endB time.Time) 
 	return startA.Before(endB) && startB.Before(endA)
 }
 
+func (s *AppointmentService) GetAppointmentsGroupedByStatus(log *zap.Logger, organisationID string) (dto.AppointmentStatusCounts, error) {
+	log = ensureLog(log)
+	query := `
+		SELECT
+			a.status,
+			a.start_time,
+			a.end_time,
+			a.appointment_date
+		FROM appointments a
+		WHERE a.organisation_id = $1
+		AND (
+			(a.appointment_date >= CURRENT_DATE AND a.appointment_date < CURRENT_DATE + INTERVAL '1 day')
+			OR a.status IN ('ongoing', 'waiting')
+		)
+	`
+	data, err := s.Repository.FindManyByOrganisationID(log, query, organisationID)
+	if err != nil {
+		log.Error("appointment status counts failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return dto.AppointmentStatusCounts{}, wrapError.ErrAppointmentsFetchFailed
+	}
+
+	counts := s.countAppointmentsByStatus(data)
+	log.Info("appointment status counts success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("scheduled", counts.Scheduled),
+		zap.Int("in_consult", counts.InConsult),
+		zap.Int("completed", counts.Completed),
+		zap.Int("missed", counts.Missed),
+		zap.Int("waiting", counts.Waiting),
+	)
+	return counts, nil
+}
+
+func (s *AppointmentService) GetTodayLatestAppointments(log *zap.Logger, organisationID string) ([]dto.AppointmentList, error) {
+	log = ensureLog(log)
+	query := `
+		SELECT
+			a.id as appointment_id,
+			a.appointment_code,
+			a.visit_type,
+			a.status,
+			a.start_time,
+			a.end_time,
+			a.appointment_date,
+			p.mobile_number,
+			p.name as patient_name,
+			u2.username AS doctor_name
+		FROM appointments a
+		JOIN patients p ON a.patient_id = p.id
+		JOIN users u2 ON a.doctor_id = u2.id
+		WHERE a.organisation_id = $1
+		AND a.appointment_date >= CURRENT_DATE
+		AND a.appointment_date < CURRENT_DATE + INTERVAL '1 day'
+		ORDER BY a.start_time DESC
+		LIMIT $2
+	`
+	data, err := s.Repository.FindManyByOrganisationID(log, query, organisationID, constants.DashboardTodayAppointmentLimit)
+	if err != nil {
+		log.Error("dashboard today appointments failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return nil, wrapError.ErrAppointmentsFetchFailed
+	}
+	response := s.toAppointmentList(data)
+	log.Info("dashboard today appointments success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(response)),
+	)
+	return response, nil
+}
+
+func (s *AppointmentService) countAppointmentsByStatus(data []map[string]interface{}) dto.AppointmentStatusCounts {
+	var counts dto.AppointmentStatusCounts
+	for _, each := range data {
+		status, _ := each["status"].(string)
+		endtime, _ := each["end_time"].(time.Time)
+		appointmentDate, _ := each["appointment_date"].(time.Time)
+		switch s.dashboardStatusBucket(s.findStatus(status, endtime, appointmentDate)) {
+		case "scheduled":
+			counts.Scheduled++
+		case "in_consult":
+			counts.InConsult++
+		case "completed":
+			counts.Completed++
+		case "missed":
+			counts.Missed++
+		case "waiting":
+			counts.Waiting++
+		}
+	}
+	return counts
+}
+
+func (s *AppointmentService) dashboardStatusBucket(status Status) string {
+	switch status {
+	case StatusOngoing:
+		return "in_consult"
+	case StatusCompleted:
+		return "completed"
+	case StatusMissed, StatusReschedule:
+		return "missed"
+	case StatusWaiting:
+		return "waiting"
+	case StatusScheduled, StatusUpcoming:
+		return "scheduled"
+	default:
+		return ""
+	}
+}
+
 func (s *AppointmentService) GetAppointmentsByOrgID(log *zap.Logger, reqModel dto.GetDataReq) ([]dto.AppointmentList, int, error) {
 	log = ensureLog(log)
 	dblimit, dbpageno := s.parsepagination(reqModel.Limit, reqModel.PageNo)
@@ -551,6 +667,8 @@ func (s *AppointmentService) findStatus(status string, endtime time.Time, appoin
 		return StatusCompleted
 	case "cancelled":
 		return StatusCancelled
+	case "waiting":
+		return StatusWaiting
 	}
 	currenttime := time.Now()
 	todayDate := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), 0, 0, 0, 0, time.Local)
@@ -735,6 +853,8 @@ func (s *AppointmentService) SelectStatus(status string) (Status, error) {
 		return StatusScheduled, nil
 	case "ongoing":
 		return StatusOngoing, nil
+	case "waiting":
+		return StatusWaiting, nil
 	default:
 		return "", wrapError.ErrInvalidRequest
 	}

@@ -123,7 +123,6 @@ func AuthorizeRBAC(c *fiber.Ctx) error {
 		)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
 	}
-	// Admins get full access — no route-map or module-action checks.
 	if access.IsAdmin {
 		return c.Next()
 	}
@@ -150,8 +149,6 @@ func AuthorizeRBAC(c *fiber.Ctx) error {
 }
 
 func resolveRequestRoutePath(c *fiber.Ctx) string {
-	// Prefer the concrete request path. Group-level middleware often sees
-	// c.Route().Path as the group prefix (e.g. /api/v1/patients), not the handler.
 	return normalizeRoutePath(c.Path())
 }
 

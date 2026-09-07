@@ -40,8 +40,8 @@ func (s stubPrescriptionQty) GetPrescriptionsByPIDWithLimit(_ *zap.Logger, _ str
 	return nil, 0, nil
 }
 
-func (s stubPrescriptionQty) GetMedicineInfo(_ *zap.Logger, _ string) ([]prescription.MedicineDetInfo, int64, error) {
-	return nil, 0, nil
+func (s stubPrescriptionQty) GetMedicineInfo(_ *zap.Logger, _ string) (prescription.MedicineInfoResult, error) {
+	return prescription.MedicineInfoResult{}, nil
 }
 
 func (s stubPrescriptionQty) GetqtyByMedicine(_ *zap.Logger, _ string) (map[string]prescriptiondto.PrescriptionQtyInfo, error) {

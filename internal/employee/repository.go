@@ -15,6 +15,7 @@ type EmployeeRepository interface {
 	ReadDoctors(query string, args ...any) ([]User, error)
 	Count(organisationID string, search string) (int64, error)
 	CountByCodePrefix(organisationID string, prefix string) (int64, error)
+	CountByActiveStatus(organisationID string) (EmployeeStatusCountRow, error)
 	FindRoleIDByUserID(userID string) (string, error)
 }
 
@@ -86,6 +87,23 @@ func (E *EmployeeRepo) CountByCodePrefix(organisationID string, prefix string) (
 	}
 	return count, nil
 }
+
+func (E *EmployeeRepo) CountByActiveStatus(organisationID string) (EmployeeStatusCountRow, error) {
+	query := `
+		SELECT
+			COUNT(*) FILTER (WHERE u.is_active = true) AS active,
+			COUNT(*) FILTER (WHERE u.is_active = false) AS inactive
+		FROM users u
+		WHERE u.organisation_id = ?
+	`
+	var row EmployeeStatusCountRow
+	err := E.db.Raw(query, organisationID).Scan(&row).Error
+	if err != nil {
+		return EmployeeStatusCountRow{}, err
+	}
+	return row, nil
+}
+
 func (E *EmployeeRepo) ReadOne(id string) (*EmployeeListRow, error) {
 	query := `SELECT u.id, u.employee_code, u.username, u.first_name, u.last_name, u.email_id, u.phone_number,
 		u.organisation_id, u.role_id, r.name AS role_name, u.department_id, d.name AS department_name, u.is_active

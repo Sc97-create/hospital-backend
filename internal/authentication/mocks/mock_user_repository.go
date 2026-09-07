@@ -12,6 +12,7 @@ package mocks
 import (
 	employee "hospital-backend/internal/employee"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 	zap "go.uber.org/zap"
@@ -55,6 +56,36 @@ func (mr *MockUserRepositoryMockRecorder) ClearTempPassword(log, userID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearTempPassword", reflect.TypeOf((*MockUserRepository)(nil).ClearTempPassword), log, userID)
 }
 
+// GetUserByID mocks base method.
+func (m *MockUserRepository) GetUserByID(log *zap.Logger, userID string) (*employee.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByID", log, userID)
+	ret0, _ := ret[0].(*employee.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByID indicates an expected call of GetUserByID.
+func (mr *MockUserRepositoryMockRecorder) GetUserByID(log, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockUserRepository)(nil).GetUserByID), log, userID)
+}
+
+// GetUserByPasswordResetTokenHash mocks base method.
+func (m *MockUserRepository) GetUserByPasswordResetTokenHash(log *zap.Logger, tokenHash string) (*employee.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByPasswordResetTokenHash", log, tokenHash)
+	ret0, _ := ret[0].(*employee.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByPasswordResetTokenHash indicates an expected call of GetUserByPasswordResetTokenHash.
+func (mr *MockUserRepositoryMockRecorder) GetUserByPasswordResetTokenHash(log, tokenHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByPasswordResetTokenHash", reflect.TypeOf((*MockUserRepository)(nil).GetUserByPasswordResetTokenHash), log, tokenHash)
+}
+
 // GetUserID mocks base method.
 func (m *MockUserRepository) GetUserID(log *zap.Logger, username string) (*employee.User, error) {
 	m.ctrl.T.Helper()
@@ -68,6 +99,20 @@ func (m *MockUserRepository) GetUserID(log *zap.Logger, username string) (*emplo
 func (mr *MockUserRepositoryMockRecorder) GetUserID(log, username any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserID", reflect.TypeOf((*MockUserRepository)(nil).GetUserID), log, username)
+}
+
+// SavePasswordResetToken mocks base method.
+func (m *MockUserRepository) SavePasswordResetToken(log *zap.Logger, userID, tokenHash string, lastPwdUpdated time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SavePasswordResetToken", log, userID, tokenHash, lastPwdUpdated)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SavePasswordResetToken indicates an expected call of SavePasswordResetToken.
+func (mr *MockUserRepositoryMockRecorder) SavePasswordResetToken(log, userID, tokenHash, lastPwdUpdated any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SavePasswordResetToken", reflect.TypeOf((*MockUserRepository)(nil).SavePasswordResetToken), log, userID, tokenHash, lastPwdUpdated)
 }
 
 // UpdateLastLoginAttempt mocks base method.

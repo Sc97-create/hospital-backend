@@ -7,7 +7,7 @@ import (
 )
 
 func TestCreateOrgModel(t *testing.T) {
-	svc := NewOrganisationService(nil, nil, nil, nil, nil, nil, nil)
+	svc := NewOrganisationService(nil, nil, nil, nil, nil, nil)
 	payload := dto.OrganisationPayload{
 		OrganisationName: "City Hospital",
 		LegalEntityName:  "City Hospital LLC",
@@ -33,7 +33,7 @@ func TestCreateOrgModel(t *testing.T) {
 }
 
 func TestCreateOrgModelEmptyPayload(t *testing.T) {
-	svc := NewOrganisationService(nil, nil, nil, nil, nil, nil, nil)
+	svc := NewOrganisationService(nil, nil, nil, nil, nil, nil)
 	org := svc.createOrgModel(dto.OrganisationPayload{})
 	if org.ID == "" {
 		t.Fatal("expected id even for empty payload")

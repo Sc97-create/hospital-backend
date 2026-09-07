@@ -14,15 +14,14 @@ import (
 type OrganisationService struct {
 	DB                    *gorm.DB
 	OrganisationRepo      OrganisationRepo
-	LicenseRep            LicenseCreator
 	RoleServices          RoleSeeder
 	DeptServices          DepartmentSeeder
 	PermService           PermissionCatalogLookup
 	RolePermissionService RolePermissionSeeder
 }
 
-func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, license LicenseCreator, roleRepo RoleSeeder, deptRepo DepartmentSeeder, permServ PermissionCatalogLookup, rolePermissionRepo RolePermissionSeeder) *OrganisationService {
-	return &OrganisationService{DB: db, OrganisationRepo: orgRepo, LicenseRep: license, RoleServices: roleRepo, DeptServices: deptRepo, PermService: permServ, RolePermissionService: rolePermissionRepo}
+func NewOrganisationService(db *gorm.DB, orgRepo OrganisationRepo, roleRepo RoleSeeder, deptRepo DepartmentSeeder, permServ PermissionCatalogLookup, rolePermissionRepo RolePermissionSeeder) *OrganisationService {
+	return &OrganisationService{DB: db, OrganisationRepo: orgRepo, RoleServices: roleRepo, DeptServices: deptRepo, PermService: permServ, RolePermissionService: rolePermissionRepo}
 }
 
 func (OService *OrganisationService) CreateOrganisation(log *zap.Logger, payloadRequest dto.OrganisationPayload) (string, error) {
@@ -41,14 +40,6 @@ func (OService *OrganisationService) CreateOrganisation(log *zap.Logger, payload
 		if err := OService.OrganisationRepo.Create(log, tx, organisation); err != nil {
 			log.Error("organisation create failed",
 				zap.String("reason", "db_create"),
-				zap.Error(err),
-			)
-			return err
-		}
-		if err := OService.LicenseRep.CreateLicenseSrv(log, tx, organisation.OrganisationName, 6, organisation.ID, "month", time.Now()); err != nil {
-			log.Error("organisation create failed",
-				zap.String("organisation_id", organisation.ID),
-				zap.String("reason", "license_create"),
 				zap.Error(err),
 			)
 			return err
@@ -88,7 +79,6 @@ func (OService *OrganisationService) CreateOrganisation(log *zap.Logger, payload
 		zap.String("organisation_id", organisation.ID),
 		zap.String("code", organisation.Code),
 		zap.String("hospital_type", organisation.HospitalType),
-		zap.Bool("license_created", true),
 		zap.Bool("roles_seeded", true),
 		zap.Bool("depts_seeded", true),
 	)

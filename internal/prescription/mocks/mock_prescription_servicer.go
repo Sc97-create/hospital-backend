@@ -172,13 +172,12 @@ func (m *MockPrescriptionItemServicer) EXPECT() *MockPrescriptionItemServicerMoc
 }
 
 // GetMedicineInfo mocks base method.
-func (m *MockPrescriptionItemServicer) GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]prescription.MedicineDetInfo, int64, error) {
+func (m *MockPrescriptionItemServicer) GetMedicineInfo(log *zap.Logger, prescriptionID string) (prescription.MedicineInfoResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMedicineInfo", log, prescriptionID)
-	ret0, _ := ret[0].([]prescription.MedicineDetInfo)
-	ret1, _ := ret[1].(int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret0, _ := ret[0].(prescription.MedicineInfoResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetMedicineInfo indicates an expected call of GetMedicineInfo.

@@ -86,6 +86,54 @@ func TestServiceFindMany(t *testing.T) {
 	})
 }
 
+func TestServiceGetTodayPrescriptions(t *testing.T) {
+	log := servicetest.NopLogger()
+
+	t.Run("missing organisation id", func(t *testing.T) {
+		svc := newPrescriptionService(t, nil, nil, nil, nil, nil, servicetest.NoopNotifier{})
+		_, err := svc.GetTodayPrescriptions(log, "")
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("find many repo error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := prescmocks.NewMockPrescriptionRepositoryInterface(ctrl)
+		repo.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("db error"))
+		svc := newPrescriptionService(t, nil, repo, nil, nil, nil, servicetest.NoopNotifier{})
+		_, err := svc.GetTodayPrescriptions(log, "org-1")
+		if !errors.Is(err, wrapError.ErrPrescriptionsFetchFailed) {
+			t.Fatalf("expected fetch failed, got %v", err)
+		}
+	})
+
+	t.Run("count error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := prescmocks.NewMockPrescriptionRepositoryInterface(ctrl)
+		repo.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return([]dto.PrescriptionListItem{}, nil)
+		repo.EXPECT().Count(gomock.Any(), gomock.Any(), gomock.Any()).Return(int64(0), errors.New("count error"))
+		svc := newPrescriptionService(t, nil, repo, nil, nil, nil, servicetest.NoopNotifier{})
+		_, err := svc.GetTodayPrescriptions(log, "org-1")
+		if !errors.Is(err, wrapError.ErrPrescriptionsFetchFailed) {
+			t.Fatalf("expected fetch failed, got %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := prescmocks.NewMockPrescriptionRepositoryInterface(ctrl)
+		list := []dto.PrescriptionListItem{{ID: "rx-1", Code: "PRX001"}}
+		repo.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(list, nil)
+		repo.EXPECT().Count(gomock.Any(), gomock.Any(), gomock.Any()).Return(int64(3), nil)
+		svc := newPrescriptionService(t, nil, repo, nil, nil, nil, servicetest.NoopNotifier{})
+		got, err := svc.GetTodayPrescriptions(log, "org-1")
+		if err != nil || len(got.Prescriptions) != 1 || got.Total != 3 {
+			t.Fatalf("got %+v err=%v", got, err)
+		}
+	})
+}
+
 func TestServiceFindByStatus(t *testing.T) {
 	log := servicetest.NopLogger()
 

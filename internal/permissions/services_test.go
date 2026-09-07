@@ -19,10 +19,10 @@ func newPermService(t *testing.T, permRepo permissions.PermissionRepo, moduleRep
 
 func TestServiceFindMany(t *testing.T) {
 	tests := []struct {
-		name    string
-		setup   func(*mocks.MockPermissionRepo, *modmocks.MockModuleRepo)
-		wantErr bool
-		wantMod int
+		name     string
+		setup    func(*mocks.MockPermissionRepo, *modmocks.MockModuleRepo)
+		wantErr  bool
+		wantMod  int
 		wantPerm int
 	}{
 		{

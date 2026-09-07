@@ -3,6 +3,8 @@ package prescription
 import (
 	"context"
 	"errors"
+	"fmt"
+	patientdto "hospital-backend/internal/patient/dto"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
@@ -226,8 +228,41 @@ func (s *PrescriptionItemServ) parsePagination(limit float64, pageno float64) (i
 	return numLimit, skip
 }
 
-func (p *PrescriptionItemServ) GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, int64, error) {
+func (p *PrescriptionItemServ) GetMedicineInfo(log *zap.Logger, prescriptionID string) (MedicineInfoResult, error) {
 	log = ensureLog(log)
+	medicineDet, err := p.fetchMedicineDetails(log, prescriptionID)
+	if err != nil {
+		return MedicineInfoResult{}, err
+	}
+
+	totalCount, err := p.PrescRepo.GetTotalCountByPrescID(log, prescriptionID)
+	if err != nil {
+		log.Error("prescription medicine info failed",
+			zap.String("prescription_id", prescriptionID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return MedicineInfoResult{}, wrapError.ErrMedicineInfoFetchFailed
+	}
+
+	patientData, err := p.fetchPatientByPrescriptionID(log, prescriptionID)
+	if err != nil {
+		return MedicineInfoResult{}, err
+	}
+
+	log.Info("prescription medicine info success",
+		zap.String("prescription_id", prescriptionID),
+		zap.Int("count", len(medicineDet)),
+		zap.Int64("total", totalCount),
+	)
+	return MedicineInfoResult{
+		Items:       medicineDet,
+		PatientData: patientData,
+		Total:       totalCount,
+	}, nil
+}
+
+func (p *PrescriptionItemServ) fetchMedicineDetails(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, error) {
 	query := `SELECT 
     p.code AS prescription_code,
     p.status AS prescription_status,
@@ -279,24 +314,79 @@ WHERE pI.prescription_id = $1;
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
-		return nil, 0, wrapError.ErrMedicineInfoFetchFailed
+		return nil, wrapError.ErrMedicineInfoFetchFailed
 	}
-	totalCount, err := p.PrescRepo.GetTotalCountByPrescID(log, prescriptionID)
+	return medicineDet, nil
+}
+
+func (p *PrescriptionItemServ) fetchPatientByPrescriptionID(log *zap.Logger, prescriptionID string) (patientdto.PatientResponse, error) {
+	query := `SELECT
+    pa.id AS patient_id,
+    pa.uh_id AS patient_code,
+    pa.name AS patient_name,
+    pa.weight AS patient_weight,
+    pa.gender AS patient_gender,
+    pa.mobile_number AS patient_phone,
+    pa.address AS patient_address,
+    pa.email_id AS patient_email,
+    pa.status AS patient_status,
+    pa.age AS patient_age,
+    pa.blood_group AS patient_bg,
+    pa.last_visit_date AS patient_lvd,
+    pa.created_at AS patient_created_at
+FROM prescriptions p
+JOIN patients pa ON pa.id = p.patient_id
+WHERE p.id = $1`
+	patientRow, err := p.PrescRepo.GetPatientByPrescriptionID(log, query, prescriptionID)
 	if err != nil {
 		log.Error("prescription medicine info failed",
 			zap.String("prescription_id", prescriptionID),
-			zap.String("reason", "db_count"),
+			zap.String("reason", "patient_db_read"),
 			zap.Error(err),
 		)
-		return nil, 0, wrapError.ErrMedicineInfoFetchFailed
+		return patientdto.PatientResponse{}, wrapError.ErrMedicineInfoFetchFailed
 	}
+	return mapMedicineInfoPatient(patientRow), nil
+}
 
-	log.Info("prescription medicine info success",
-		zap.String("prescription_id", prescriptionID),
-		zap.Int("count", len(medicineDet)),
-		zap.Int64("total", totalCount),
-	)
-	return medicineDet, totalCount, nil
+func mapMedicineInfoPatient(row MedicineInfoPatientRow) patientdto.PatientResponse {
+	return patientdto.PatientResponse{
+		PatientID:        row.PatientID,
+		PatientCode:      row.PatientCode,
+		PatientName:      row.PatientName,
+		PatientWeight:    row.PatientWeight,
+		PatientGender:    row.PatientGender,
+		PatientPhone:     row.PatientPhone,
+		PatientAddress:   row.PatientAddress,
+		PatientEmail:     row.PatientEmail,
+		PatientImage:     "",
+		PatientStatus:    row.PatientStatus,
+		PatientAge:       row.PatientAge,
+		PatientBG:        row.PatientBG,
+		PatientLVD:       row.PatientLVD,
+		WaitingTime:      formatWaitingTime(row.PatientLVD),
+		PatientCreatedAt: row.PatientCreatedAt,
+	}
+}
+
+func formatWaitingTime(lastVisit time.Time) string {
+	if lastVisit.IsZero() {
+		return "0"
+	}
+	duration := time.Since(lastVisit)
+	minutes := duration.Minutes()
+	hours := duration.Hours()
+	days := hours / 24
+	if days >= 30 {
+		return "0"
+	}
+	if hours >= 24 {
+		return fmt.Sprintf("%.0f days", days)
+	}
+	if minutes >= 60 {
+		return fmt.Sprintf("%.0f hrs", hours)
+	}
+	return fmt.Sprintf("%.0f mins", minutes)
 }
 
 func (p *PrescriptionItemServ) GetqtyByMedicine(log *zap.Logger, prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error) {

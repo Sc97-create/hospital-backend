@@ -102,6 +102,21 @@ func (mr *MockAppointmentServicerMockRecorder) GetAppointmentsByOrgID(log, reqMo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppointmentsByOrgID", reflect.TypeOf((*MockAppointmentServicer)(nil).GetAppointmentsByOrgID), log, reqModel)
 }
 
+// GetAppointmentsGroupedByStatus mocks base method.
+func (m *MockAppointmentServicer) GetAppointmentsGroupedByStatus(log *zap.Logger, organisationID string) (dto.AppointmentStatusCounts, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAppointmentsGroupedByStatus", log, organisationID)
+	ret0, _ := ret[0].(dto.AppointmentStatusCounts)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAppointmentsGroupedByStatus indicates an expected call of GetAppointmentsGroupedByStatus.
+func (mr *MockAppointmentServicerMockRecorder) GetAppointmentsGroupedByStatus(log, organisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppointmentsGroupedByStatus", reflect.TypeOf((*MockAppointmentServicer)(nil).GetAppointmentsGroupedByStatus), log, organisationID)
+}
+
 // GetSlots mocks base method.
 func (m *MockAppointmentServicer) GetSlots(log *zap.Logger, doctorID, organisationID, date string) (dto.SlotResponse, error) {
 	m.ctrl.T.Helper()

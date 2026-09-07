@@ -347,7 +347,7 @@ func TestFindMedicineDetInfo(t *testing.T) {
 			name: "success",
 			path: "/prescriptions/rx-1/medicines",
 			setup: func(m *mocks.MockPrescriptionItemServicer) {
-				m.EXPECT().GetMedicineInfo(gomock.Any(), gomock.Any()).Return([]prescription.MedicineDetInfo{}, int64(0), nil)
+				m.EXPECT().GetMedicineInfo(gomock.Any(), gomock.Any()).Return(prescription.MedicineInfoResult{}, nil)
 			},
 			wantStatus: fiber.StatusOK,
 		},

@@ -66,7 +66,6 @@ func main() {
 	}
 	routers.RegisterPatientRoutes(app, containers.PatientService, rbac)
 	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
-	routers.RegisterLicenseRoutes(app, containers.LicenseService, rbac)
 	routers.RegisterEmployeeRoutes(app, containers.EmployeeService, rbac)
 	routers.RegisterMedicineRoutes(app, containers.MedContainer.Medicineservices, rbac)
 	routers.RegisterAuthRoute(app, containers.AuthService, rbac)
@@ -76,6 +75,7 @@ func main() {
 	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
 	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems, rbac)
 	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService, rbac)
+	routers.RegisterDashboardRoutes(app, containers.DashboardContainer.Service, rbac)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice, rbac)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
 	routers.RegisterBillingRoutes(app, containers.BillingService, rbac)

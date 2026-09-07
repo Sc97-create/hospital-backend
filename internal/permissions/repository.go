@@ -16,6 +16,7 @@ func (Perm *PermissionDB) BatchInsert(permission []Permission, size int) error {
 		DoNothing: true,
 	}).CreateInBatches(permission, size).Error
 }
+
 func (Perm *PermissionDB) GetPermissionByName() ([]string, error) {
 	query := `select id from permissions where name in ('create','update','delete','view')`
 	var permission []string
@@ -25,6 +26,7 @@ func (Perm *PermissionDB) GetPermissionByName() ([]string, error) {
 	}
 	return permission, nil
 }
+
 func (Perm *PermissionDB) FindMany() ([]Permission, error) {
 	query := `select id,name from permissions`
 	var permissions []Permission

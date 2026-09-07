@@ -89,3 +89,16 @@ type FeeLine struct {
 	InvoiceStatus string  `json:"invoice_status"`
 	PaymentMode   string  `json:"payment_mode"`
 }
+
+type PaymentModeSummary struct {
+	Count  int     `json:"count"`
+	Amount float64 `json:"amount"`
+}
+
+type TodayInvoiceCollectionSummary struct {
+	TotalInvoices int                `json:"total_invoices"`
+	TotalAmount   float64            `json:"total_amount"`
+	Cash          PaymentModeSummary `json:"cash"`
+	QR            PaymentModeSummary `json:"qr"`
+	Link          PaymentModeSummary `json:"link"`
+}

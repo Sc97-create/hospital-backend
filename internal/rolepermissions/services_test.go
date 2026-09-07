@@ -10,6 +10,7 @@ import (
 	"hospital-backend/internal/rolepermissions/dto"
 	"hospital-backend/internal/rolepermissions/mocks"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 
 	"github.com/lib/pq"
@@ -155,12 +156,12 @@ func TestServiceInsertMany(t *testing.T) {
 		{ID: "p-delete", Name: permissions.Delete},
 	}
 	modArr := []modules.Modules{
-		{ID: "m-patient", Name: modules.Patient},
-		{ID: "m-appointment", Name: modules.Appointment},
-		{ID: "m-prescription", Name: modules.Prescription},
-		{ID: "m-employee", Name: modules.Employee},
-		{ID: "m-medicine", Name: modules.Medicine},
-		{ID: "m-billing", Name: modules.Billing},
+		{ID: "m-patient", Name: constants.Patient},
+		{ID: "m-appointment", Name: constants.Appointment},
+		{ID: "m-prescription", Name: constants.Prescription},
+		{ID: "m-employee", Name: constants.Employee},
+		{ID: "m-medicine", Name: constants.Medicine},
+		{ID: "m-billing", Name: constants.Billing},
 	}
 
 	t.Run("batch create error", func(t *testing.T) {

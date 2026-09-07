@@ -18,7 +18,7 @@ import (
 
 	"hospital-backend/config"
 	"hospital-backend/internal/jwt"
-	"hospital-backend/internal/modules"
+	"hospital-backend/pkg/constants"
 	rpdto "hospital-backend/internal/rolepermissions/dto"
 	"hospital-backend/pkg/logger"
 
@@ -150,13 +150,13 @@ func defaultRBACFixture() (*mockRoleLookup, *mockRoleAccessLoader) {
 	loader := &mockRoleAccessLoader{byRole: map[string]rpdto.RoleAccess{
 		roleViewer: {
 			Permissions: []rpdto.RoleModulePermission{{
-				ModuleName:  modules.Patient,
+				ModuleName:  constants.Patient,
 				Permissions: rpdto.ModulePermissionFlags{View: true},
 			}},
 		},
 		roleCreator: {
 			Permissions: []rpdto.RoleModulePermission{{
-				ModuleName:  modules.Employee,
+				ModuleName:  constants.Employee,
 				Permissions: rpdto.ModulePermissionFlags{Create: true},
 			}},
 		},
@@ -185,10 +185,15 @@ func newRBACTestApp(t *testing.T, jwtSvc *jwt.JwtService, loader RoleAccessLoade
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{"ok": true, "id": c.Params("patientID")})
 	})
 
+	// Public — post-signup Super Admin (no JWT/RBAC).
+	api.Post("/employee/create", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"ok": true, "route": "create"})
+	})
+
 	employees := api.Group("/employee")
 	UseProtected(employees, jwtSvc, loader, lookup)
-	employees.Post("/create", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"ok": true, "route": "create"})
+	employees.Post("/addEmployee", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"ok": true, "route": "addEmployee"})
 	})
 	employees.Delete("/delete", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{"ok": true, "route": "delete"})
@@ -312,16 +317,22 @@ func TestRBAC_E2E_Scenarios(t *testing.T) {
 			wantStatus: fiber.StatusForbidden,
 		},
 		{
-			name:       "viewer cannot create employee",
+			name:       "create admin is public without token",
 			method:     http.MethodPost,
 			path:       "/api/v1/employee/create",
+			wantStatus: fiber.StatusOK,
+		},
+		{
+			name:       "viewer cannot add employee",
+			method:     http.MethodPost,
+			path:       "/api/v1/employee/addEmployee",
 			token:      viewerTok,
 			wantStatus: fiber.StatusForbidden,
 		},
 		{
-			name:       "creator can create employee",
+			name:       "creator can add employee",
 			method:     http.MethodPost,
-			path:       "/api/v1/employee/create",
+			path:       "/api/v1/employee/addEmployee",
 			token:      creatorTok,
 			wantStatus: fiber.StatusOK,
 		},
@@ -340,9 +351,9 @@ func TestRBAC_E2E_Scenarios(t *testing.T) {
 			wantStatus: fiber.StatusForbidden,
 		},
 		{
-			name:       "admin bypasses module checks — create employee",
+			name:       "admin bypasses module checks — add employee",
 			method:     http.MethodPost,
-			path:       "/api/v1/employee/create",
+			path:       "/api/v1/employee/addEmployee",
 			token:      adminTok,
 			wantStatus: fiber.StatusOK,
 		},
@@ -473,7 +484,7 @@ func TestRBAC_E2E_BypassAttempts(t *testing.T) {
 			Subject:   userAdmin,
 			ExpiresAt: jwtlib.NewNumericDate(time.Now().Add(time.Hour)),
 		})
-		resp := doRequest(t, app, http.MethodPost, "/api/v1/employee/create", tok)
+		resp := doRequest(t, app, http.MethodPost, "/api/v1/patients/getPatients", tok)
 		if resp.StatusCode != fiber.StatusUnauthorized {
 			t.Fatalf("status=%d want=401 body=%s", resp.StatusCode, readBody(t, resp))
 		}
@@ -498,7 +509,7 @@ func TestRBAC_E2E_BypassAttempts(t *testing.T) {
 			Subject:   userAdmin,
 			ExpiresAt: jwtlib.NewNumericDate(time.Now().Add(-time.Hour)),
 		})
-		resp := doRequest(t, app, http.MethodPost, "/api/v1/employee/create", tok)
+		resp := doRequest(t, app, http.MethodPost, "/api/v1/patients/getPatients", tok)
 		if resp.StatusCode != fiber.StatusUnauthorized {
 			t.Fatalf("status=%d want=401 body=%s", resp.StatusCode, readBody(t, resp))
 		}
@@ -513,7 +524,7 @@ func TestRBAC_E2E_BypassAttempts(t *testing.T) {
 	})
 
 	t.Run("viewer token cannot escalate via spoofed X-User-ID / X-Role-ID headers", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/employee/create", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/employee/addEmployee", nil)
 		req.Header.Set("Authorization", "Bearer "+viewerTok)
 		req.Header.Set("X-User-ID", userAdmin)
 		req.Header.Set("X-Role-ID", roleAdmin)
@@ -528,13 +539,13 @@ func TestRBAC_E2E_BypassAttempts(t *testing.T) {
 	})
 
 	t.Run("permissions bound to JWT sub userID not swapped mid-request", func(t *testing.T) {
-		// Creator may create employee; viewer may not. Same path, different userIDs.
+		// Creator may add employee; viewer may not. Same path, different userIDs.
 		creatorTok := issueToken(t, jwtSvc, userCreator)
-		respCreator := doRequest(t, app, http.MethodPost, "/api/v1/employee/create", creatorTok)
+		respCreator := doRequest(t, app, http.MethodPost, "/api/v1/employee/addEmployee", creatorTok)
 		if respCreator.StatusCode != fiber.StatusOK {
 			t.Fatalf("creator status=%d want=200 body=%s", respCreator.StatusCode, readBody(t, respCreator))
 		}
-		respViewer := doRequest(t, app, http.MethodPost, "/api/v1/employee/create", viewerTok)
+		respViewer := doRequest(t, app, http.MethodPost, "/api/v1/employee/addEmployee", viewerTok)
 		if respViewer.StatusCode != fiber.StatusForbidden {
 			t.Fatalf("viewer status=%d want=403 body=%s", respViewer.StatusCode, readBody(t, respViewer))
 		}

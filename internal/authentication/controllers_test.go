@@ -142,6 +142,69 @@ func TestLogout(t *testing.T) {
 }
 
 func TestUpdatePassword(t *testing.T) {
+	validBody := `{"token":"reset-token","password":"secret12","confirm_password":"secret12"}`
+	tests := []struct {
+		name       string
+		body       string
+		setup      func(*mocks.MockAuthServicer)
+		wantStatus int
+	}{
+		{
+			name:       "invalid json",
+			body:       `{`,
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name:       "missing token",
+			body:       `{"password":"secret12","confirm_password":"secret12"}`,
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name:       "missing password",
+			body:       `{"token":"t","confirm_password":"a"}`,
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name: "service invalid request",
+			body: validBody,
+			setup: func(m *mocks.MockAuthServicer) {
+				m.EXPECT().UpdatePassword(gomock.Any(), gomock.Any()).Return(wrapError.ErrInvalidRequest)
+			},
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name: "success",
+			body: validBody,
+			setup: func(m *mocks.MockAuthServicer) {
+				m.EXPECT().UpdatePassword(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantStatus: fiber.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mock := mocks.NewMockAuthServicer(ctrl)
+			if tt.setup != nil {
+				tt.setup(mock)
+			}
+			authCtrl := authentication.NewAuthController(mock)
+			app := controllertest.NewApp(t, func(app *fiber.App) {
+				app.Post("/password", authCtrl.UpdatePassword)
+			})
+			resp, _ := controllertest.Do(t, app, controllertest.Request{
+				Method: http.MethodPost,
+				Path:   "/password",
+				Body:   tt.body,
+			})
+			controllertest.AssertStatus(t, resp, tt.wantStatus)
+		})
+	}
+}
+
+func TestUpdatePasswordFirstLogin(t *testing.T) {
+	validBody := `{"password":"secret12","confirm_password":"secret12"}`
 	tests := []struct {
 		name       string
 		userID     string
@@ -151,7 +214,7 @@ func TestUpdatePassword(t *testing.T) {
 	}{
 		{
 			name:       "missing user id",
-			body:       `{"password":"a","confirm_password":"a"}`,
+			body:       validBody,
 			wantStatus: fiber.StatusUnauthorized,
 		},
 		{
@@ -163,24 +226,24 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name:       "missing password",
 			userID:     "user-1",
-			body:       `{"confirm_password":"a"}`,
+			body:       `{"confirm_password":"secret12"}`,
 			wantStatus: fiber.StatusBadRequest,
 		},
 		{
 			name:   "service invalid request",
 			userID: "user-1",
-			body:   `{"password":"a","confirm_password":"b"}`,
+			body:   validBody,
 			setup: func(m *mocks.MockAuthServicer) {
-				m.EXPECT().UpdatePassword(gomock.Any(), gomock.Any(), gomock.Any()).Return(wrapError.ErrInvalidRequest)
+				m.EXPECT().UpdatePasswordFirstLogin(gomock.Any(), "user-1", gomock.Any()).Return(wrapError.ErrInvalidRequest)
 			},
 			wantStatus: fiber.StatusBadRequest,
 		},
 		{
 			name:   "success",
 			userID: "user-1",
-			body:   `{"password":"secret","confirm_password":"secret"}`,
+			body:   validBody,
 			setup: func(m *mocks.MockAuthServicer) {
-				m.EXPECT().UpdatePassword(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				m.EXPECT().UpdatePasswordFirstLogin(gomock.Any(), "user-1", gomock.Any()).Return(nil)
 			},
 			wantStatus: fiber.StatusOK,
 		},
@@ -198,11 +261,11 @@ func TestUpdatePassword(t *testing.T) {
 				if tt.userID != "" {
 					app.Use(controllertest.WithUserID(tt.userID))
 				}
-				app.Post("/password", authCtrl.UpdatePassword)
+				app.Post("/password-first-login", authCtrl.UpdatePasswordFirstLogin)
 			})
 			resp, _ := controllertest.Do(t, app, controllertest.Request{
 				Method: http.MethodPost,
-				Path:   "/password",
+				Path:   "/password-first-login",
 				Body:   tt.body,
 			})
 			controllertest.AssertStatus(t, resp, tt.wantStatus)
@@ -224,4 +287,60 @@ func TestLoginInternalError(t *testing.T) {
 		Body:   `{"user_name":"admin","password":"secret"}`,
 	})
 	controllertest.AssertStatus(t, resp, fiber.StatusInternalServerError)
+}
+
+func TestRequestPasswordReset(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		setup      func(*mocks.MockAuthServicer)
+		wantStatus int
+	}{
+		{
+			name:       "invalid json",
+			body:       `{`,
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name:       "missing email",
+			body:       `{"password":"x"}`,
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name: "cooldown",
+			body: `{"email_id":"a@example.com"}`,
+			setup: func(m *mocks.MockAuthServicer) {
+				m.EXPECT().RequestPasswordReset(gomock.Any(), "a@example.com").Return(wrapError.ErrPasswordResetTooSoon)
+			},
+			wantStatus: fiber.StatusTooManyRequests,
+		},
+		{
+			name: "success",
+			body: `{"email_id":"a@example.com"}`,
+			setup: func(m *mocks.MockAuthServicer) {
+				m.EXPECT().RequestPasswordReset(gomock.Any(), "a@example.com").Return(nil)
+			},
+			wantStatus: fiber.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mock := mocks.NewMockAuthServicer(ctrl)
+			if tt.setup != nil {
+				tt.setup(mock)
+			}
+			authCtrl := authentication.NewAuthController(mock)
+			app := controllertest.NewApp(t, func(app *fiber.App) {
+				app.Post("/requestPasswordReset", authCtrl.RequestPasswordReset)
+			})
+			resp, _ := controllertest.Do(t, app, controllertest.Request{
+				Method: http.MethodPost,
+				Path:   "/requestPasswordReset",
+				Body:   tt.body,
+			})
+			controllertest.AssertStatus(t, resp, tt.wantStatus)
+		})
+	}
 }

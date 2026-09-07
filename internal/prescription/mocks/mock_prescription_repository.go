@@ -399,6 +399,21 @@ func (mr *MockPrescItemsRepoMockRecorder) GetMedicineIDsByPrescriptionID(log, db
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMedicineIDsByPrescriptionID", reflect.TypeOf((*MockPrescItemsRepo)(nil).GetMedicineIDsByPrescriptionID), log, db, prescriptionID)
 }
 
+// GetPatientByPrescriptionID mocks base method.
+func (m *MockPrescItemsRepo) GetPatientByPrescriptionID(log *zap.Logger, query, prescriptionID string) (prescription.MedicineInfoPatientRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPatientByPrescriptionID", log, query, prescriptionID)
+	ret0, _ := ret[0].(prescription.MedicineInfoPatientRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPatientByPrescriptionID indicates an expected call of GetPatientByPrescriptionID.
+func (mr *MockPrescItemsRepoMockRecorder) GetPatientByPrescriptionID(log, query, prescriptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPatientByPrescriptionID", reflect.TypeOf((*MockPrescItemsRepo)(nil).GetPatientByPrescriptionID), log, query, prescriptionID)
+}
+
 // GetPrescriptionItemByID mocks base method.
 func (m *MockPrescItemsRepo) GetPrescriptionItemByID(log *zap.Logger, id string) (prescription.PrescriptionItems, error) {
 	m.ctrl.T.Helper()

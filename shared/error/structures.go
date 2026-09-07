@@ -25,6 +25,7 @@ var (
 	ErrPatientCreateFailed      = errors.New("failed to create patient")
 	ErrPatientFetchFailed       = errors.New("failed to fetch patient")
 	ErrPatientsFetchFailed      = errors.New("failed to fetch patients")
+	ErrEmployeesFetchFailed     = errors.New("failed to fetch employees")
 
 	// Appointment domain
 	ErrOrgScheduleNotFound     = errors.New("organisation schedule not found")
@@ -82,13 +83,9 @@ var (
 	ErrSupplierCreateFailed   = errors.New("failed to create supplier")
 	ErrSupplierFetchFailed    = errors.New("failed to fetch supplier")
 
-	// License domain
-	ErrLicenseNotFound     = errors.New("license not found")
-	ErrLicenseInvalid      = errors.New("invalid license")
-	ErrLicenseVerifyFailed = errors.New("failed to verify license")
-	ErrLicenseCreateFailed = errors.New("failed to create license")
-
 	ErrPasswordUpdateFailed = errors.New("failed to update password")
+	ErrPasswordResetFailed  = errors.New("failed to send password reset link")
+	ErrPasswordResetTooSoon = errors.New("password reset already requested recently")
 
 	ErrRolePermissionsFetchFailed = errors.New("failed to fetch role permissions")
 )

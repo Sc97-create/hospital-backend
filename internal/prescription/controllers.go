@@ -25,7 +25,7 @@ type PrescriptionServicer interface {
 type PrescriptionItemServicer interface {
 	UpdatePrescriptionItemByID(log *zap.Logger, req dto.UpdatePrescriptionItemRequest) error
 	GetPrescriptionsByPIDWithLimit(log *zap.Logger, pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error)
-	GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, int64, error)
+	GetMedicineInfo(log *zap.Logger, prescriptionID string) (MedicineInfoResult, error)
 	GetqtyByMedicine(log *zap.Logger, prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error)
 }
 
@@ -506,7 +506,7 @@ func (Presc *PrescriptionController) FindMedicineDetInfo(c *fiber.Ctx) (err erro
 
 	logger.Info("prescription medicine info attempt", zap.String("prescription_id", prescriptionID))
 
-	medicineInfoData, totalCount, err := Presc.PItemService.GetMedicineInfo(logger, prescriptionID)
+	medicineInfoResult, err := Presc.PItemService.GetMedicineInfo(logger, prescriptionID)
 	if err != nil {
 		logger.Error("prescription medicine info response failed",
 			zap.String("prescription_id", prescriptionID),
@@ -515,9 +515,10 @@ func (Presc *PrescriptionController) FindMedicineDetInfo(c *fiber.Ctx) (err erro
 		return wrapError.Wrap(err, c, fiber.StatusInternalServerError)
 	}
 
-	var response dto.Response
-	response.Data = medicineInfoData
-	response.Total = int(totalCount)
+	var response dto.MedicineInfoResponse
+	response.Data = medicineInfoResult.Items
+	response.PatientData = medicineInfoResult.PatientData
+	response.Total = int(medicineInfoResult.Total)
 	response.Code = "200"
 	response.Message = "fetched data successfully"
 	return c.Status(fiber.StatusOK).JSON(response)

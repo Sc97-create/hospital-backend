@@ -136,6 +136,7 @@ func ValidLoginUser() authdto.LoginUser {
 
 func ValidUpdatePasswordRequest() authdto.UpdatePasswordRequest {
 	return authdto.UpdatePasswordRequest{
+		Token:           "reset-token-plain",
 		Password:        "newpassword",
 		ConfirmPassword: "newpassword",
 	}

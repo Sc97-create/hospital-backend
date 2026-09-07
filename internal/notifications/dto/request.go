@@ -41,10 +41,12 @@ type NotificationModel struct {
 	//Amount          string                 `json:"amount_paid"`
 	PaidAt string `json:"paid_at"`
 
-	EmployeeName   string `json:"employee_name"`
-	EmployeeEmail  string `json:"employee_email"`
-	RoleName       string `json:"role_name"`
-	DepartmentName string `json:"department_name"`
-	LoginURL       string `json:"login_url"`
-	TempPassword   string `json:"temp_password"`
+	EmployeeName    string `json:"employee_name"`
+	EmployeeEmail   string `json:"employee_email"`
+	RoleName        string `json:"role_name"`
+	DepartmentName  string `json:"department_name"`
+	LoginURL        string `json:"login_url"`
+	TempPassword    string `json:"temp_password"`
+	ResetURL        string `json:"reset_url"`
+	CooldownMinutes string `json:"cooldown_minutes"`
 }

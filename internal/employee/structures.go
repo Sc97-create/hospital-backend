@@ -51,6 +51,9 @@ type User struct {
 
 	LastLoginAttempt int `json:"last_login_attempt" gorm:"column:last_login_attempt;type:int;default:0"`
 
+	PasswordResetTokenHash string     `json:"-" gorm:"column:password_reset_token_hash;type:text"`
+	LastPwdUpdated         *time.Time `json:"last_pwd_updated,omitempty" gorm:"column:last_pwd_updated;type:timestamp"`
+
 	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 
@@ -72,6 +75,11 @@ type EmployeeListRow struct {
 	DepartmentID   string `gorm:"column:department_id"`
 	DepartmentName string `json:"department_name" gorm:"column:department_name"`
 	IsActive       bool   `gorm:"column:is_active"`
+}
+
+type EmployeeStatusCountRow struct {
+	Active   int `gorm:"column:active"`
+	Inactive int `gorm:"column:inactive"`
 }
 
 type InviteEmp struct {

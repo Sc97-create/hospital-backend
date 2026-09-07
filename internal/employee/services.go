@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -93,6 +94,28 @@ func (Eservice *EmployeeService) FindMany(req dto.FindManyRequest) (employeeResp
 	}
 	employeeResp = Eservice.arrayMapToEmployeeResponse(users)
 	return
+}
+
+func (Eservice *EmployeeService) GetEmployeeStatusCounts(log *zap.Logger, organisationID string) (dto.EmployeeStatusCounts, error) {
+	if strings.TrimSpace(organisationID) == "" {
+		return dto.EmployeeStatusCounts{}, wrapError.ErrInvalidRequest
+	}
+	row, err := Eservice.EmpRepo.CountByActiveStatus(organisationID)
+	if err != nil {
+		if log != nil {
+			log.Error("employee status counts failed",
+				zap.String("organisation_id", organisationID),
+				zap.String("reason", "db_read"),
+				zap.Error(err),
+			)
+		}
+		return dto.EmployeeStatusCounts{}, wrapError.ErrEmployeesFetchFailed
+	}
+	return dto.EmployeeStatusCounts{
+		Active:   row.Active,
+		Inactive: row.Inactive,
+		Total:    row.Active + row.Inactive,
+	}, nil
 }
 
 func (Eservice *EmployeeService) getPageSkip(limit int, pageNo int) (int, int) {
@@ -196,10 +219,11 @@ func (Eservice *EmployeeService) FindDoctors(search string, organisationID strin
         FROM users u
         JOIN roles ON roles.id = u.role_id
         WHERE u.organisation_id = $1
+          AND roles.name = $2
     `
 
-	args := []interface{}{organisationID}
-	idx := 2
+	args := []interface{}{organisationID, roles.DefaultRoleDoctor}
+	idx := 3
 
 	if search != "" {
 		query += fmt.Sprintf(`
@@ -208,7 +232,6 @@ func (Eservice *EmployeeService) FindDoctors(search string, organisationID strin
 
 		like := "%" + search + "%"
 		args = append(args, like, like)
-		idx += 2
 	}
 	users, err := Eservice.EmpRepo.ReadDoctors(query, args...)
 	if err != nil {

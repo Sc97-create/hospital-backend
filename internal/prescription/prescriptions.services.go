@@ -358,6 +358,69 @@ func (p *PrescriptionService) appendPrescriptionFilters(query string, req dto.Fi
 	return query, args, argsPos
 }
 
+func (p *PrescriptionService) GetTodayPrescriptions(log *zap.Logger, organisationID string) (dto.TodayPrescriptionsSummary, error) {
+	log = ensureLog(log)
+	if strings.TrimSpace(organisationID) == "" {
+		return dto.TodayPrescriptionsSummary{}, wrapError.ErrInvalidRequest
+	}
+	listQuery := `
+		SELECT
+			p.id,
+			p.code,
+			e.username AS prescribed_by,
+			p.patient_id,
+			pt.name AS patient_name,
+			p.appointment_id,
+			p.created_at,
+			p.status AS status
+		FROM prescriptions AS p
+		JOIN users AS e ON p.prescribed_by = e.id
+		JOIN patients AS pt ON p.patient_id = pt.id
+		WHERE p.organisation_id = $1
+		AND p.created_at >= CURRENT_DATE
+		AND p.created_at < CURRENT_DATE + INTERVAL '1 day'
+		ORDER BY p.created_at DESC
+		LIMIT $2
+	`
+	prescriptions, err := p.prescriptionRepo.FindMany(log, listQuery, organisationID, constants.DashboardTodayPrescriptionLimit)
+	if err != nil {
+		log.Error("dashboard today prescriptions failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return dto.TodayPrescriptionsSummary{}, wrapError.ErrPrescriptionsFetchFailed
+	}
+	if prescriptions == nil {
+		prescriptions = []dto.PrescriptionListItem{}
+	}
+	countQuery := `
+		SELECT COUNT(*)
+		FROM prescriptions AS p
+		WHERE p.organisation_id = $1
+		AND p.created_at >= CURRENT_DATE
+		AND p.created_at < CURRENT_DATE + INTERVAL '1 day'
+	`
+	total, err := p.prescriptionRepo.Count(log, countQuery, organisationID)
+	if err != nil {
+		log.Error("dashboard today prescriptions failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return dto.TodayPrescriptionsSummary{}, wrapError.ErrPrescriptionsFetchFailed
+	}
+	log.Info("dashboard today prescriptions success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(prescriptions)),
+		zap.Int64("total", total),
+	)
+	return dto.TodayPrescriptionsSummary{
+		Prescriptions: prescriptions,
+		Total:         int(total),
+	}, nil
+}
+
 func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error) {
 	log = ensureLog(log)
 	parsedStatus, err := p.parseFilterStatus(status)

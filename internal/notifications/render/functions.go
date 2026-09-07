@@ -47,6 +47,7 @@ func NewHTMLRenderer(subjects map[string]string) (*HTMLRenderer, error) {
 		"employee_created_welcome":    true,
 		"employee_created_onboarding": true,
 		"employee_created_compact":    true,
+		"password_reset_requested":    true,
 	}
 
 	entries, err := fs.Glob(templateFS, templateDir+"/*.tmpl")

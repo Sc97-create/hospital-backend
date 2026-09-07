@@ -15,6 +15,7 @@ type PermService struct {
 func NewService(PermRepo PermissionRepo, moduleLookup modules.ModuleRepo) *PermService {
 	return &PermService{PermissionRepo: PermRepo, ModuleLookup: moduleLookup}
 }
+
 func (PermSer *PermService) DefaultPerm() error {
 	now := time.Now()
 	permArr := []Permission{}
@@ -26,12 +27,9 @@ func (PermSer *PermService) DefaultPerm() error {
 			UpdatedAt: now,
 		})
 	}
-	err := PermSer.PermissionRepo.BatchInsert(permArr, 2)
-	if err != nil {
-		return err
-	}
-	return nil
-} // need to hit when main is called
+	return PermSer.PermissionRepo.BatchInsert(permArr, 2)
+}
+
 func (PermSer *PermService) FindMany() ([]modules.Modules, []Permission, error) {
 	permissions, err := PermSer.PermissionRepo.FindMany()
 	if err != nil {
@@ -41,19 +39,5 @@ func (PermSer *PermService) FindMany() ([]modules.Modules, []Permission, error) 
 	if err != nil {
 		return nil, nil, err
 	}
-	// moduleResp := []dto.ModuleResponse{}
-	// permissionResp := []dto.PermissionResponse{}
-	// for _, each := range modules {
-	// 	moduleResp = append(moduleResp, dto.ModuleResponse{
-	// 		ID:   each.ID,
-	// 		Name: each.Name,
-	// 	})
-	// }
-	// for _, each := range permissions {
-	// 	permissionResp = append(permissionResp, dto.PermissionResponse{
-	// 		ID:   each.ID,
-	// 		Name: each.Name,
-	// 	})
-	// }
 	return modules, permissions, nil
 }

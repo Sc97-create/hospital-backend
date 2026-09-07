@@ -2,11 +2,13 @@ package employee_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/employee/mocks"
+	"hospital-backend/internal/roles"
 	"hospital-backend/internal/testutil/servicetest"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
@@ -138,18 +140,36 @@ func TestServiceFindDoctors(t *testing.T) {
 	repo := mocks.NewMockEmployeeRepository(ctrl)
 
 	t.Run("repo error", func(t *testing.T) {
-		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1").Return(nil, errors.New("read error"))
+		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1", roles.DefaultRoleDoctor).Return(nil, errors.New("read error"))
 		svc := newEmployeeService(t, repo)
 		if _, err := svc.FindDoctors("", "org-1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("success", func(t *testing.T) {
-		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1").Return([]employee.User{{ID: "doc-1"}}, nil)
+	t.Run("success filters doctor role", func(t *testing.T) {
+		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1", roles.DefaultRoleDoctor).DoAndReturn(
+			func(query string, args ...any) ([]employee.User, error) {
+				if !strings.Contains(query, "roles.name") {
+					t.Fatalf("expected roles.name filter in query: %s", query)
+				}
+				return []employee.User{{ID: "doc-1"}}, nil
+			},
+		)
 		svc := newEmployeeService(t, repo)
 		got, err := svc.FindDoctors("", "org-1")
 		if err != nil || len(got) != 1 || got[0].ID != "doc-1" {
+			t.Fatalf("got %+v err=%v", got, err)
+		}
+	})
+
+	t.Run("success with search", func(t *testing.T) {
+		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1", roles.DefaultRoleDoctor, "%john%", "%john%").Return(
+			[]employee.User{{ID: "doc-2", FirstName: "John"}}, nil,
+		)
+		svc := newEmployeeService(t, repo)
+		got, err := svc.FindDoctors("john", "org-1")
+		if err != nil || len(got) != 1 || got[0].ID != "doc-2" {
 			t.Fatalf("got %+v err=%v", got, err)
 		}
 	})
@@ -197,6 +217,41 @@ func TestMapToEmployeeResponse(t *testing.T) {
 		}
 		if resp.EmployeeStatus != "inactive" {
 			t.Fatalf("expected inactive, got %q", resp.EmployeeStatus)
+		}
+	})
+}
+
+func TestServiceGetEmployeeStatusCounts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	t.Run("missing organisation id", func(t *testing.T) {
+		svc := newEmployeeService(t, nil)
+		_, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "")
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		repo := mocks.NewMockEmployeeRepository(ctrl)
+		repo.EXPECT().CountByActiveStatus("org-1").Return(employee.EmployeeStatusCountRow{}, errors.New("db"))
+		svc := newEmployeeService(t, repo)
+		_, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "org-1")
+		if !errors.Is(err, wrapError.ErrEmployeesFetchFailed) {
+			t.Fatalf("expected fetch failed, got %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		repo := mocks.NewMockEmployeeRepository(ctrl)
+		repo.EXPECT().CountByActiveStatus("org-1").Return(employee.EmployeeStatusCountRow{Active: 5, Inactive: 2}, nil)
+		svc := newEmployeeService(t, repo)
+		got, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "org-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Active != 5 || got.Inactive != 2 || got.Total != 7 {
+			t.Fatalf("unexpected counts: %+v", got)
 		}
 	})
 }
@@ -259,5 +314,8 @@ func (codeCountRepo) ReadDoctors(string, ...any) ([]employee.User, error) {
 func (codeCountRepo) Count(string, string) (int64, error) { panic("unused") }
 func (r codeCountRepo) CountByCodePrefix(string, string) (int64, error) {
 	return r.count, r.err
+}
+func (codeCountRepo) CountByActiveStatus(string) (employee.EmployeeStatusCountRow, error) {
+	panic("unused")
 }
 func (codeCountRepo) FindRoleIDByUserID(string) (string, error) { panic("unused") }

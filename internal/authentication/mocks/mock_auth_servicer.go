@@ -85,16 +85,44 @@ func (mr *MockAuthServicerMockRecorder) RefreshToken(log, refreshToken any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshToken", reflect.TypeOf((*MockAuthServicer)(nil).RefreshToken), log, refreshToken)
 }
 
-// UpdatePassword mocks base method.
-func (m *MockAuthServicer) UpdatePassword(log *zap.Logger, userID string, req dto.UpdatePasswordRequest) error {
+// RequestPasswordReset mocks base method.
+func (m *MockAuthServicer) RequestPasswordReset(log *zap.Logger, emailID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePassword", log, userID, req)
+	ret := m.ctrl.Call(m, "RequestPasswordReset", log, emailID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RequestPasswordReset indicates an expected call of RequestPasswordReset.
+func (mr *MockAuthServicerMockRecorder) RequestPasswordReset(log, emailID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestPasswordReset", reflect.TypeOf((*MockAuthServicer)(nil).RequestPasswordReset), log, emailID)
+}
+
+// UpdatePassword mocks base method.
+func (m *MockAuthServicer) UpdatePassword(log *zap.Logger, req dto.UpdatePasswordRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePassword", log, req)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdatePassword indicates an expected call of UpdatePassword.
-func (mr *MockAuthServicerMockRecorder) UpdatePassword(log, userID, req any) *gomock.Call {
+func (mr *MockAuthServicerMockRecorder) UpdatePassword(log, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePassword", reflect.TypeOf((*MockAuthServicer)(nil).UpdatePassword), log, userID, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePassword", reflect.TypeOf((*MockAuthServicer)(nil).UpdatePassword), log, req)
+}
+
+// UpdatePasswordFirstLogin mocks base method.
+func (m *MockAuthServicer) UpdatePasswordFirstLogin(log *zap.Logger, userID string, req dto.FirstLoginPasswordRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePasswordFirstLogin", log, userID, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdatePasswordFirstLogin indicates an expected call of UpdatePasswordFirstLogin.
+func (mr *MockAuthServicerMockRecorder) UpdatePasswordFirstLogin(log, userID, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePasswordFirstLogin", reflect.TypeOf((*MockAuthServicer)(nil).UpdatePasswordFirstLogin), log, userID, req)
 }

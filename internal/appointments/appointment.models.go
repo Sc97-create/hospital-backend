@@ -12,6 +12,7 @@ const (
 	StatusOngoing           Status    = "ongoing"
 	StatusUpcoming          Status    = "upcoming"
 	StatusMissed            Status    = "missed"
+	StatusWaiting           Status    = "waiting"
 	StatusReschedule        Status    = "reschedule_required"
 	VisitTypeNewPatint      VisitType = "new_patient"
 	VisitTypeFollowUp       VisitType = "follow_up"

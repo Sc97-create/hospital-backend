@@ -1,31 +1,18 @@
 package modules
 
+import "hospital-backend/pkg/constants"
+
 type ModuleArr []string
 
-const (
-	Patient      = "patient"
-	Employee     = "employee"
-	Medicine     = "medicine"
-	Department   = "department"
-	Role         = "role"
-	License      = "license"
-	Appointment  = "appointment"
-	Report       = "report"
-	Prescription = "prescription"
-	Billing      = "billing"
-	Dashboard    = "dashboard"
-)
-
 var ConstModules ModuleArr = ModuleArr{
-	Patient,
-	Employee,
-	Medicine,
-	Department,
-	Role,
-	License,
-	Appointment,
-	Report,
-	Prescription,
-	Billing,
-	Dashboard,
+	constants.Patient,
+	constants.Employee,
+	constants.Medicine,
+	constants.Department,
+	constants.Role,
+	constants.Appointment,
+	constants.Report,
+	constants.Prescription,
+	constants.Billing,
+	constants.Dashboard,
 }

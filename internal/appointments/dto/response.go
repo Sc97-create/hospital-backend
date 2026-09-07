@@ -55,6 +55,14 @@ type AppointmentDetails struct {
 	DepartmentName  string    `json:"department_name"`
 	SlotDuration    int64     `json:"slot_duration"`
 }
+type AppointmentStatusCounts struct {
+	Scheduled int `json:"scheduled"`
+	InConsult int `json:"in_consult"`
+	Completed int `json:"completed"`
+	Missed    int `json:"missed"`
+	Waiting   int `json:"waiting"`
+}
+
 type PatAppointment struct {
 	AppointmentID   string    `json:"appointment_id"`
 	AppointmentCode string    `json:"appointment_code"`

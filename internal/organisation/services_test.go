@@ -32,13 +32,12 @@ func newOrganisationService(
 	db *gorm.DB,
 	repo organisation.OrganisationRepo,
 	perm organisation.PermissionCatalogLookup,
-	license organisation.LicenseCreator,
 	roleSeeder organisation.RoleSeeder,
 	deptSeeder organisation.DepartmentSeeder,
 	rolePermSeeder organisation.RolePermissionSeeder,
 ) *organisation.OrganisationService {
 	t.Helper()
-	return organisation.NewOrganisationService(db, repo, license, roleSeeder, deptSeeder, perm, rolePermSeeder)
+	return organisation.NewOrganisationService(db, repo, roleSeeder, deptSeeder, perm, rolePermSeeder)
 }
 
 var (
@@ -90,7 +89,7 @@ func TestServiceGetOrgByID(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(repo)
 			}
-			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil, nil)
+			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil)
 			got, err := svc.GetOrgByID(log, tt.orgID)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -146,7 +145,7 @@ func TestServiceUpdate(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(repo)
 			}
-			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil, nil)
+			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil)
 			err := svc.Update(log, "org-1", orgdto.OrganisationPayload{
 				OrganisationName: payload.OrganisationName,
 				HospitalType:     payload.HospitalType,
@@ -218,7 +217,7 @@ func TestServiceUpdateOrganisationLoc(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(repo)
 			}
-			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil, nil)
+			svc := newOrganisationService(t, nil, repo, nil, nil, nil, nil)
 			err := svc.UpdateOrganisationLoc(log, payload)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -242,7 +241,7 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
 		perm.EXPECT().FindMany().Return(nil, nil, errors.New("perm error"))
 
-		svc := newOrganisationService(t, testOrganisationDB(t), nil, perm, nil, nil, nil, nil)
+		svc := newOrganisationService(t, testOrganisationDB(t), nil, perm, nil, nil, nil)
 		id, err := svc.CreateOrganisation(log, payload)
 		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
 			t.Fatalf("got id=%q err=%v", id, err)
@@ -256,23 +255,7 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		perm.EXPECT().FindMany().Return(testModules, testPermissions, nil)
 		repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("create failed"))
 
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, nil, nil, nil, nil)
-		id, err := svc.CreateOrganisation(log, payload)
-		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
-			t.Fatalf("got id=%q err=%v", id, err)
-		}
-	})
-
-	t.Run("license create error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
-		repo := mocks.NewMockOrganisationRepo(ctrl)
-		license := mocks.NewMockLicenseCreator(ctrl)
-		perm.EXPECT().FindMany().Return(testModules, testPermissions, nil)
-		repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		license.EXPECT().CreateLicenseSrv(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("license failed"))
-
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, license, nil, nil, nil)
+		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, nil, nil, nil)
 		id, err := svc.CreateOrganisation(log, payload)
 		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
 			t.Fatalf("got id=%q err=%v", id, err)
@@ -283,14 +266,12 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
 		repo := mocks.NewMockOrganisationRepo(ctrl)
-		license := mocks.NewMockLicenseCreator(ctrl)
 		roleSeeder := mocks.NewMockRoleSeeder(ctrl)
 		perm.EXPECT().FindMany().Return(testModules, testPermissions, nil)
 		repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		license.EXPECT().CreateLicenseSrv(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		roleSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(nil, errors.New("roles failed"))
 
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, license, roleSeeder, nil, nil)
+		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, roleSeeder, nil, nil)
 		id, err := svc.CreateOrganisation(log, payload)
 		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
 			t.Fatalf("got id=%q err=%v", id, err)
@@ -301,16 +282,14 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
 		repo := mocks.NewMockOrganisationRepo(ctrl)
-		license := mocks.NewMockLicenseCreator(ctrl)
 		roleSeeder := mocks.NewMockRoleSeeder(ctrl)
 		deptSeeder := mocks.NewMockDepartmentSeeder(ctrl)
 		perm.EXPECT().FindMany().Return(testModules, testPermissions, nil)
 		repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		license.EXPECT().CreateLicenseSrv(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		roleSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(testRoles, nil)
 		deptSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(errors.New("depts failed"))
 
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, license, roleSeeder, deptSeeder, nil)
+		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, roleSeeder, deptSeeder, nil)
 		id, err := svc.CreateOrganisation(log, payload)
 		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
 			t.Fatalf("got id=%q err=%v", id, err)
@@ -321,18 +300,16 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
 		repo := mocks.NewMockOrganisationRepo(ctrl)
-		license := mocks.NewMockLicenseCreator(ctrl)
 		roleSeeder := mocks.NewMockRoleSeeder(ctrl)
 		deptSeeder := mocks.NewMockDepartmentSeeder(ctrl)
 		rolePermSeeder := mocks.NewMockRolePermissionSeeder(ctrl)
 		perm.EXPECT().FindMany().Return(testModules, testPermissions, nil)
 		repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-		license.EXPECT().CreateLicenseSrv(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		roleSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(testRoles, nil)
 		deptSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(nil)
 		rolePermSeeder.EXPECT().InsertMany(gomock.Any(), testRoles, testPermissions, testModules, gomock.Any()).Return(errors.New("rp failed"))
 
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, license, roleSeeder, deptSeeder, rolePermSeeder)
+		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, roleSeeder, deptSeeder, rolePermSeeder)
 		id, err := svc.CreateOrganisation(log, payload)
 		if !errors.Is(err, wrapError.ErrOrganisationCreateFailed) || id != "" {
 			t.Fatalf("got id=%q err=%v", id, err)
@@ -343,7 +320,6 @@ func TestServiceCreateOrganisation(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		perm := mocks.NewMockPermissionCatalogLookup(ctrl)
 		repo := mocks.NewMockOrganisationRepo(ctrl)
-		license := mocks.NewMockLicenseCreator(ctrl)
 		roleSeeder := mocks.NewMockRoleSeeder(ctrl)
 		deptSeeder := mocks.NewMockDepartmentSeeder(ctrl)
 		rolePermSeeder := mocks.NewMockRolePermissionSeeder(ctrl)
@@ -359,12 +335,11 @@ func TestServiceCreateOrganisation(t *testing.T) {
 				return nil
 			},
 		)
-		license.EXPECT().CreateLicenseSrv(gomock.Any(), gomock.Any(), payload.OrganisationName, 6, gomock.Any(), "month", gomock.Any()).Return(nil)
 		roleSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(testRoles, nil)
 		deptSeeder.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(nil)
 		rolePermSeeder.EXPECT().InsertMany(gomock.Any(), testRoles, testPermissions, testModules, gomock.Any()).Return(nil)
 
-		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, license, roleSeeder, deptSeeder, rolePermSeeder)
+		svc := newOrganisationService(t, testOrganisationDB(t), repo, perm, roleSeeder, deptSeeder, rolePermSeeder)
 		id, err := svc.CreateOrganisation(log, payload)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

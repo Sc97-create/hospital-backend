@@ -4,18 +4,12 @@ import (
 	"hospital-backend/internal/modules"
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/roles"
-	"time"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type PermissionCatalogLookup interface {
 	FindMany() ([]modules.Modules, []permissions.Permission, error)
-}
-
-type LicenseCreator interface {
-	CreateLicenseSrv(log *zap.Logger, tx *gorm.DB, orgname string, planday int, organisationID string, planspan string, issuedAt time.Time) error
 }
 
 type RoleSeeder interface {

@@ -27,6 +27,7 @@ func TestSelectStatus(t *testing.T) {
 		{status: "cancelled", wantErr: false},
 		{status: "scheduled", wantErr: false},
 		{status: "ongoing", wantErr: false},
+		{status: "waiting", wantErr: false},
 		{status: "bad", wantErr: true},
 	}
 
@@ -249,6 +250,127 @@ func TestGetAppointmentsByOrgID(t *testing.T) {
 			}
 			if total != tt.wantLen {
 				t.Fatalf("expected total %d, got %d", tt.wantLen, total)
+			}
+		})
+	}
+}
+
+func TestGetTodayLatestAppointments(t *testing.T) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	end := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.Local)
+
+	tests := []struct {
+		name    string
+		setup   func(*apptmocks.MockAppointmentRepository)
+		wantErr error
+		wantLen int
+	}{
+		{
+			name: "list error",
+			setup: func(m *apptmocks.MockAppointmentRepository) {
+				m.EXPECT().FindManyByOrganisationID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("db"))
+			},
+			wantErr: wrapError.ErrAppointmentsFetchFailed,
+		},
+		{
+			name: "success",
+			setup: func(m *apptmocks.MockAppointmentRepository) {
+				m.EXPECT().FindManyByOrganisationID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return([]map[string]interface{}{
+					{
+						"appointment_id": "appt-1", "appointment_code": "APT-1",
+						"status": "scheduled", "visit_type": "consultation",
+						"start_time": now, "end_time": end, "appointment_date": today,
+						"mobile_number": "9999999999", "patient_name": "John", "doctor_name": "Dr. Smith",
+					},
+				}, nil)
+			},
+			wantLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := apptmocks.NewMockAppointmentRepository(ctrl)
+			if tt.setup != nil {
+				tt.setup(repo)
+			}
+			svc := appointments.NewAppointmentService(nil, repo, nil, nil)
+			got, err := svc.GetTodayLatestAppointments(servicetest.NopLogger(), "org-1")
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected err %v, got %v", tt.wantErr, err)
+			}
+			if len(got) != tt.wantLen {
+				t.Fatalf("expected %d items, got %d", tt.wantLen, len(got))
+			}
+		})
+	}
+}
+
+func TestGetAppointmentsGroupedByStatus(t *testing.T) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	end := time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.Local)
+
+	tests := []struct {
+		name    string
+		setup   func(*apptmocks.MockAppointmentRepository)
+		wantErr error
+		check   func(t *testing.T, got dto.AppointmentStatusCounts)
+	}{
+		{
+			name: "list error",
+			setup: func(m *apptmocks.MockAppointmentRepository) {
+				m.EXPECT().FindManyByOrganisationID(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("db"))
+			},
+			wantErr: wrapError.ErrAppointmentsFetchFailed,
+		},
+		{
+			name: "success groups by status",
+			setup: func(m *apptmocks.MockAppointmentRepository) {
+				m.EXPECT().FindManyByOrganisationID(gomock.Any(), gomock.Any(), gomock.Any()).Return([]map[string]interface{}{
+					{
+						"status": "ongoing",
+						"start_time": now, "end_time": end, "appointment_date": today,
+					},
+					{
+						"status": "waiting",
+						"start_time": now, "end_time": end, "appointment_date": today,
+					},
+				}, nil)
+			},
+			check: func(t *testing.T, got dto.AppointmentStatusCounts) {
+				if got.InConsult != 1 {
+					t.Fatalf("expected 1 in_consult, got %d", got.InConsult)
+				}
+				if got.Waiting != 1 {
+					t.Fatalf("expected 1 waiting, got %d", got.Waiting)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := apptmocks.NewMockAppointmentRepository(ctrl)
+			if tt.setup != nil {
+				tt.setup(repo)
+			}
+			svc := appointments.NewAppointmentService(nil, repo, nil, nil)
+			got, err := svc.GetAppointmentsGroupedByStatus(servicetest.NopLogger(), "org-1")
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected %v, got %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.check != nil {
+				tt.check(t, got)
 			}
 		})
 	}
