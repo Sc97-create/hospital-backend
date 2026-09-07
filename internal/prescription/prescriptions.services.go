@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hospital-backend/internal/appointments"
 	invoicedto "hospital-backend/internal/billing/dto"
-	"hospital-backend/internal/employee"
 	"hospital-backend/internal/medicine"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
-	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/prescription/dto"
 	"hospital-backend/pkg/constants"
 	"hospital-backend/shared/commonfunctions"
@@ -27,22 +23,34 @@ import (
 type PrescriptionService struct {
 	DB                      *gorm.DB
 	prescriptionRepo        PrescriptionRepositoryInterface
-	medicineService         *medicine.MedicineService
-	appointmentService      *appointments.AppointmentService
-	prescriptionItemService *PrescriptionItemServ
-	notificationService     *service.Notificationservice
-	orgService              *organisation.OrganisationService
-	userService             *employee.EmployeeService
+	appointmentLookup       AppointmentLookup
+	appointmentStatus       AppointmentStatusUpdater
+	prescriptionItemService PrescriptionItemAdder
+	notificationService     NotificationEnqueuer
 }
 
-func NewPrescriptionService(db *gorm.DB, prescriptionRepo PrescriptionRepositoryInterface, medService *medicine.MedicineService, appointment *appointments.AppointmentService, prescriptionItemServ *PrescriptionItemServ, notificationService *service.Notificationservice, orgService *organisation.OrganisationService, userService *employee.EmployeeService) *PrescriptionService {
-	return &PrescriptionService{DB: db, prescriptionRepo: prescriptionRepo, medicineService: medService, appointmentService: appointment, prescriptionItemService: prescriptionItemServ, notificationService: notificationService, orgService: orgService, userService: userService}
+func NewPrescriptionService(
+	db *gorm.DB,
+	prescriptionRepo PrescriptionRepositoryInterface,
+	appointmentLookup AppointmentLookup,
+	appointmentStatus AppointmentStatusUpdater,
+	prescriptionItemServ PrescriptionItemAdder,
+	notificationService NotificationEnqueuer,
+) *PrescriptionService {
+	return &PrescriptionService{
+		DB:                      db,
+		prescriptionRepo:        prescriptionRepo,
+		appointmentLookup:       appointmentLookup,
+		appointmentStatus:       appointmentStatus,
+		prescriptionItemService: prescriptionItemServ,
+		notificationService:     notificationService,
+	}
 }
 
 func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto.CreatePrescriptionRequest) (string, error) {
 	log = ensureLog(log)
 
-	appointmentModel, err := p.appointmentService.GetAppntmentByID(log, requestdto.AppointmentID)
+	appointmentModel, err := p.appointmentLookup.GetAppntmentByID(log, requestdto.AppointmentID)
 	if err != nil {
 		reason := "appointment_lookup"
 		if errors.Is(err, wrapError.ErrAppointmentNotFound) {
@@ -246,35 +254,30 @@ func (p *PrescriptionService) generateCode() string {
 	return fmt.Sprintf("PRX%s%d", date, random)
 }
 
-func (p *PrescriptionService) FindMany(log *zap.Logger, limit int, offset int, organisationID string, search string) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
+func (p *PrescriptionService) FindMany(log *zap.Logger, req dto.FindManyRequest) (prescription []dto.PrescriptionListItem, totalInt int64, err error) {
 	log = ensureLog(log)
-	skip := commonfunctions.Getskip(limit, offset)
-	search = strings.TrimSpace(search)
+	req.Search = strings.TrimSpace(req.Search)
+	req.Status = strings.TrimSpace(req.Status)
+	req.DBLimit, req.DBOffset = p.parsePagination(req.Limit, req.PageNo)
 
-	listQuery := `SELECT p.id, p.code, e.username AS prescribed_by, p.patient_id, pt.name AS patient_name, p.appointment_id, p.created_at, p.status as status
-	FROM prescriptions AS p
-	JOIN users AS e ON p.prescribed_by = e.id
-	JOIN patients AS pt ON p.patient_id = pt.id
-	WHERE p.organisation_id = ?`
-	listArgs := []interface{}{organisationID}
-
-	countQuery := `SELECT COUNT(*) FROM prescriptions WHERE organisation_id = ?`
-	countArgs := []interface{}{organisationID}
-
-	if search != "" {
-		listQuery += ` AND p.code ILIKE ?`
-		listArgs = append(listArgs, "%"+search+"%")
-		countQuery += ` AND code ILIKE ?`
-		countArgs = append(countArgs, "%"+search+"%")
+	if req.Status != "" {
+		parsedStatus, statusErr := p.parseFilterStatus(req.Status)
+		if statusErr != nil {
+			log.Warn("prescription list failed",
+				zap.String("organisation_id", req.OrganisationID),
+				zap.String("status", req.Status),
+				zap.String("reason", "invalid_status"),
+			)
+			return nil, 0, wrapError.ErrInvalidRequest
+		}
+		req.Status = parsedStatus
 	}
 
-	listQuery += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
-	listArgs = append(listArgs, limit, skip)
-
+	listQuery, listArgs := p.buildPrescriptionListQuery(req)
 	prescription, err = p.prescriptionRepo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("prescription list failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -283,10 +286,12 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, limit int, offset int, o
 	if prescription == nil {
 		prescription = []dto.PrescriptionListItem{}
 	}
+
+	countQuery, countArgs := p.buildPrescriptionCountQuery(req)
 	totalInt, err = p.prescriptionRepo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("prescription list failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -294,11 +299,63 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, limit int, offset int, o
 	}
 
 	log.Info("prescription list success",
-		zap.String("organisation_id", organisationID),
+		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("count", len(prescription)),
 		zap.Int64("total", totalInt),
+		zap.Bool("has_search", req.Search != ""),
+		zap.String("status", req.Status),
 	)
 	return prescription, totalInt, nil
+}
+
+func (p *PrescriptionService) buildPrescriptionListQuery(req dto.FindManyRequest) (string, []interface{}) {
+	baseQuery := `
+		SELECT
+			p.id,
+			p.code,
+			e.username AS prescribed_by,
+			p.patient_id,
+			pt.name AS patient_name,
+			p.appointment_id,
+			p.created_at,
+			p.status AS status
+		FROM prescriptions AS p
+		JOIN users AS e ON p.prescribed_by = e.id
+		JOIN patients AS pt ON p.patient_id = pt.id
+		WHERE p.organisation_id = $1
+	`
+	args := []interface{}{req.OrganisationID}
+	baseQuery, args, argsPos := p.appendPrescriptionFilters(baseQuery, req, args, 2)
+	baseQuery += " ORDER BY p.created_at DESC"
+	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
+	args = append(args, req.DBLimit, req.DBOffset)
+	return baseQuery, args
+}
+
+func (p *PrescriptionService) buildPrescriptionCountQuery(req dto.FindManyRequest) (string, []interface{}) {
+	countQuery := `
+		SELECT COUNT(*)
+		FROM prescriptions AS p
+		JOIN patients AS pt ON p.patient_id = pt.id
+		WHERE p.organisation_id = $1
+	`
+	args := []interface{}{req.OrganisationID}
+	countQuery, args, _ = p.appendPrescriptionFilters(countQuery, req, args, 2)
+	return countQuery, args
+}
+
+func (p *PrescriptionService) appendPrescriptionFilters(query string, req dto.FindManyRequest, args []interface{}, argsPos int) (string, []interface{}, int) {
+	if req.Status != "" {
+		query += fmt.Sprintf(" AND p.status = $%d", argsPos)
+		args = append(args, req.Status)
+		argsPos++
+	}
+	if req.Search != "" {
+		query += fmt.Sprintf(" AND (p.code ILIKE $%d OR pt.name ILIKE $%d)", argsPos, argsPos)
+		args = append(args, "%"+req.Search+"%")
+		argsPos++
+	}
+	return query, args, argsPos
 }
 
 func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error) {
@@ -431,7 +488,7 @@ func (p *PrescriptionService) UpdateManualStatus(log *zap.Logger, prescriptionID
 
 	err := p.DB.Transaction(func(tx *gorm.DB) error {
 		if status == constants.StatusSent {
-			err := p.appointmentService.Repository.UpdateStatus(log, tx, constants.StatusCompleted, appointmentID)
+			err := p.appointmentStatus.UpdateStatusInTx(log, tx, constants.StatusCompleted, appointmentID)
 			if err != nil {
 				log.Error("prescription status update failed",
 					zap.String("prescription_id", prescriptionID),
@@ -474,8 +531,10 @@ func (p *PrescriptionService) UpdateManualStatus(log *zap.Logger, prescriptionID
 			notificationRequest.NotificationType = constants.PrescriptionCreatedEvent
 			notificationRequest.Subject = constants.PrescriptionCreatedSubject
 			ctx := context.Background()
-			p.notificationService.Create(ctx, notificationRequest)
-			notificationEnqueued = true
+			if p.notificationService != nil {
+				_ = p.notificationService.Create(ctx, notificationRequest)
+				notificationEnqueued = true
+			}
 		}
 	}
 

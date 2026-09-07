@@ -180,6 +180,26 @@ func (j *JwtService) ValidateAccessToken(token string) (bool, error) {
 	return true, nil
 
 }
+
+func (j *JwtService) AccessTokenSubject(token string) (string, error) {
+	parsed, err := j.parseToken(token)
+	if err != nil {
+		return "", err
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", errors.New("invalid token claims")
+	}
+	expiryTime, _ := claims["exp"].(float64)
+	if time.Unix(int64(expiryTime), 0).Before(time.Now()) {
+		return "", errors.New("token is expired")
+	}
+	userID, _ := claims["sub"].(string)
+	if userID == "" {
+		return "", errors.New("missing subject")
+	}
+	return userID, nil
+}
 func (j *JwtService) CheckIfExist(userID string) (bool, error) {
 	count, err := j.RefreshtokenRepo.CheckIfExist(userID)
 	if err != nil {

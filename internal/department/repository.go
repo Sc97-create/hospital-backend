@@ -9,7 +9,9 @@ type DepartmentRepository interface {
 	FindDeptID(organisationID string) (string, error)
 	BatchInsert(tx *gorm.DB, dept []Department) error
 	FindMany(organisationID string, limit int, skip int) ([]Department, error)
+	Count(organisationID string) (int64, error)
 	FindDeptByName(organisationID string, name string) (Department, error)
+	FindByID(id string) (Department, error)
 }
 
 func (Deptdb *DepartmentDB) Create(tx *gorm.DB, dept *Department) (err error) {
@@ -42,10 +44,29 @@ func (DeptDb *DepartmentDB) FindMany(organisationID string, limit int, skip int)
 	}
 	return departments, nil
 }
+
+func (DeptDb *DepartmentDB) Count(organisationID string) (int64, error) {
+	var count int64
+	err := DeptDb.DB.Model(&Department{}).Where("organisation_id=? AND name != ?", organisationID, DefaultDeptAdmin).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
 func (DeptDb *DepartmentDB) FindDeptByName(organisationID string, name string) (Department, error) {
 	var dept Department
 	query := `select id,name from departments where organisation_id=$1 and name=$2`
 	err := DeptDb.DB.Raw(query, organisationID, name).Scan(&dept).Error
+	if err != nil {
+		return Department{}, err
+	}
+	return dept, nil
+}
+
+func (DeptDb *DepartmentDB) FindByID(id string) (Department, error) {
+	var dept Department
+	query := `select id,name from departments where id=$1`
+	err := DeptDb.DB.Raw(query, id).Scan(&dept).Error
 	if err != nil {
 		return Department{}, err
 	}

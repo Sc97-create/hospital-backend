@@ -11,6 +11,7 @@ import (
 
 const LoggerKey = "req_logger"
 const RequestIDKey = "request_id"
+const UserIDKey = "user_id"
 
 func RequestLogger() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -65,4 +66,9 @@ func GetLogger(c *fiber.Ctx) *zap.Logger {
 		return l
 	}
 	return logger.Log
+}
+
+func GetUserID(c *fiber.Ctx) string {
+	userID, _ := c.Locals(UserIDKey).(string)
+	return userID
 }

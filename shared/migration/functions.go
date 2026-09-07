@@ -65,6 +65,10 @@ func Migrate() (err error) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+	err = rolepermissions.RelaxNullableColumns(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
 	err = database.PostgreClient.AutoMigrate(&prescription.Prescription{})
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -94,6 +98,10 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 	}
 	err = database.PostgreClient.AutoMigrate(&notifications.Notification{})
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	err = notifications.RelaxRecipientConstraints(database.PostgreClient.GormDriver)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

@@ -22,11 +22,20 @@ type IAppointment interface {
 	GetAppointmentByPatientID(c *fiber.Ctx) (err error)
 }
 
-type AppointmentController struct {
-	AppntmentService *AppointmentService
+type AppointmentServicer interface {
+	CreateApptmnt(log *zap.Logger, requestPayload dto.NewApptmnt) (dto.NewApptmntResp, error)
+	GetSlots(log *zap.Logger, doctorID string, organisationID string, date string) (dto.SlotResponse, error)
+	GetAppointmentsByOrgID(log *zap.Logger, reqModel dto.GetDataReq) ([]dto.AppointmentList, int, error)
+	GetAppointmentPreview(log *zap.Logger, organisationID string, appointmentID string) (dto.AppointmentDetails, error)
+	UpdateStatus(log *zap.Logger, updateReq dto.UpdateStatus) error
+	GetAppointmentByPatientID(log *zap.Logger, reqModel dto.PatientAppntment) (dto.Response, error)
 }
 
-func NewAppointmentController(appointmentSrv *AppointmentService) AppointmentController {
+type AppointmentController struct {
+	AppntmentService AppointmentServicer
+}
+
+func NewAppointmentController(appointmentSrv AppointmentServicer) AppointmentController {
 	return AppointmentController{AppntmentService: appointmentSrv}
 }
 

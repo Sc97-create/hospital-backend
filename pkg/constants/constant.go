@@ -27,6 +27,8 @@ const (
 	AppointmentCreateSubject          = "Appointment Created"
 	PatientCreatedEvent               = "patient_created"
 	PatientCreatedSubject             = "Patient Created"
+	EmployeeCreatedEvent              = "employee_created_welcome"
+	EmployeeCreatedSubject            = "Your staff account is ready"
 	PrescriptionCreatedEvent          = "prescription_created"
 	PrescriptionCreatedSubject        = "Prescription Created"
 	StatusActive                      = "active"
@@ -50,5 +52,7 @@ const (
 	ProviderNameManual       string = "manual"
 	StatusPaid               string = "paid"
 	OutofStock               string = "out_of_stock"
+	EmployeeCodePrefix              = "EMP"
+	SpecialChars                    = "!@#$%&*"
 	//CurrencyINR                       = "INR"
 )

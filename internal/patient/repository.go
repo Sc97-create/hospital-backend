@@ -10,9 +10,9 @@ import (
 
 type PatientRepository interface {
 	Create(log *zap.Logger, record *Patient) error
-	ReadMany(log *zap.Logger, limit int, offset int, organisationID string) ([]Patient, error)
+	ReadMany(log *zap.Logger, query string, args ...any) ([]Patient, error)
 	ReadOne(log *zap.Logger, patientID string) (Patient, error)
-	Count(log *zap.Logger, organisationID string) (int64, error)
+	Count(log *zap.Logger, query string, args ...any) (int64, error)
 	ReadOneWithOrganisationID(log *zap.Logger, query string, args ...any) (map[string]interface{}, error)
 }
 
@@ -26,13 +26,15 @@ func (p *PatientRepo) Create(log *zap.Logger, record *Patient) error {
 	return nil
 }
 
-func (p *PatientRepo) ReadMany(log *zap.Logger, limit int, offset int, organisationID string) (patients []Patient, err error) {
+func (p *PatientRepo) ReadMany(log *zap.Logger, query string, args ...any) (patients []Patient, err error) {
 	log = ensureLog(log)
-	query := `select id,uh_id,name,gender,age,weight,mobile_number,email_id,last_visit_date,blood_group,status,created_at from patients where organisation_id=? limit ? offset ?`
-	err = p.db.Raw(query, organisationID, limit, offset).Scan(&patients).Error
+	err = p.db.Raw(query, args...).Scan(&patients).Error
 	if err != nil {
 		log.Error("patient repo error", zap.String("op", "ReadMany"), zap.Error(err))
 		return
+	}
+	if patients == nil {
+		patients = []Patient{}
 	}
 	return
 }
@@ -49,10 +51,10 @@ func (p *PatientRepo) ReadOne(log *zap.Logger, id string) (patient Patient, err 
 	return
 }
 
-func (p *PatientRepo) Count(log *zap.Logger, organisationID string) (int64, error) {
+func (p *PatientRepo) Count(log *zap.Logger, query string, args ...any) (int64, error) {
 	log = ensureLog(log)
 	var count int64
-	err := p.db.Model(&Patient{}).Where("organisation_id=?", organisationID).Count(&count).Error
+	err := p.db.Raw(query, args...).Scan(&count).Error
 	if err != nil {
 		log.Error("patient repo error", zap.String("op", "Count"), zap.Error(err))
 		return 0, err

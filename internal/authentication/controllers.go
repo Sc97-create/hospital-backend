@@ -11,17 +11,18 @@ import (
 	"go.uber.org/zap"
 )
 
-type IAuthService interface {
-	Login(c *fiber.Ctx) (dto.LoginResponse, error)
-	Refresh(c *fiber.Ctx) error
-	Logout(c *fiber.Ctx) error
+type AuthServicer interface {
+	Login(log *zap.Logger, req dto.LoginUser) (dto.LoginResponse, error)
+	RefreshToken(log *zap.Logger, refreshToken string) (dto.LoginResponse, error)
+	Logout(log *zap.Logger, refreshToken string) error
+	UpdatePassword(log *zap.Logger, userID string, req dto.UpdatePasswordRequest) error
 }
 
 type AuthController struct {
-	AuthService *UserService
+	AuthService AuthServicer
 }
 
-func NewAuthController(service *UserService) *AuthController {
+func NewAuthController(service AuthServicer) *AuthController {
 	return &AuthController{AuthService: service}
 }
 
@@ -58,16 +59,7 @@ func (a *AuthController) Login(c *fiber.Ctx) (err error) {
 	}
 
 	a.setRefreshToken(c, userResp.RefreshToken)
-	var response dto.LoginResponse
-	response.UserID = userResp.UserID
-	response.Token = userResp.Token
-	response.RefreshToken = userResp.RefreshToken
-	response.OrganisationID = userResp.OrganisationID
-	response.Message = "user logged in successfully"
-	if err := c.Status(fiber.StatusOK).JSON(response); err != nil {
-		return err
-	}
-	return
+	return c.Status(fiber.StatusOK).JSON(userResp)
 }
 
 func (a *AuthController) Refresh(c *fiber.Ctx) (err error) {
@@ -112,6 +104,44 @@ func (a *AuthController) Logout(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "logged out successfully",
 	})
+}
+
+func (a *AuthController) UpdatePassword(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	userID := middleware.GetUserID(c)
+	if userID == "" {
+		logger.Warn("password update failed", zap.String("reason", "missing_user"))
+		return wrapError.Wrap(wrapError.ErrSessionExpired, c, fiber.StatusUnauthorized)
+	}
+
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("password update request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	req := dto.UpdatePasswordRequest{}
+	req.Password, err = payload.Getstring("password")
+	if err != nil {
+		logger.Warn("password update request invalid", zap.String("field", "password"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.ConfirmPassword, err = payload.Getstring("confirm_password")
+	if err != nil {
+		logger.Warn("password update request invalid", zap.String("field", "confirm_password"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("password update attempt", zap.String("user_id", userID))
+	err = a.AuthService.UpdatePassword(logger, userID, req)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		if errors.Is(err, wrapError.ErrInvalidRequest) {
+			status = fiber.StatusBadRequest
+		}
+		return wrapError.Wrap(err, c, status)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "password updated successfully"})
 }
 
 func (a *AuthController) setRefreshToken(c *fiber.Ctx, token string) {

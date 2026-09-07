@@ -18,6 +18,7 @@ type Config struct {
 	PublicKeyPath      string
 	NotificationConfig NotificationConfig
 	RazorPayClient     RazorPayClient
+	LoginUrl           string
 }
 type RazorPayClient struct {
 	CallbackUrl   string

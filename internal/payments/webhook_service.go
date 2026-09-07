@@ -18,21 +18,21 @@ import (
 type IWebhookService struct {
 	db                *gorm.DB
 	WebhookRepository IWebhookRepository
-	PaymentsService   *PaymentsService
-	PaymentAttempts   *SPaymentAttempts
-	PaymentFactory    *providers.PaymentFactory
+	PaymentsService   PaymentInvoiceLookup
+	PaymentAttempts   PaymentAttemptServicer
+	PaymentFactory    providers.IPaymentFactory
 	Fulfillment       IPaymentFulfillment
-	FulfillmentSvc    *FulfillmentService
+	FulfillmentSvc    FulfillmentServicer
 }
 
 func NewWebhookService(
 	db *gorm.DB,
 	webhookRepository IWebhookRepository,
-	paymentsService *PaymentsService,
-	paymentAttempts *SPaymentAttempts,
-	paymentFactory *providers.PaymentFactory,
+	paymentsService PaymentInvoiceLookup,
+	paymentAttempts PaymentAttemptServicer,
+	paymentFactory providers.IPaymentFactory,
 	fulfillment IPaymentFulfillment,
-	fulfillmentSvc *FulfillmentService,
+	fulfillmentSvc FulfillmentServicer,
 ) *IWebhookService {
 	return &IWebhookService{
 		db:                db,

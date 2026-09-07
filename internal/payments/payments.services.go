@@ -19,19 +19,19 @@ import (
 type PaymentsService struct {
 	db                 *gorm.DB
 	PaymentsRepository IPaymentsRepository
-	PaymentFactory     *providers.PaymentFactory
-	PaymentAttempt     *SPaymentAttempts
+	PaymentFactory     providers.IPaymentFactory
+	PaymentAttempt     PaymentAttemptServicer
 	PrescriptionStatus PrescriptionStatusUpdater
-	FulfillmentSvc     *FulfillmentService
+	FulfillmentSvc     FulfillmentServicer
 }
 
 func NewPaymentsService(
 	db *gorm.DB,
 	paymentsRepository IPaymentsRepository,
-	paymentfactory *providers.PaymentFactory,
-	paymentAttempt *SPaymentAttempts,
+	paymentfactory providers.IPaymentFactory,
+	paymentAttempt PaymentAttemptServicer,
 	prescriptionStatus PrescriptionStatusUpdater,
-	fulfillmentSvc *FulfillmentService,
+	fulfillmentSvc FulfillmentServicer,
 ) *PaymentsService {
 	return &PaymentsService{
 		db:                 db,

@@ -14,6 +14,16 @@ type Supplier struct {
 	GstNumber         string  `json:"gst_number"`
 }
 
+// SupplierListReq is the POST body for supplier list (search + pagination).
+type SupplierListReq struct {
+	OrganisationID string  `json:"organisation_id"`
+	Search         string  `json:"search"` // matches supplier_code OR name (ILIKE)
+	Limit          float64 `json:"limit"`
+	PageNo         float64 `json:"page_no"`
+	DBLimit        int     `json:"-"`
+	DBOffset       int     `json:"-"`
+}
+
 type RequestPayload struct {
 	UserID         string         `json:"user_id"`
 	SupplierID     string         `json:"supplier_id"`

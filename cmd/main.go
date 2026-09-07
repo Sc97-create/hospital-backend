@@ -59,22 +59,27 @@ func main() {
 	}
 	ctx := context.Background()
 	containers.NotificationContainer.Start(ctx)
-	routers.RegisterPatientRoutes(app, containers.PatientService, containers.JwtManagement)
+	rbac := routers.RBACDeps{
+		JWT:        containers.JwtManagement,
+		RolePerm:   containers.RolePermissionService,
+		RoleLookup: containers.EmployeeService,
+	}
+	routers.RegisterPatientRoutes(app, containers.PatientService, rbac)
 	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
-	routers.RegisterLicenseRoutes(app, containers.LicenseService)
-	routers.RegisterEmployeeRoutes(app, containers.EmployeeService)
-	routers.RegisterMedicineRoutes(app, containers.MedContainer.Medicineservices)
-	routers.RegisterAuthRoute(app, containers.AuthService)
-	routers.RegisterPermissionRoutes(app, containers.PermissionService)
-	routers.RegisterDepartmentRoutes(app, containers.DepartmentService, containers.JwtManagement)
-	routers.RegisterRoleRoutes(app, containers.RoleService)
+	routers.RegisterLicenseRoutes(app, containers.LicenseService, rbac)
+	routers.RegisterEmployeeRoutes(app, containers.EmployeeService, rbac)
+	routers.RegisterMedicineRoutes(app, containers.MedContainer.Medicineservices, rbac)
+	routers.RegisterAuthRoute(app, containers.AuthService, rbac)
+	routers.RegisterPermissionRoutes(app, containers.PermissionService, rbac)
+	routers.RegisterDepartmentRoutes(app, containers.DepartmentService, rbac)
+	routers.RegisterRoleRoutes(app, containers.RoleService, rbac)
 	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
-	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems)
-	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService)
-	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice)
+	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems, rbac)
+	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService, rbac)
+	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice, rbac)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
-	routers.RegisterBillingRoutes(app, containers.BillingService)
-	routers.RegisterPaymentRoutes(app, containers.PaymentContainer.Mod.Paymentservice, containers.PaymentContainer.Mod.WebhookService)
+	routers.RegisterBillingRoutes(app, containers.BillingService, rbac)
+	routers.RegisterPaymentRoutes(app, containers.PaymentContainer.Mod.Paymentservice, containers.PaymentContainer.Mod.WebhookService, rbac)
 	err = app.Listen(fmt.Sprintf(":%s", cfg.ServerPort))
 	if err != nil {
 		logger.Log.Fatal("server failed to start", zap.Error(err))

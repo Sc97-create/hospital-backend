@@ -8,7 +8,6 @@ import (
 	admindto "hospital-backend/internal/admins/dto"
 	"hospital-backend/internal/appointments/dto"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 	"strings"
@@ -21,11 +20,15 @@ import (
 
 const defaultBuffer = 5 * time.Minute
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type AppointmentService struct {
 	Db                   *gorm.DB
 	Repository           AppointmentRepository
-	OrganisationSchedule *admins.OrganisationScheduleService
-	NotificationServ     *service.Notificationservice
+	OrganisationSchedule admins.OrganisationScheduleServicer
+	NotificationServ     NotificationEnqueuer
 }
 
 type validationError struct {
@@ -37,7 +40,7 @@ func (e *validationError) Error() string {
 	return e.Msg
 }
 
-func NewAppointmentService(db *gorm.DB, repository AppointmentRepository, organisationSchedule *admins.OrganisationScheduleService, notificationServ *service.Notificationservice) *AppointmentService {
+func NewAppointmentService(db *gorm.DB, repository AppointmentRepository, organisationSchedule admins.OrganisationScheduleServicer, notificationServ NotificationEnqueuer) *AppointmentService {
 	return &AppointmentService{Db: db, Repository: repository, OrganisationSchedule: organisationSchedule, NotificationServ: notificationServ}
 }
 
@@ -688,6 +691,10 @@ func (s *AppointmentService) GetAppntmentByID(log *zap.Logger, appointmentID str
 		zap.String("status", string(appointments.Status)),
 	)
 	return appointments, nil
+}
+
+func (s *AppointmentService) UpdateStatusInTx(log *zap.Logger, tx *gorm.DB, status string, appointmentID string) error {
+	return s.Repository.UpdateStatus(ensureLog(log), tx, status, appointmentID)
 }
 
 func (s *AppointmentService) UpdateStatus(log *zap.Logger, updateReq dto.UpdateStatus) (err error) {

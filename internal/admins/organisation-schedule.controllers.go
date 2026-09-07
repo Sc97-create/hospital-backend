@@ -12,15 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
+type OrganisationScheduleServicer interface {
+	Create(log *zap.Logger, reqModel dto.OrgScheduleReq) error
+	GetScheduleByOrganisationID(log *zap.Logger, organisationID string) (dto.GetResponse, error)
+}
+
 type IOrgSchedController struct {
-	OrgSchedService *OrganisationScheduleService
+	OrgSchedService OrganisationScheduleServicer
 }
 
 type IOrgSched interface {
 	CreateOrgSched(c *fiber.Ctx) error
 }
 
-func NewOrgSchedController(OrgSchedService *OrganisationScheduleService) IOrgSchedController {
+func NewOrgSchedController(OrgSchedService OrganisationScheduleServicer) IOrgSchedController {
 	return IOrgSchedController{OrgSchedService: OrgSchedService}
 }
 

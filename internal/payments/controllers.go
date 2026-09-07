@@ -11,16 +11,24 @@ import (
 	"go.uber.org/zap"
 )
 
+type PaymentServicer interface {
+	ConfirmManualPayment(log *zap.Logger, invoiceID, organisationID, paymentMode, txnRef string) error
+}
+
+type WebhookServicer interface {
+	ProcessWebhook(log *zap.Logger, payload []byte, signature string, provider string) (bool, error)
+}
+
 type IPayment struct {
-	PaymentService *PaymentsService
-	WebhookService *IWebhookService
+	PaymentService PaymentServicer
+	WebhookService WebhookServicer
 }
 type PaymentController interface {
 	RazorPayWebhook(c *fiber.Ctx) error
 	UpdatePaymentManually(c *fiber.Ctx) error
 }
 
-func NewPaymentController(payment *PaymentsService, webhook *IWebhookService) *IPayment {
+func NewPaymentController(payment PaymentServicer, webhook WebhookServicer) *IPayment {
 	return &IPayment{PaymentService: payment, WebhookService: webhook}
 }
 

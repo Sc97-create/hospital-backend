@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"hospital-backend/internal/medicine/dto"
-	"hospital-backend/shared/commonfunctions"
 	wrapError "hospital-backend/shared/error"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,40 +65,47 @@ func (SService *SupplierService) GetSupplierByID(log *zap.Logger, supplierID str
 	return supplier, nil
 }
 
-func (SService *SupplierService) GetSupplierByOrgID(log *zap.Logger, organisationID string, limit int, pageNo int) ([]dto.SupplierListItem, int64, error) {
+func (SService *SupplierService) GetSupplierByOrgID(log *zap.Logger, req dto.SupplierListReq) ([]dto.SupplierListItem, int64, error) {
 	log = ensureLog(log)
-	if limit <= 0 {
-		limit = 10
-	}
-	if pageNo <= 0 {
-		pageNo = 1
-	}
-	offset := commonfunctions.Getskip(limit, pageNo)
-	suppliers, err := SService.SupplierRepo.GetSupplierByOrgID(log, organisationID, limit, offset)
+	req.Search = strings.TrimSpace(req.Search)
+	req.DBLimit, req.DBOffset = SService.parsePagination(req.Limit, req.PageNo)
+
+	listQuery, listArgs := SService.buildSupplierListQuery(req)
+	suppliers, err := SService.SupplierRepo.GetSupplierByOrgID(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("supplier list failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
 		return nil, 0, wrapError.ErrSupplierFetchFailed
 	}
-	total, err := SService.GetTotalCount(log, organisationID)
+
+	countQuery, countArgs := SService.buildSupplierCountQuery(req)
+	total, err := SService.SupplierRepo.CountSupplierByOrgID(log, countQuery, countArgs...)
 	if err != nil {
-		return nil, 0, err
+		log.Error("supplier list failed",
+			zap.String("organisation_id", req.OrganisationID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return nil, 0, wrapError.ErrSupplierFetchFailed
 	}
+
 	log.Info("supplier list success",
-		zap.String("organisation_id", organisationID),
+		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("result_count", len(suppliers)),
-		zap.Int("limit", limit),
-		zap.Int("page_no", pageNo),
+		zap.Int64("total", total),
+		zap.Int("limit", req.DBLimit),
+		zap.Bool("has_search", req.Search != ""),
 	)
 	return SService.toSupplierList(suppliers), total, nil
 }
 
 func (SService *SupplierService) GetTotalCount(log *zap.Logger, organisationID string) (int64, error) {
 	log = ensureLog(log)
-	total, err := SService.SupplierRepo.CountSupplierByOrgID(log, organisationID)
+	query := `SELECT COUNT(*) FROM suppliers WHERE organisation_id = $1`
+	total, err := SService.SupplierRepo.CountSupplierByOrgID(log, query, organisationID)
 	if err != nil {
 		log.Error("supplier count failed",
 			zap.String("organisation_id", organisationID),
@@ -108,6 +115,57 @@ func (SService *SupplierService) GetTotalCount(log *zap.Logger, organisationID s
 		return 0, wrapError.ErrSupplierFetchFailed
 	}
 	return total, nil
+}
+
+func (SService *SupplierService) buildSupplierListQuery(req dto.SupplierListReq) (string, []interface{}) {
+	baseQuery := `
+		SELECT
+			id,
+			supplier_code,
+			name,
+			contact_number,
+			email,
+			payment_terms,
+			supplier_status,
+			created_at
+		FROM suppliers
+		WHERE organisation_id = $1
+	`
+	args := []interface{}{req.OrganisationID}
+	baseQuery, args, argsPos := SService.appendSupplierFilters(baseQuery, req, args, 2)
+	baseQuery += " ORDER BY created_at DESC"
+	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
+	args = append(args, req.DBLimit, req.DBOffset)
+	return baseQuery, args
+}
+
+func (SService *SupplierService) buildSupplierCountQuery(req dto.SupplierListReq) (string, []interface{}) {
+	countQuery := `SELECT COUNT(*) FROM suppliers WHERE organisation_id = $1`
+	args := []interface{}{req.OrganisationID}
+	countQuery, args, _ = SService.appendSupplierFilters(countQuery, req, args, 2)
+	return countQuery, args
+}
+
+func (SService *SupplierService) appendSupplierFilters(query string, req dto.SupplierListReq, args []interface{}, argsPos int) (string, []interface{}, int) {
+	if req.Search == "" {
+		return query, args, argsPos
+	}
+	query += fmt.Sprintf(" AND (name ILIKE $%d OR supplier_code ILIKE $%d)", argsPos, argsPos)
+	args = append(args, "%"+req.Search+"%")
+	argsPos++
+	return query, args, argsPos
+}
+
+func (SService *SupplierService) parsePagination(limit float64, pageNo float64) (int, int) {
+	numLimit := int(limit)
+	if numLimit <= 0 {
+		numLimit = 10
+	}
+	numPage := int(pageNo)
+	if numPage <= 0 {
+		numPage = 1
+	}
+	return numLimit, (numPage - 1) * numLimit
 }
 
 func (SService *SupplierService) toSupplierList(suppliers []Supplier) []dto.SupplierListItem {

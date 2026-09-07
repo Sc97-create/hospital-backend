@@ -18,13 +18,29 @@ import (
 type MedicineService struct {
 	Db       *gorm.DB
 	Mrepo    MedicineRepository
-	SMed     SMedicineInventory
-	SMvmt    SMedicineMvmt
-	PurEntry PurchaseEntryService
-	Supplier SupplierService
+	SMed     InventoryCreator
+	SMvmt    MvmtCreator
+	PurEntry PurchaseEntryCreator
+	Supplier SupplierLookup
 }
 
-func NewMedicineService(db *gorm.DB, Mrepo MedicineRepository, SMed SMedicineInventory, SMvmt SMedicineMvmt, PurEntry PurchaseEntryService, Supplier SupplierService) *MedicineService {
+type InventoryCreator interface {
+	CreateMedicineInventory(log *zap.Logger, db *gorm.DB, medicineInventory []MedicineInventory) error
+}
+
+type MvmtCreator interface {
+	CreateMedicineMvmt(log *zap.Logger, db *gorm.DB, medicineMvmt []types.MedicineStockMovements) error
+}
+
+type PurchaseEntryCreator interface {
+	CreatePurchaseEntry(log *zap.Logger, db *gorm.DB, purchaseEntry *MPurchaseEntry, paymentTerms Paymentterms) error
+}
+
+type SupplierLookup interface {
+	GetSupplierByID(log *zap.Logger, supplierID string) (Supplier, error)
+}
+
+func NewMedicineService(db *gorm.DB, Mrepo MedicineRepository, SMed InventoryCreator, SMvmt MvmtCreator, PurEntry PurchaseEntryCreator, Supplier SupplierLookup) *MedicineService {
 	return &MedicineService{Db: db, Mrepo: Mrepo, SMed: SMed, SMvmt: SMvmt, PurEntry: PurEntry, Supplier: Supplier}
 }
 

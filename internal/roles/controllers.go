@@ -7,7 +7,23 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func FindMany(c *fiber.Ctx, service *RoleServices) error {
+type RoleControllers interface {
+	FindMany(c *fiber.Ctx) error
+}
+
+type RoleServicer interface {
+	FindMany(organisationID string, limit int, offset int) ([]dto.RoleResponse, int64, error)
+}
+
+type RoleController struct {
+	RoleService RoleServicer
+}
+
+func NewRoleControllerInterface(roleService RoleServicer) *RoleController {
+	return &RoleController{RoleService: roleService}
+}
+
+func (r *RoleController) FindMany(c *fiber.Ctx) error {
 	var payload dto.FindManyRequest
 	if err := c.QueryParser(&payload); err != nil {
 		return err
@@ -16,7 +32,7 @@ func FindMany(c *fiber.Ctx, service *RoleServices) error {
 		payload.Page = 1
 	}
 	offset := payload.Limit * (payload.Page - 1)
-	roles, err := service.FindMany(payload.Limit, offset)
+	roles, total, err := r.RoleService.FindMany(payload.OrganisationID, payload.Limit, offset)
 	if err != nil {
 		return err
 	}
@@ -24,5 +40,6 @@ func FindMany(c *fiber.Ctx, service *RoleServices) error {
 		"code":    http.StatusOK,
 		"message": "success",
 		"data":    roles,
+		"total":   total,
 	})
 }

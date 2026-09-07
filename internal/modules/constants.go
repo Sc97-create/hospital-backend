@@ -13,6 +13,7 @@ const (
 	Report       = "report"
 	Prescription = "prescription"
 	Billing      = "billing"
+	Dashboard    = "dashboard"
 )
 
 var ConstModules ModuleArr = ModuleArr{
@@ -26,4 +27,5 @@ var ConstModules ModuleArr = ModuleArr{
 	Report,
 	Prescription,
 	Billing,
+	Dashboard,
 }

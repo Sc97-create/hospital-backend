@@ -40,10 +40,13 @@ func NewHTMLRenderer(subjects map[string]string) (*HTMLRenderer, error) {
 	}
 
 	layoutTemplates := map[string]bool{
-		"appointment_created":  true,
-		"patient_created":      true,
-		"prescription_created": true,
-		"payment_recieved":     true,
+		"appointment_created":         true,
+		"patient_created":             true,
+		"prescription_created":        true,
+		"payment_recieved":            true,
+		"employee_created_welcome":    true,
+		"employee_created_onboarding": true,
+		"employee_created_compact":    true,
 	}
 
 	entries, err := fs.Glob(templateFS, templateDir+"/*.tmpl")

@@ -12,12 +12,29 @@ import (
 	"go.uber.org/zap"
 )
 
-type PrescriptionController struct {
-	PService     *PrescriptionService
-	PItemService *PrescriptionItemServ
+type PrescriptionServicer interface {
+	CreatePrescription(log *zap.Logger, requestdto dto.CreatePrescriptionRequest) (string, error)
+	FindMany(log *zap.Logger, req dto.FindManyRequest) ([]dto.PrescriptionListItem, int64, error)
+	FindByStatus(log *zap.Logger, limit int, offset int, organisationID string, status string) ([]dto.PrescriptionListItem, int64, error)
+	AddPrescriptionItems(log *zap.Logger, payload dto.UpdateRequest) error
+	UpdateManualStatus(log *zap.Logger, prescriptionID string, appointmentID string, status string) error
+	GetPrescriptionByAppointmentID(log *zap.Logger, reqmodel dto.PresPatients) (dto.Response, error)
+	GetPrescriptionsByPatientID(log *zap.Logger, reqmodel dto.PatientPrescriptionsRequest) (dto.Response, error)
 }
 
-func NewPrescriptionController(PService *PrescriptionService, PItems *PrescriptionItemServ) *PrescriptionController {
+type PrescriptionItemServicer interface {
+	UpdatePrescriptionItemByID(log *zap.Logger, req dto.UpdatePrescriptionItemRequest) error
+	GetPrescriptionsByPIDWithLimit(log *zap.Logger, pID string, limit float64, pageno float64) ([]MixedPrescriptionItem, int64, error)
+	GetMedicineInfo(log *zap.Logger, prescriptionID string) ([]MedicineDetInfo, int64, error)
+	GetqtyByMedicine(log *zap.Logger, prescriptionID string) (map[string]dto.PrescriptionQtyInfo, error)
+}
+
+type PrescriptionController struct {
+	PService     PrescriptionServicer
+	PItemService PrescriptionItemServicer
+}
+
+func NewPrescriptionController(PService PrescriptionServicer, PItems PrescriptionItemServicer) *PrescriptionController {
 	return &PrescriptionController{PService: PService, PItemService: PItems}
 }
 
@@ -105,26 +122,44 @@ func (PresC *PrescriptionController) wrapCreateError(c *fiber.Ctx, err error) er
 func (PresC *PrescriptionController) FindMany(c *fiber.Ctx) error {
 	logger := middleware.GetLogger(c)
 
-	var requestmap dto.FindManyRequest
-	err := c.QueryParser(&requestmap)
+	payload, err := params.New(c)
 	if err != nil {
 		logger.Warn("prescription list request invalid", zap.Error(err))
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
-	if requestmap.OrganisationID == "" {
-		logger.Warn("prescription list request invalid", zap.String("reason", "missing_organisation_id"))
+
+	var requestmap dto.FindManyRequest
+	requestmap.OrganisationID, err = payload.Getstring("organisation_id")
+	if err != nil || requestmap.OrganisationID == "" {
+		logger.Warn("prescription list request invalid", zap.String("field", "organisation_id"))
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
+	requestmap.Limit, err = payload.Getfloat("limit")
+	if err != nil {
+		logger.Warn("prescription list request invalid", zap.String("field", "limit"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	requestmap.PageNo, err = payload.Getfloat("page_no")
+	if err != nil {
+		logger.Warn("prescription list request invalid", zap.String("field", "page_no"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	requestmap.Search, _ = payload.Getstring("search")
+	requestmap.Status, _ = payload.Getstring("status")
 
 	logger.Info("prescription list attempt",
 		zap.String("organisation_id", requestmap.OrganisationID),
-		zap.Int("limit", requestmap.Limit),
-		zap.Int("offset", requestmap.Offset),
+		zap.Float64("limit", requestmap.Limit),
+		zap.Float64("page_no", requestmap.PageNo),
 		zap.Bool("has_search", requestmap.Search != ""),
+		zap.String("status", requestmap.Status),
 	)
 
-	prescriptions, totalcount, err := PresC.PService.FindMany(logger, requestmap.Limit, requestmap.Offset, requestmap.OrganisationID, requestmap.Search)
+	prescriptions, totalcount, err := PresC.PService.FindMany(logger, requestmap)
 	if err != nil {
+		if errors.Is(err, wrapError.ErrInvalidRequest) {
+			return wrapError.Wrap(err, c, fiber.StatusBadRequest)
+		}
 		return wrapError.Wrap(err, c, fiber.StatusInternalServerError)
 	}
 	return c.Status(fiber.StatusOK).JSON(PresC.toPrescriptionListResponse(prescriptions, totalcount))

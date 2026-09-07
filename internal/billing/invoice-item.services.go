@@ -13,10 +13,10 @@ import (
 
 type InvoiceItemServ struct {
 	InvItemRepo      InvoiceItemRepo
-	PrescriptionItem *prescription.PrescriptionItemServ
+	PrescriptionItem prescription.PrescriptionItemServicer
 }
 
-func NewInvoiceItemServ(InvoiceItemRepo InvoiceItemRepo, PrescriptionItem *prescription.PrescriptionItemServ) *InvoiceItemServ {
+func NewInvoiceItemServ(InvoiceItemRepo InvoiceItemRepo, PrescriptionItem prescription.PrescriptionItemServicer) *InvoiceItemServ {
 	return &InvoiceItemServ{InvItemRepo: InvoiceItemRepo, PrescriptionItem: PrescriptionItem}
 }
 

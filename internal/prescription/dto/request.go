@@ -22,10 +22,13 @@ type MedicineArray struct {
 	Dosage          string  `json:"dosage"`
 }
 type FindManyRequest struct {
-	OrganisationID string `query:"organisation_id"`
-	Limit          int    `query:"limit"`
-	Offset         int    `query:"offset"`
-	Search         string `query:"search"`
+	OrganisationID string  `json:"organisation_id"`
+	Search         string  `json:"search"` // matches prescription code OR patient name
+	Status         string  `json:"status"` // optional filter; empty = all statuses
+	Limit          float64 `json:"limit"`
+	PageNo         float64 `json:"page_no"`
+	DBLimit        int     `json:"-"`
+	DBOffset       int     `json:"-"`
 }
 type FindByStatusRequest struct {
 	OrganisationID string `query:"organisation_id"`

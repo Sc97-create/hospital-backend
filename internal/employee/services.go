@@ -1,16 +1,19 @@
 package employee
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"strconv"
+	"hospital-backend/config"
 	"hospital-backend/internal/department"
-	"hospital-backend/internal/email"
 	"hospital-backend/internal/employee/dto"
 	"hospital-backend/internal/employee/utils"
+	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/constants"
 	"hospital-backend/pkg/logger"
+	wrapError "hospital-backend/shared/error"
 	"strings"
 	"time"
 
@@ -19,49 +22,43 @@ import (
 	"gorm.io/gorm"
 )
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type EmployeeService struct {
 	DB              *gorm.DB
 	EmpRepo         EmployeeRepository
 	OranisationRepo organisation.OrganisationRepo
 	RoleServices    *roles.RoleServices
 	DeptServices    *department.DepartmentService
-	//PermServices    *permissions.PermService
+	Notifications   NotificationEnqueuer
+	cfg             *config.Config
 }
 
-func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleServices *roles.RoleServices, deptServices *department.DepartmentService) *EmployeeService {
-	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleServices: roleServices, DeptServices: deptServices}
+func NewEmpService(db *gorm.DB, empRepo EmployeeRepository, OrgRepo organisation.OrganisationRepo, roleServices *roles.RoleServices, deptServices *department.DepartmentService, notifications NotificationEnqueuer, cfg *config.Config) *EmployeeService {
+	return &EmployeeService{DB: db, EmpRepo: empRepo, OranisationRepo: OrgRepo, RoleServices: roleServices, DeptServices: deptServices, Notifications: notifications, cfg: cfg}
 }
 
 func (EService *EmployeeService) CreateEmployee(payload dto.EmpRequest) (id string, err error) {
-	user := new(User)
-	passwordHash, err := EService.hashPassword(payload.Password)
+	tempPassword := utils.CreateTempPassword(payload.FirstName, payload.DateOfBirth)
+	// passwordHash, err := EService.hashPassword(tempPassword)
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	user := EService.toEmpModel([]byte{}, payload, payload.RoleID, payload.DepartmentID)
+	user.TempPassword = tempPassword
+	code, err := EService.createEmployeeCode(payload.OrganisationID, payload.DateOfJoining)
 	if err != nil {
 		return "", err
 	}
-
-	user.ID = uuid.New().String()
-	user.OrganisationID = payload.OrganisationID
-	user.Username = payload.UserName
-	user.EmailID = payload.EmailID
-	user.RoleID = payload.RoleID
-	user.DepartmentID = payload.DepartmentID
-	user.PhoneNumber = payload.PhoneNumber
-	user.PasswordHash = string(passwordHash)
-	user.IsActive = true
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
-	err = EService.EmpRepo.Create(user)
+	user.EmployeeCode = code
+	err = EService.EmpRepo.Create(&user)
 	if err != nil {
 		return
 	}
-	organisationData, err := EService.OranisationRepo.GetOrganisationByID(logger.Log, payload.OrganisationID)
-	if err != nil {
-		return
-	}
-	err = email.SendNotification(user.Username, organisationData.OrganisationName, "", "", payload.EmailID, "", utils.LoginUrl, utils.AppName)
-	if err != nil {
-		return
-	}
+	EService.enqueueEmployeeCreated(user)
 	return user.ID, nil
 }
 
@@ -76,20 +73,21 @@ func (Eservice *EmployeeService) DeleteEmployee(userID string) (err error) {
 	}
 	return
 }
-func (Eservice *EmployeeService) FindOne(id string) (u *User, err error) {
-	u, err = Eservice.EmpRepo.ReadOne(id)
+func (Eservice *EmployeeService) FindOne(id string) (dto.EmployeeResponse, error) {
+	row, err := Eservice.EmpRepo.ReadOne(id)
 	if err != nil {
-		return
+		return dto.EmployeeResponse{}, err
 	}
-	return
+	return Eservice.mapToEmployeeResponse(*row), nil
 }
-func (Eservice *EmployeeService) FindMany(limit string, pageNo string, organisationID string) (employeeResp []dto.EmployeeResponse, total int64, err error) {
-	limitInt, skip := Eservice.getPageSkip(limit, pageNo)
-	users, err := Eservice.EmpRepo.ReadMany(limitInt, skip, organisationID)
+func (Eservice *EmployeeService) FindMany(req dto.FindManyRequest) (employeeResp []dto.EmployeeResponse, total int64, err error) {
+	req.Search = strings.TrimSpace(req.Search)
+	limitInt, skip := Eservice.getPageSkip(req.Limit, req.PageNo)
+	users, err := Eservice.EmpRepo.ReadMany(limitInt, skip, req.OrganisationID, req.Search)
 	if err != nil {
 		return
 	}
-	total, err = Eservice.EmpRepo.Count(organisationID)
+	total, err = Eservice.EmpRepo.Count(req.OrganisationID, req.Search)
 	if err != nil {
 		return
 	}
@@ -97,45 +95,50 @@ func (Eservice *EmployeeService) FindMany(limit string, pageNo string, organisat
 	return
 }
 
-func (Eservice *EmployeeService) getPageSkip(limit string, pageNo string) (int, int) {
+func (Eservice *EmployeeService) getPageSkip(limit int, pageNo int) (int, int) {
 	skip := 0
-	limitInt, _ := strconv.Atoi(limit)
-	pageNoInt, _ := strconv.Atoi(pageNo)
-	if pageNoInt != 0 {
-		skip = (pageNoInt - 1) * limitInt
+	if pageNo != 0 {
+		skip = (pageNo - 1) * limit
 	}
-	return limitInt, skip
+	return limit, skip
 }
 
-func (Eservice *EmployeeService) arrayMapToEmployeeResponse(users []User) []dto.EmployeeResponse {
+func (Eservice *EmployeeService) arrayMapToEmployeeResponse(rows []EmployeeListRow) []dto.EmployeeResponse {
 	employeeResponse := []dto.EmployeeResponse{}
-	for _, each := range users {
+	for _, each := range rows {
 		employeeResponse = append(employeeResponse, Eservice.mapToEmployeeResponse(each))
 	}
 	return employeeResponse
 }
 
-func (Eservice *EmployeeService) mapToEmployeeResponse(user User) dto.EmployeeResponse {
-	name := user.Username
+func (Eservice *EmployeeService) mapToEmployeeResponse(row EmployeeListRow) dto.EmployeeResponse {
+	name := row.Username
 	if name == "" {
-		name = strings.TrimSpace(user.FirstName + " " + user.LastName)
+		name = strings.TrimSpace(row.FirstName + " " + row.LastName)
 	}
 	status := "inactive"
-	if user.IsActive {
+	if row.IsActive {
 		status = "active"
 	}
 	return dto.EmployeeResponse{
-		EmployeeID:             user.ID,
+		EmployeeID:             row.ID,
+		EmployeeCode:           row.EmployeeCode,
 		EmployeeName:           name,
-		EmployeeFirstName:      user.FirstName,
-		EmployeeLastName:       user.LastName,
-		EmployeeEmail:          user.EmailID,
-		EmployeePhone:          user.PhoneNumber,
-		EmployeeRoleID:         user.RoleID,
-		EmployeeDepartmentID:   user.DepartmentID,
+		EmployeeFirstName:      row.FirstName,
+		EmployeeLastName:       row.LastName,
+		EmployeeEmail:          row.EmailID,
+		EmployeePhone:          row.PhoneNumber,
+		EmployeeRoleID:         row.RoleID,
+		RoleName:               row.RoleName,
+		EmployeeDepartmentID:   row.DepartmentID,
+		DepartmentName:         row.DepartmentName,
 		EmployeeStatus:         status,
-		EmployeeOrganisationID: user.OrganisationID,
+		EmployeeOrganisationID: row.OrganisationID,
 	}
+}
+
+func (Eservice *EmployeeService) FindRoleIDByUserID(userID string) (string, error) {
+	return Eservice.EmpRepo.FindRoleIDByUserID(userID)
 }
 func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID string, err error) {
 	passwordHash, err := Eservice.hashPassword(payload.Password)
@@ -151,6 +154,11 @@ func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID
 		return
 	}
 	user := Eservice.toEmpModel(passwordHash, payload, role.ID, department.ID)
+	code, err := Eservice.createEmployeeCode(payload.OrganisationID, payload.DateOfJoining)
+	if err != nil {
+		return
+	}
+	user.EmployeeCode = code
 	err = Eservice.EmpRepo.Create(&user)
 	if err != nil {
 		return
@@ -158,7 +166,7 @@ func (Eservice *EmployeeService) CreateAdminProf(payload dto.EmpRequest) (userID
 	return user.ID, nil
 }
 func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err error) {
-	userData, err := Eservice.FindOne(payload.UserID)
+	userData, err := Eservice.EmpRepo.ReadOne(payload.UserID)
 	if err != nil {
 		return
 	}
@@ -169,21 +177,20 @@ func (Eservice *EmployeeService) UpdateAdminProf(payload dto.UpdateRequest) (err
 	if userData.LastName != payload.LastName {
 		updateUser["last_name"] = payload.LastName
 	}
-	passwordHash, err := Eservice.hashPassword(payload.Password)
-	if err != nil {
-		return
-	}
-	if userData.PasswordHash != string(passwordHash) {
+	if payload.Password != "" {
+		passwordHash, hashErr := Eservice.hashPassword(payload.Password)
+		if hashErr != nil {
+			return hashErr
+		}
 		updateUser["password_hash"] = string(passwordHash)
 	}
 	if payload.FirstName != "" && payload.LastName != "" {
 		updateUser["username"] = payload.FirstName + " " + payload.LastName
 	}
 	return Eservice.EmpRepo.Update(payload.UserID, updateUser)
-
 }
 
-func (Eservice *EmployeeService) FindDoctors(search string, organisationID string) (u []User, err error) {
+func (Eservice *EmployeeService) FindDoctors(search string, organisationID string) ([]dto.Doctor, error) {
 	query := `
         SELECT u.*
         FROM users u
@@ -203,11 +210,30 @@ func (Eservice *EmployeeService) FindDoctors(search string, organisationID strin
 		args = append(args, like, like)
 		idx += 2
 	}
-	u, err = Eservice.EmpRepo.ReadDoctors(query, args...)
+	users, err := Eservice.EmpRepo.ReadDoctors(query, args...)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return mapUsersToDoctors(users), nil
+}
+
+func mapUsersToDoctors(users []User) []dto.Doctor {
+	doctors := make([]dto.Doctor, 0, len(users))
+	for _, u := range users {
+		doctors = append(doctors, dto.Doctor{
+			ID:             u.ID,
+			Username:       u.Username,
+			FirstName:      u.FirstName,
+			LastName:       u.LastName,
+			EmailID:        u.EmailID,
+			PhoneNumber:    u.PhoneNumber,
+			OrganisationID: u.OrganisationID,
+			RoleID:         u.RoleID,
+			DepartmentID:   u.DepartmentID,
+			IsActive:       u.IsActive,
+		})
+	}
+	return doctors
 }
 func (Eservice *EmployeeService) hashPassword(password string) (hashedPwd []byte, err error) {
 	hashedPwd, err = bcrypt.GenerateFromPassword([]byte(password), 8)
@@ -218,19 +244,96 @@ func (Eservice *EmployeeService) hashPassword(password string) (hashedPwd []byte
 	return
 }
 func (Eservice *EmployeeService) toEmpModel(passwordHash []byte, payload dto.EmpRequest, roleID string, departmentID string) User {
-	return User{
-		ID:             uuid.NewString(),
-		OrganisationID: payload.OrganisationID,
-		FirstName:      payload.FirstName,
-		LastName:       payload.LastName,
-		Username:       strings.TrimSpace(payload.FirstName + " " + payload.LastName),
-		EmailID:        payload.EmailID,
-		RoleID:         roleID,
-		PasswordHash:   string(passwordHash),
-		DepartmentID:   departmentID,
-		PhoneNumber:    payload.PhoneNumber,
-		IsActive:       true,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+	username := strings.TrimSpace(payload.UserName)
+	if username == "" {
+		username = strings.TrimSpace(payload.FirstName + " " + payload.LastName)
 	}
+	phoneNumber := payload.MobileNumber
+	if phoneNumber == "" {
+		phoneNumber = payload.PhoneNumber
+	}
+	return User{
+		ID:               uuid.NewString(),
+		OrganisationID:   payload.OrganisationID,
+		FirstName:        payload.FirstName,
+		LastName:         payload.LastName,
+		Username:         username,
+		EmailID:          payload.EmailID,
+		RoleID:           roleID,
+		PasswordHash:     string(passwordHash),
+		DepartmentID:     departmentID,
+		PhoneNumber:      phoneNumber,
+		Address:          payload.Address,
+		DateOfBirth:      payload.DateOfBirth,
+		DateOfJoining:    payload.DateOfJoining,
+		ShiftStartTime:   payload.ShiftTimings.StartTime,
+		ShiftEndTime:     payload.ShiftTimings.EndTime,
+		LicenseNo:        payload.LicenseNo,
+		Qualification:    payload.Qualification,
+		EmployeeType:     payload.EmployeeType,
+		EmergencyEmail:   payload.EmergencyDetails.Email,
+		EmergencyName:    payload.EmergencyDetails.Name,
+		EmergencyContact: payload.EmergencyDetails.Contact,
+		IsActive:         true,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+	}
+}
+
+func (Eservice *EmployeeService) createEmployeeCode(organisationID string, dateOfJoining string) (string, error) {
+	doj := time.Now()
+	if dateOfJoining != "" {
+		parsed, ok := utils.ParseDate(dateOfJoining)
+		if !ok {
+			return "", wrapError.ErrInvalidRequest
+		}
+		doj = parsed
+	}
+	prefix := fmt.Sprintf("%s-%s", constants.EmployeeCodePrefix, doj.Format("20060102"))
+	count, err := Eservice.EmpRepo.CountByCodePrefix(organisationID, prefix)
+	if err != nil {
+		return "", err
+	}
+	if count == 0 {
+		return prefix, nil
+	}
+	return fmt.Sprintf("%s-%02d", prefix, count+1), nil
+}
+
+func (Eservice *EmployeeService) enqueueEmployeeCreated(user User) {
+	if Eservice.Notifications == nil {
+		return
+	}
+	org, err := Eservice.OranisationRepo.GetOrganisationByID(logger.Log, user.OrganisationID)
+	if err != nil {
+		return
+	}
+	roleName, deptName := Eservice.roleAndDeptNames(user.RoleID, user.DepartmentID)
+	_ = Eservice.Notifications.Create(context.Background(), notificationdto.CreateRequest{
+		NotificationType: constants.EmployeeCreatedEvent,
+		Subject:          constants.EmployeeCreatedSubject,
+		Data: map[string]interface{}{
+			"employee_name":   strings.TrimSpace(user.FirstName + " " + user.LastName),
+			"employee_email":  user.EmailID,
+			"employee_id":     user.ID,
+			"role_name":       roleName,
+			"department_name": deptName,
+			"hospital_name":   org.OrganisationName,
+			"organisation_id": org.ID,
+			"login_url":       Eservice.cfg.LoginUrl,
+			"temp_password":   user.TempPassword,
+		},
+	})
+}
+
+func (Eservice *EmployeeService) roleAndDeptNames(roleID string, departmentID string) (string, string) {
+	roleName := ""
+	if role, err := Eservice.RoleServices.FindByID(roleID); err == nil {
+		roleName = role.Name
+	}
+	deptName := ""
+	if dept, err := Eservice.DeptServices.FindByID(departmentID); err == nil {
+		deptName = dept.Name
+	}
+	return roleName, deptName
 }

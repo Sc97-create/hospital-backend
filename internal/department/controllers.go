@@ -9,11 +9,15 @@ import (
 type DepartmentControllers interface {
 	FindMany(c *fiber.Ctx) error
 }
-type DepartmentController struct {
-	DepartmentService *DepartmentService
+type DepartmentServicer interface {
+	FindMany(organisationID string, limit int, skip int) ([]Department, int64, error)
 }
 
-func NewDepartmentControllerInterface(departmentService *DepartmentService) *DepartmentController {
+type DepartmentController struct {
+	DepartmentService DepartmentServicer
+}
+
+func NewDepartmentControllerInterface(departmentService DepartmentServicer) *DepartmentController {
 	return &DepartmentController{DepartmentService: departmentService}
 }
 
@@ -26,12 +30,13 @@ func (d *DepartmentController) FindMany(c *fiber.Ctx) error {
 		payload.Page = 1
 	}
 	offset := payload.Limit * (payload.Page - 1)
-	department, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
+	department, total, err := d.DepartmentService.FindMany(payload.OrganisationID, payload.Limit, offset)
 	if err != nil {
 		return err
 	}
 	response := make(map[string]interface{})
 	response["data"] = department
+	response["total"] = total
 	response["code"] = 200
 	return c.JSON(response)
 }

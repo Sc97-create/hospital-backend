@@ -16,7 +16,9 @@ type InvoiceRepo interface {
 	CreateInvoice(log *zap.Logger, tx *gorm.DB, Inv Invoice) error
 	UpdateInvoiceStatus(log *zap.Logger, tx *gorm.DB, invoiceID string, status string) error
 	GetInvoiceByPrescriptionID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error)
+	GetInvoiceByAppointmentID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error)
 	GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error)
+	GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args ...any) (BillDetailsRow, error)
 }
 
 type DB struct {
@@ -51,6 +53,20 @@ func (d *DB) GetInvoiceByPrescriptionID(log *zap.Logger, query string, args ...a
 	return row, nil
 }
 
+func (d *DB) GetInvoiceByAppointmentID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error) {
+	log = ensureLog(log)
+	var row InvoiceWithPayment
+	err := d.db.Raw(query, args...).Scan(&row).Error
+	if err != nil {
+		log.Error("billing repo error", zap.String("op", "GetInvoiceByAppointmentID"), zap.Error(err))
+		return row, err
+	}
+	if row.ID == "" {
+		return row, gorm.ErrRecordNotFound
+	}
+	return row, nil
+}
+
 func (d *DB) GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error) {
 	log = ensureLog(log)
 	var invoice Invoice
@@ -62,6 +78,20 @@ func (d *DB) GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error) 
 		return invoice, err
 	}
 	return invoice, err
+}
+
+func (d *DB) GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args ...any) (BillDetailsRow, error) {
+	log = ensureLog(log)
+	var row BillDetailsRow
+	err := d.db.Raw(query, args...).Scan(&row).Error
+	if err != nil {
+		log.Error("billing repo error", zap.String("op", "GetBillDetailsByPrescriptionID"), zap.Error(err))
+		return row, err
+	}
+	if row.PrescriptionID == "" {
+		return row, gorm.ErrRecordNotFound
+	}
+	return row, nil
 }
 
 func (d *DB) UpdateInvoiceStatus(log *zap.Logger, tx *gorm.DB, invoiceID string, status string) error {

@@ -12,17 +12,27 @@ import (
 	"go.uber.org/zap"
 )
 
+type InvoiceServicer interface {
+	CreateInvoice(log *zap.Logger, reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error)
+	GetInvoiceByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.InvoiceByPrescriptionResponse, error)
+	GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error)
+	GetBillDetailsByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.BillDetailsByPrescriptionResponse, error)
+	RetryPaymentLink(log *zap.Logger, invoiceID, idempotencyKey string) (dto.InvoiceResponse, error)
+}
+
 type Ibilling struct {
-	BillingServ *InvoiceServ
+	BillingServ InvoiceServicer
 }
 
 type BillingHandler interface {
 	Checkout(c *fiber.Ctx) error
 	GetInvoiceByPrescriptionID(c *fiber.Ctx) error
+	GetInvoiceByAppointmentID(c *fiber.Ctx) error
+	GetBillDetailsByPrescriptionID(c *fiber.Ctx) error
 	RetryPaymentLink(c *fiber.Ctx) error
 }
 
-func NewBillingController(BillingServ *InvoiceServ) *Ibilling {
+func NewBillingController(BillingServ InvoiceServicer) *Ibilling {
 	return &Ibilling{BillingServ: BillingServ}
 }
 
@@ -36,11 +46,12 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	}
 
 	var checkoutReq dto.CheckoutReq
-	checkoutReq.PrescriptionID, err = payload.Getstring("prescription_id")
-	if err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "prescription_id"))
-		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
-	}
+	// Optional: empty payment_type defaults to "prescription" in the service (back-compat).
+	// supplier_id is only meaningful for a prescription checkout, and appointment_id only for consultation.
+	checkoutReq.PaymentType, _ = payload.Getstring("payment_type")
+	checkoutReq.SupplierID, _ = payload.Getstring("supplier_id")
+	checkoutReq.AppointmentID, _ = payload.Getstring("appointment_id")
+
 	checkoutReq.PatientID, err = payload.Getstring("patient_id")
 	if err != nil {
 		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "patient_id"))
@@ -49,11 +60,6 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 	checkoutReq.CashierID, err = payload.Getstring("cashier_id")
 	if err != nil {
 		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "cashier_id"))
-		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
-	}
-	checkoutReq.SupplierID, err = payload.Getstring("supplier_id")
-	if err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "supplier_id"))
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 	checkoutReq.PaymentMode, err = payload.Getstring("payment_mode")
@@ -81,19 +87,15 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "financials"))
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
-	items, err := payload.GetChildren("dispense_items")
-	if err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "dispense_items"))
-		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
-	}
-	checkoutReq.DispensedItems, err = IB.toDispenseItems(items)
-	if err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "dispense_items"))
+	if err = IB.parsePrescriptionFields(payload, &checkoutReq); err != nil {
+		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "prescription_id/dispense_items"))
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
 	logger.Info("invoice checkout attempt",
+		zap.String("payment_type", checkoutReq.PaymentType),
 		zap.String("prescription_id", checkoutReq.PrescriptionID),
+		zap.String("appointment_id", checkoutReq.AppointmentID),
 		zap.String("patient_id", checkoutReq.PatientID),
 		zap.String("organisation_id", checkoutReq.OrganisationID),
 		zap.String("cashier_id", checkoutReq.CashierID),
@@ -111,19 +113,42 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 
 func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 	switch {
-	case errors.Is(err, wrapErrors.ErrInvoiceAlreadyExists):
+	case errors.Is(err, wrapErrors.ErrInvoiceAlreadyExists),
+		errors.Is(err, wrapErrors.ErrAppointmentAlreadyBilled):
 		return wrapErrors.Wrap(err, c, fiber.StatusConflict)
-	case errors.Is(err, wrapErrors.ErrPatientNotFound):
+	case errors.Is(err, wrapErrors.ErrPatientNotFound),
+		errors.Is(err, wrapErrors.ErrAppointmentNotFound):
 		return wrapErrors.Wrap(err, c, fiber.StatusNotFound)
 	case errors.Is(err, wrapErrors.ErrMedicineNotInPrescription),
 		errors.Is(err, wrapErrors.ErrQtyExceedsRemaining),
 		errors.Is(err, wrapErrors.ErrInsufficientStock),
 		errors.Is(err, wrapErrors.ErrUnsupportedPaymentMode),
+		errors.Is(err, wrapErrors.ErrInvalidPaymentType),
+		errors.Is(err, wrapErrors.ErrAppointmentMismatch),
 		errors.Is(err, wrapErrors.ErrInvalidRequest):
 		return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
 	default:
 		return wrapErrors.Wrap(wrapErrors.ErrInvoiceCreateFailed, c, fiber.StatusInternalServerError)
 	}
+}
+
+// parsePrescriptionFields parses prescription_id + dispense_items — required only for a
+// prescription checkout. Consultation checkouts (payment_type=consultation) have neither.
+func (IB *Ibilling) parsePrescriptionFields(payload *params.Payload, checkoutReq *dto.CheckoutReq) error {
+	if checkoutReq.PaymentType == string(PaymentTypeConsultation) {
+		return nil
+	}
+	var err error
+	checkoutReq.PrescriptionID, err = payload.Getstring("prescription_id")
+	if err != nil {
+		return err
+	}
+	items, err := payload.GetChildren("dispense_items")
+	if err != nil {
+		return err
+	}
+	checkoutReq.DispensedItems, err = IB.toDispenseItems(items)
+	return err
 }
 
 func (IB *Ibilling) GetInvoiceByPrescriptionID(c *fiber.Ctx) error {
@@ -137,6 +162,67 @@ func (IB *Ibilling) GetInvoiceByPrescriptionID(c *fiber.Ctx) error {
 	logger.Info("invoice get attempt", zap.String("prescription_id", prescriptionID))
 
 	invoice, err := IB.BillingServ.GetInvoiceByPrescriptionID(logger, prescriptionID)
+	if err != nil {
+		if errors.Is(err, wrapErrors.ErrInvoiceNotFound) {
+			return wrapErrors.Wrap(err, c, fiber.StatusNotFound)
+		}
+		if errors.Is(err, wrapErrors.ErrInvalidRequest) {
+			return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
+		}
+		return wrapErrors.Wrap(err, c, fiber.StatusInternalServerError)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": invoice,
+		"code": 200,
+	})
+}
+
+func (IB *Ibilling) GetBillDetailsByPrescriptionID(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	prescriptionID := strings.TrimSpace(c.Params("prescriptionID"))
+	if prescriptionID == "" {
+		logger.Warn("bill details get request invalid", zap.String("reason", "missing_prescription_id"))
+		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("bill details get attempt", zap.String("prescription_id", prescriptionID))
+
+	details, err := IB.BillingServ.GetBillDetailsByPrescriptionID(logger, prescriptionID)
+	if err != nil {
+		return IB.wrapBillDetailsError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data": details,
+		"code": 200,
+	})
+}
+
+func (IB *Ibilling) wrapBillDetailsError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, wrapErrors.ErrPrescriptionNotFound):
+		return wrapErrors.Wrap(err, c, fiber.StatusNotFound)
+	case errors.Is(err, wrapErrors.ErrInvalidRequest):
+		return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
+	default:
+		return wrapErrors.Wrap(err, c, fiber.StatusInternalServerError)
+	}
+}
+
+// GetInvoiceByAppointmentID is the consultation-invoice lookup — consultation invoices have
+// no prescription_id, so GetInvoiceByPrescriptionID can never find them.
+func (IB *Ibilling) GetInvoiceByAppointmentID(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	appointmentID := strings.TrimSpace(c.Params("appointmentID"))
+	if appointmentID == "" {
+		logger.Warn("invoice get request invalid", zap.String("reason", "missing_appointment_id"))
+		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("invoice get attempt", zap.String("appointment_id", appointmentID))
+
+	invoice, err := IB.BillingServ.GetInvoiceByAppointmentID(logger, appointmentID)
 	if err != nil {
 		if errors.Is(err, wrapErrors.ErrInvoiceNotFound) {
 			return wrapErrors.Wrap(err, c, fiber.StatusNotFound)

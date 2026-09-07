@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/notifications/service"
 	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient/dto"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,10 +19,14 @@ import (
 	"gorm.io/gorm"
 )
 
+type NotificationEnqueuer interface {
+	Create(ctx context.Context, data notificationdto.CreateRequest) error
+}
+
 type PatientService struct {
 	PRepo         PatientRepository
-	OrgService    *organisation.OrganisationService
-	notifications *service.Notificationservice
+	OrgService    organisation.OrganisationServicer
+	notifications NotificationEnqueuer
 }
 
 type validationError struct {
@@ -34,7 +38,7 @@ func (e *validationError) Error() string {
 	return e.Msg
 }
 
-func NewPatientService(p PatientRepository, orgService *organisation.OrganisationService, notifications *service.Notificationservice) *PatientService {
+func NewPatientService(p PatientRepository, orgService organisation.OrganisationServicer, notifications NotificationEnqueuer) *PatientService {
 	return &PatientService{PRepo: p, OrgService: orgService, notifications: notifications}
 }
 
@@ -157,34 +161,100 @@ func (p *PatientService) ValidatePatient(payload dto.PatientInfo) (int, float64,
 	return age, weight, nil
 }
 
-func (p *PatientService) FindMany(log *zap.Logger, limit string, pageno string, organisationID string) (patientResp []dto.PatientResponse, total int64, err error) {
+func (p *PatientService) FindMany(log *zap.Logger, req dto.PatientListReq) (patientResp []dto.PatientResponse, total int64, err error) {
 	log = ensureLog(log)
-	limitInt, skip := p.GetPageSkip(limit, pageno)
-	patient, err := p.PRepo.ReadMany(log, limitInt, skip, organisationID)
+	req.Search = strings.TrimSpace(req.Search)
+	req.DBLimit, req.DBOffset = p.parsePagination(req.Limit, req.PageNo)
+
+	listQuery, listArgs := p.buildPatientListQuery(req)
+	patients, err := p.PRepo.ReadMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("patient list failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
 		return nil, 0, wrapError.ErrPatientsFetchFailed
 	}
-	total, err = p.PRepo.Count(log, organisationID)
+
+	countQuery, countArgs := p.buildPatientCountQuery(req)
+	total, err = p.PRepo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("patient list failed",
-			zap.String("organisation_id", organisationID),
+			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
 		return nil, 0, wrapError.ErrPatientsFetchFailed
 	}
-	patientResp = p.arraymaptopatientResponse(patient)
+
+	patientResp = p.arraymaptopatientResponse(patients)
 	log.Info("patient list success",
-		zap.String("organisation_id", organisationID),
+		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("count", len(patientResp)),
 		zap.Int64("total", total),
+		zap.Bool("has_search", req.Search != ""),
 	)
 	return
+}
+
+func (p *PatientService) buildPatientListQuery(req dto.PatientListReq) (string, []interface{}) {
+	baseQuery := `
+		SELECT
+			id,
+			uh_id,
+			name,
+			gender,
+			age,
+			weight,
+			mobile_number,
+			email_id,
+			last_visit_date,
+			blood_group,
+			status,
+			created_at,
+			address
+		FROM patients
+		WHERE organisation_id = $1
+	`
+	args := []interface{}{req.OrganisationID}
+	baseQuery, args, argsPos := p.appendPatientFilters(baseQuery, req, args, 2)
+	baseQuery += " ORDER BY created_at DESC"
+	baseQuery += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argsPos, argsPos+1)
+	args = append(args, req.DBLimit, req.DBOffset)
+	return baseQuery, args
+}
+
+func (p *PatientService) buildPatientCountQuery(req dto.PatientListReq) (string, []interface{}) {
+	countQuery := `SELECT COUNT(*) FROM patients WHERE organisation_id = $1`
+	args := []interface{}{req.OrganisationID}
+	countQuery, args, _ = p.appendPatientFilters(countQuery, req, args, 2)
+	return countQuery, args
+}
+
+func (p *PatientService) appendPatientFilters(query string, req dto.PatientListReq, args []interface{}, argsPos int) (string, []interface{}, int) {
+	if req.Search == "" {
+		return query, args, argsPos
+	}
+	query += fmt.Sprintf(
+		" AND (name ILIKE $%d OR mobile_number ILIKE $%d OR uh_id ILIKE $%d)",
+		argsPos, argsPos, argsPos,
+	)
+	args = append(args, "%"+req.Search+"%")
+	argsPos++
+	return query, args, argsPos
+}
+
+func (p *PatientService) parsePagination(limit float64, pageNo float64) (int, int) {
+	numLimit := int(limit)
+	if numLimit <= 0 {
+		numLimit = 10
+	}
+	numPage := int(pageNo)
+	if numPage <= 0 {
+		numPage = 1
+	}
+	return numLimit, (numPage - 1) * numLimit
 }
 
 func (p *PatientService) ToPatientModel(age int, weight float64, payload dto.PatientInfo) (patientModel Patient, err error) {

@@ -13,7 +13,8 @@ type NotificationStatus string
 type Notification struct {
 	ID               string             `json:"id" gorm:"not null;type:uuid;primarykey"`
 	OrganisationID   string             `json:"organisation_id" gorm:"type:uuid;not null;"`
-	PatientID        string             `json:"patient_id" gorm:"type:uuid;not null"`
+	PatientID        *string            `json:"patient_id,omitempty" gorm:"column:patient_id;type:uuid"`
+	EmployeeID       *string            `json:"employee_id,omitempty" gorm:"column:employee_id;type:uuid"`
 	NotificationType string             `json:"notification_type" gorm:"column:notification_type"`
 	Status           NotificationStatus `json:"status" gorm:"default:PENDING"`
 	RetryCount       int                `json:"retry_count" gorm:"default:0"`

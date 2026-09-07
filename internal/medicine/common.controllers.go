@@ -20,11 +20,16 @@ type IMedicine interface {
 	AddMedicine(c *fiber.Ctx) (err error)
 }
 
-type MedicineController struct {
-	Service *MedicineService
+type MedicineServicer interface {
+	SearchMedicine(log *zap.Logger, name string, organisationID string) ([]dto.SearchMedicineItem, error)
+	CreateMedicine(log *zap.Logger, MedicinePayload dto.RequestPayload) error
 }
 
-func NewMedicineController(service *MedicineService) *MedicineController {
+type MedicineController struct {
+	Service MedicineServicer
+}
+
+func NewMedicineController(service MedicineServicer) *MedicineController {
 	return &MedicineController{Service: service}
 }
 
