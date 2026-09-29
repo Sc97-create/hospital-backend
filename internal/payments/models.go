@@ -59,7 +59,7 @@ type Refunds struct {
 
 type WebhookEvents struct {
 	ID               string            `json:"id" gorm:"type:uuid;default:gen_random_uuid();not null;primaryKey"`
-	PaymentAttemptID string            `json:"payment_attempt_id" gorm:"type:uuid;"`
+	PaymentAttemptID *string           `json:"payment_attempt_id,omitempty" gorm:"type:uuid;"`
 	EventType        string            `json:"event_type" gorm:"type:varchar(50);not null"`
 	ProviderResponse datatypes.JSONMap `json:"provider_response" gorm:"type:jsonb"`
 	CreatedAt        time.Time         `json:"created_at" gorm:"autoCreateTime"`

@@ -12,7 +12,7 @@ import (
 // attendant=> view, edit, delete=> appointment, view, edit,delete=> bedmanagement
 // finance => view,edit,delete=> billing
 // nurse=> view, edit=> patient
-// pharmacist=> inventory, prescription=> view, delete, edit
+// pharmacist=> medicine, prescription, billing (no patient module)
 
 // get all roles
 // get all permissions

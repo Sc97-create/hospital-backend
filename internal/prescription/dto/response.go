@@ -54,6 +54,12 @@ type PrescriptionListItem struct {
 	CreatedAt      time.Time `json:"created_at"`
 	Status         string    `json:"status"`
 }
+
+type TodayPrescriptionsSummary struct {
+	Prescriptions []PrescriptionListItem `json:"prescriptions"`
+	Total         int                    `json:"total"`
+}
+
 type AppointmentPrescriptionResponse struct {
 	PrescriptionID    string                        `json:"prescription_id"`
 	IssuedAt          time.Time                     `json:"issued_at"`
@@ -85,6 +91,14 @@ type Response struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Total   int    `json:"total"`
+}
+
+type MedicineInfoResponse struct {
+	Data        any    `json:"data"`
+	PatientData any    `json:"patientData"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+	Total       int    `json:"total"`
 }
 type PrescriptionQtyInfo struct {
 	PrescriptionID       string `json:"prescription_id"`

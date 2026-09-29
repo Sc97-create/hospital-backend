@@ -132,6 +132,21 @@ func (mr *MockInvoiceRepoMockRecorder) GetInvoiceByPrescriptionID(log, query any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInvoiceByPrescriptionID", reflect.TypeOf((*MockInvoiceRepo)(nil).GetInvoiceByPrescriptionID), varargs...)
 }
 
+// GetTodayCompletedInvoiceSummary mocks base method.
+func (m *MockInvoiceRepo) GetTodayCompletedInvoiceSummary(log *zap.Logger, query, organisationID string) ([]billing.TodayInvoiceCollectionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTodayCompletedInvoiceSummary", log, query, organisationID)
+	ret0, _ := ret[0].([]billing.TodayInvoiceCollectionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTodayCompletedInvoiceSummary indicates an expected call of GetTodayCompletedInvoiceSummary.
+func (mr *MockInvoiceRepoMockRecorder) GetTodayCompletedInvoiceSummary(log, query, organisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTodayCompletedInvoiceSummary", reflect.TypeOf((*MockInvoiceRepo)(nil).GetTodayCompletedInvoiceSummary), log, query, organisationID)
+}
+
 // UpdateInvoiceStatus mocks base method.
 func (m *MockInvoiceRepo) UpdateInvoiceStatus(log *zap.Logger, tx *gorm.DB, invoiceID, status string) error {
 	m.ctrl.T.Helper()

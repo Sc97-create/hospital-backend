@@ -9,13 +9,13 @@ import (
 type Department struct {
 	ID string `json:"id" gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
 
-	Name string `json:"name" gorm:"column:name;type:varchar(150);not null;"`
+	Name string `json:"name" gorm:"column:name;type:varchar(150);not null;uniqueIndex:idx_org_department_name"`
 
 	Description string `json:"description" gorm:"column:description;type:text"`
 
 	IsActive bool `json:"is_active" gorm:"column:is_active;default:true"`
 
-	OrganisationID string    `json:"organisation_id" gorm:"column:organisation_id;type:uuid"`
+	OrganisationID string    `json:"organisation_id" gorm:"column:organisation_id;type:uuid;not null;uniqueIndex:idx_org_department_name"`
 	CreatedAt      time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	CreatedBy      string    `json:"created_by" gorm:"column:created_by"`
 

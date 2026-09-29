@@ -15,6 +15,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 	gorm "gorm.io/gorm"
 )
 
@@ -43,74 +44,74 @@ func (m *MockRolePermissionRepo) EXPECT() *MockRolePermissionRepoMockRecorder {
 }
 
 // BatchCreate mocks base method.
-func (m *MockRolePermissionRepo) BatchCreate(tx *gorm.DB, rolePermissions []rolepermissions.RolePermission) error {
+func (m *MockRolePermissionRepo) BatchCreate(log *zap.Logger, tx *gorm.DB, rolePermissions []rolepermissions.RolePermission) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchCreate", tx, rolePermissions)
+	ret := m.ctrl.Call(m, "BatchCreate", log, tx, rolePermissions)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchCreate indicates an expected call of BatchCreate.
-func (mr *MockRolePermissionRepoMockRecorder) BatchCreate(tx, rolePermissions any) *gomock.Call {
+func (mr *MockRolePermissionRepoMockRecorder) BatchCreate(log, tx, rolePermissions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCreate", reflect.TypeOf((*MockRolePermissionRepo)(nil).BatchCreate), tx, rolePermissions)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCreate", reflect.TypeOf((*MockRolePermissionRepo)(nil).BatchCreate), log, tx, rolePermissions)
 }
 
 // Create mocks base method.
-func (m *MockRolePermissionRepo) Create(rolePermission *rolepermissions.RolePermission) error {
+func (m *MockRolePermissionRepo) Create(log *zap.Logger, rolePermission *rolepermissions.RolePermission) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", rolePermission)
+	ret := m.ctrl.Call(m, "Create", log, rolePermission)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRolePermissionRepoMockRecorder) Create(rolePermission any) *gomock.Call {
+func (mr *MockRolePermissionRepoMockRecorder) Create(log, rolePermission any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRolePermissionRepo)(nil).Create), rolePermission)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRolePermissionRepo)(nil).Create), log, rolePermission)
 }
 
 // FindById mocks base method.
-func (m *MockRolePermissionRepo) FindById(id string) (*rolepermissions.RolePermission, error) {
+func (m *MockRolePermissionRepo) FindById(log *zap.Logger, id string) (*rolepermissions.RolePermission, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindById", id)
+	ret := m.ctrl.Call(m, "FindById", log, id)
 	ret0, _ := ret[0].(*rolepermissions.RolePermission)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindById indicates an expected call of FindById.
-func (mr *MockRolePermissionRepoMockRecorder) FindById(id any) *gomock.Call {
+func (mr *MockRolePermissionRepoMockRecorder) FindById(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindById", reflect.TypeOf((*MockRolePermissionRepo)(nil).FindById), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindById", reflect.TypeOf((*MockRolePermissionRepo)(nil).FindById), log, id)
 }
 
 // FindModulePermissionsByRoleID mocks base method.
-func (m *MockRolePermissionRepo) FindModulePermissionsByRoleID(roleID string) ([]dto.ModulePermissionRow, error) {
+func (m *MockRolePermissionRepo) FindModulePermissionsByRoleID(log *zap.Logger, roleID string) ([]dto.ModulePermissionRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindModulePermissionsByRoleID", roleID)
+	ret := m.ctrl.Call(m, "FindModulePermissionsByRoleID", log, roleID)
 	ret0, _ := ret[0].([]dto.ModulePermissionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindModulePermissionsByRoleID indicates an expected call of FindModulePermissionsByRoleID.
-func (mr *MockRolePermissionRepoMockRecorder) FindModulePermissionsByRoleID(roleID any) *gomock.Call {
+func (mr *MockRolePermissionRepoMockRecorder) FindModulePermissionsByRoleID(log, roleID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindModulePermissionsByRoleID", reflect.TypeOf((*MockRolePermissionRepo)(nil).FindModulePermissionsByRoleID), roleID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindModulePermissionsByRoleID", reflect.TypeOf((*MockRolePermissionRepo)(nil).FindModulePermissionsByRoleID), log, roleID)
 }
 
 // IsAdminRole mocks base method.
-func (m *MockRolePermissionRepo) IsAdminRole(roleID string) (bool, error) {
+func (m *MockRolePermissionRepo) IsAdminRole(log *zap.Logger, roleID string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsAdminRole", roleID)
+	ret := m.ctrl.Call(m, "IsAdminRole", log, roleID)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IsAdminRole indicates an expected call of IsAdminRole.
-func (mr *MockRolePermissionRepoMockRecorder) IsAdminRole(roleID any) *gomock.Call {
+func (mr *MockRolePermissionRepoMockRecorder) IsAdminRole(log, roleID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAdminRole", reflect.TypeOf((*MockRolePermissionRepo)(nil).IsAdminRole), roleID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAdminRole", reflect.TypeOf((*MockRolePermissionRepo)(nil).IsAdminRole), log, roleID)
 }

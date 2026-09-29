@@ -23,6 +23,12 @@ type EmployeeListResponse struct {
 	Code       int                `json:"code"`
 }
 
+type EmployeeStatusCounts struct {
+	Active   int `json:"active"`
+	Inactive int `json:"inactive"`
+	Total    int `json:"total"`
+}
+
 // Doctor is the API shape returned by FindDoctors (decouples servicer mocks from employee.User).
 type Doctor struct {
 	ID             string `json:"id"`

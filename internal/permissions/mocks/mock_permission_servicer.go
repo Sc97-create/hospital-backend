@@ -15,6 +15,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockPermissionServicer is a mock of PermissionServicer interface.
@@ -42,9 +43,9 @@ func (m *MockPermissionServicer) EXPECT() *MockPermissionServicerMockRecorder {
 }
 
 // FindMany mocks base method.
-func (m *MockPermissionServicer) FindMany() ([]modules.Modules, []permissions.Permission, error) {
+func (m *MockPermissionServicer) FindMany(log *zap.Logger) ([]modules.Modules, []permissions.Permission, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany")
+	ret := m.ctrl.Call(m, "FindMany", log)
 	ret0, _ := ret[0].([]modules.Modules)
 	ret1, _ := ret[1].([]permissions.Permission)
 	ret2, _ := ret[2].(error)
@@ -52,7 +53,7 @@ func (m *MockPermissionServicer) FindMany() ([]modules.Modules, []permissions.Pe
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockPermissionServicerMockRecorder) FindMany() *gomock.Call {
+func (mr *MockPermissionServicerMockRecorder) FindMany(log any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockPermissionServicer)(nil).FindMany))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockPermissionServicer)(nil).FindMany), log)
 }

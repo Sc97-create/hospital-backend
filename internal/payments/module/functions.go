@@ -13,6 +13,7 @@ type Module struct {
 	Paymentservice *payments.PaymentsService
 	PaymentAttempt *payments.SPaymentAttempts
 	WebhookService *payments.IWebhookService
+	RazorpayClient *razorpay.RazorpayConfig
 }
 
 func NewModule(
@@ -20,6 +21,7 @@ func NewModule(
 	cfg config.Config,
 	prescriptionStatus payments.PrescriptionStatusUpdater,
 	fulfillment payments.IPaymentFulfillment,
+	subscriptionActivator payments.TenantEntitlementActivator,
 ) *Module {
 	paymentsDB := payments.NewPaymentsDB(db)
 
@@ -34,6 +36,11 @@ func NewModule(
 	paymentAttempts := payments.NewPaymentAttempts(paymentsDB)
 	fulfillmentSvc := payments.NewFulfillmentService(fulfillment)
 	paymentsService := payments.NewPaymentsService(db, paymentsDB, gateway, paymentAttempts, prescriptionStatus, fulfillmentSvc)
-	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment, fulfillmentSvc)
-	return &Module{Paymentservice: paymentsService, PaymentAttempt: paymentAttempts, WebhookService: webhookService}
+	webhookService := payments.NewWebhookService(db, paymentsDB, paymentsService, paymentAttempts, gateway, fulfillment, fulfillmentSvc, subscriptionActivator)
+	return &Module{
+		Paymentservice: paymentsService,
+		PaymentAttempt: paymentAttempts,
+		WebhookService: webhookService,
+		RazorpayClient: razorpayClient,
+	}
 }

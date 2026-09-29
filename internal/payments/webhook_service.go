@@ -6,6 +6,7 @@ import (
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/internal/payments/providers"
 	"hospital-backend/pkg/constants"
+	wrapError "hospital-backend/shared/error"
 	"strings"
 	"time"
 
@@ -16,13 +17,20 @@ import (
 )
 
 type IWebhookService struct {
-	db                *gorm.DB
-	WebhookRepository IWebhookRepository
-	PaymentsService   PaymentInvoiceLookup
-	PaymentAttempts   PaymentAttemptServicer
-	PaymentFactory    providers.IPaymentFactory
-	Fulfillment       IPaymentFulfillment
-	FulfillmentSvc    FulfillmentServicer
+	db                     *gorm.DB
+	WebhookRepository      IWebhookRepository
+	PaymentsService        PaymentInvoiceLookup
+	PaymentAttempts        PaymentAttemptServicer
+	PaymentFactory         providers.IPaymentFactory
+	Fulfillment            IPaymentFulfillment
+	FulfillmentSvc         FulfillmentServicer
+	TenantEntitlement      TenantEntitlementActivator
+}
+
+// TenantEntitlementActivator is the common hook used after a webhook signature is verified
+// to activate the tenant (and its pending subscription) for a paid Razorpay order.
+type TenantEntitlementActivator interface {
+	ActivateByOrderID(log *zap.Logger, orderID, providerPaymentID string) error
 }
 
 func NewWebhookService(
@@ -33,6 +41,7 @@ func NewWebhookService(
 	paymentFactory providers.IPaymentFactory,
 	fulfillment IPaymentFulfillment,
 	fulfillmentSvc FulfillmentServicer,
+	tenantEntitlement TenantEntitlementActivator,
 ) *IWebhookService {
 	return &IWebhookService{
 		db:                db,
@@ -42,6 +51,7 @@ func NewWebhookService(
 		PaymentFactory:    paymentFactory,
 		Fulfillment:       fulfillment,
 		FulfillmentSvc:    fulfillmentSvc,
+		TenantEntitlement: tenantEntitlement,
 	}
 }
 
@@ -83,7 +93,12 @@ func (w *IWebhookService) ProcessWebhook(log *zap.Logger, payload []byte, signat
 		zap.String("provider", provider),
 		zap.String("event_type", dtowebhookevent.EventType),
 		zap.String("provider_link_id", dtowebhookevent.ProviderLinkID),
+		zap.String("provider_order_id", dtowebhookevent.ProviderOrderID),
 	)
+
+	if dtowebhookevent.EventType == constants.OrderPaid {
+		return w.handleOrderPaid(log, provider, dtowebhookevent)
+	}
 
 	paymentAttempt, claimed, err := w.PaymentAttempts.ClaimForProcessing(log, dtowebhookevent.ProviderLinkID)
 	if err != nil {
@@ -291,20 +306,72 @@ func (w *IWebhookService) ProcessWebhook(log *zap.Logger, payload []byte, signat
 	return true, nil
 }
 
+func (w *IWebhookService) handleOrderPaid(log *zap.Logger, provider string, event dto.ParsedWebhookEvent) (bool, error) {
+	orderID := strings.TrimSpace(event.ProviderOrderID)
+	if orderID == "" {
+		log.Warn("payment webhook order.paid skipped",
+			zap.String("provider", provider),
+			zap.String("reason", "missing_order_id"),
+		)
+		return true, nil
+	}
+
+	webhookEvent := w.toWebhookEvent(event, "")
+	if err := w.WebhookRepository.CreateWebhookEvent(log, webhookEvent); err != nil {
+		log.Error("payment webhook failed",
+			zap.String("provider", provider),
+			zap.String("provider_order_id", orderID),
+			zap.String("reason", "persist_event"),
+			zap.Error(err),
+		)
+		return false, err
+	}
+
+	if w.TenantEntitlement == nil {
+		log.Error("payment webhook failed",
+			zap.String("provider", provider),
+			zap.String("provider_order_id", orderID),
+			zap.String("reason", "tenant_entitlement_activator_missing"),
+		)
+		return false, wrapError.ErrWebhookProcessFailed
+	}
+
+	if err := w.TenantEntitlement.ActivateByOrderID(log, orderID, event.ProviderPaymentID); err != nil {
+		log.Error("payment webhook failed",
+			zap.String("provider", provider),
+			zap.String("provider_order_id", orderID),
+			zap.String("provider_payment_id", event.ProviderPaymentID),
+			zap.String("reason", "activate_tenant_entitlement"),
+			zap.Error(err),
+		)
+		return false, err
+	}
+
+	log.Info("payment webhook order.paid success",
+		zap.String("provider", provider),
+		zap.String("provider_order_id", orderID),
+		zap.String("provider_payment_id", event.ProviderPaymentID),
+	)
+	return true, nil
+}
+
 func (w *IWebhookService) toWebhookEvent(dtowebhookevent dto.ParsedWebhookEvent, paymentAttemptID string) WebhookEvents {
 	var webhookresponse datatypes.JSONMap
 	err := json.Unmarshal(dtowebhookevent.RawPayload, &webhookresponse)
 	if err != nil {
 		return WebhookEvents{}
 	}
-	return WebhookEvents{
+	event := WebhookEvents{
 		ID:               uuid.NewString(),
-		PaymentAttemptID: paymentAttemptID,
 		EventType:        dtowebhookevent.EventType,
 		ProviderResponse: webhookresponse,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}
+	if id := strings.TrimSpace(paymentAttemptID); id != "" {
+		event.PaymentAttemptID = &id
+	}
+	return event
 }
 
 func (w *IWebhookService) updatePaymentAttempt(log *zap.Logger, tx *gorm.DB, paymentAttempt PaymentAttempts, dtowebhookevent dto.ParsedWebhookEvent) error {

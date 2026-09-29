@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockRoleServicer is a mock of RoleServicer interface.
@@ -41,9 +42,9 @@ func (m *MockRoleServicer) EXPECT() *MockRoleServicerMockRecorder {
 }
 
 // FindMany mocks base method.
-func (m *MockRoleServicer) FindMany(organisationID string, limit, offset int) ([]dto.RoleResponse, int64, error) {
+func (m *MockRoleServicer) FindMany(log *zap.Logger, organisationID string, limit, offset int) ([]dto.RoleResponse, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany", organisationID, limit, offset)
+	ret := m.ctrl.Call(m, "FindMany", log, organisationID, limit, offset)
 	ret0, _ := ret[0].([]dto.RoleResponse)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -51,7 +52,7 @@ func (m *MockRoleServicer) FindMany(organisationID string, limit, offset int) ([
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockRoleServicerMockRecorder) FindMany(organisationID, limit, offset any) *gomock.Call {
+func (mr *MockRoleServicerMockRecorder) FindMany(log, organisationID, limit, offset any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockRoleServicer)(nil).FindMany), organisationID, limit, offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockRoleServicer)(nil).FindMany), log, organisationID, limit, offset)
 }

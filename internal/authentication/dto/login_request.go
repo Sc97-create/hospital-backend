@@ -6,6 +6,16 @@ type LoginUser struct {
 }
 
 type UpdatePasswordRequest struct {
+	Token           string `json:"token"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
+}
+
+type FirstLoginPasswordRequest struct {
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+type RequestPasswordResetRequest struct {
+	EmailID string `json:"email_id"`
 }

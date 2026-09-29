@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockEmployeeServicer is a mock of EmployeeServicer interface.
@@ -41,68 +42,68 @@ func (m *MockEmployeeServicer) EXPECT() *MockEmployeeServicerMockRecorder {
 }
 
 // CreateAdminProf mocks base method.
-func (m *MockEmployeeServicer) CreateAdminProf(payload dto.EmpRequest) (string, error) {
+func (m *MockEmployeeServicer) CreateAdminProf(log *zap.Logger, payload dto.EmpRequest) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAdminProf", payload)
+	ret := m.ctrl.Call(m, "CreateAdminProf", log, payload)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAdminProf indicates an expected call of CreateAdminProf.
-func (mr *MockEmployeeServicerMockRecorder) CreateAdminProf(payload any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) CreateAdminProf(log, payload any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAdminProf", reflect.TypeOf((*MockEmployeeServicer)(nil).CreateAdminProf), payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAdminProf", reflect.TypeOf((*MockEmployeeServicer)(nil).CreateAdminProf), log, payload)
 }
 
 // CreateEmployee mocks base method.
-func (m *MockEmployeeServicer) CreateEmployee(payload dto.EmpRequest) (string, error) {
+func (m *MockEmployeeServicer) CreateEmployee(log *zap.Logger, payload dto.EmpRequest) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateEmployee", payload)
+	ret := m.ctrl.Call(m, "CreateEmployee", log, payload)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateEmployee indicates an expected call of CreateEmployee.
-func (mr *MockEmployeeServicerMockRecorder) CreateEmployee(payload any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) CreateEmployee(log, payload any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateEmployee", reflect.TypeOf((*MockEmployeeServicer)(nil).CreateEmployee), payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateEmployee", reflect.TypeOf((*MockEmployeeServicer)(nil).CreateEmployee), log, payload)
 }
 
 // DeleteEmployee mocks base method.
-func (m *MockEmployeeServicer) DeleteEmployee(userID string) error {
+func (m *MockEmployeeServicer) DeleteEmployee(log *zap.Logger, userID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteEmployee", userID)
+	ret := m.ctrl.Call(m, "DeleteEmployee", log, userID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteEmployee indicates an expected call of DeleteEmployee.
-func (mr *MockEmployeeServicerMockRecorder) DeleteEmployee(userID any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) DeleteEmployee(log, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEmployee", reflect.TypeOf((*MockEmployeeServicer)(nil).DeleteEmployee), userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEmployee", reflect.TypeOf((*MockEmployeeServicer)(nil).DeleteEmployee), log, userID)
 }
 
 // FindDoctors mocks base method.
-func (m *MockEmployeeServicer) FindDoctors(search, organisationID string) ([]dto.Doctor, error) {
+func (m *MockEmployeeServicer) FindDoctors(log *zap.Logger, search, organisationID string) ([]dto.Doctor, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindDoctors", search, organisationID)
+	ret := m.ctrl.Call(m, "FindDoctors", log, search, organisationID)
 	ret0, _ := ret[0].([]dto.Doctor)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindDoctors indicates an expected call of FindDoctors.
-func (mr *MockEmployeeServicerMockRecorder) FindDoctors(search, organisationID any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) FindDoctors(log, search, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDoctors", reflect.TypeOf((*MockEmployeeServicer)(nil).FindDoctors), search, organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDoctors", reflect.TypeOf((*MockEmployeeServicer)(nil).FindDoctors), log, search, organisationID)
 }
 
 // FindMany mocks base method.
-func (m *MockEmployeeServicer) FindMany(req dto.FindManyRequest) ([]dto.EmployeeResponse, int64, error) {
+func (m *MockEmployeeServicer) FindMany(log *zap.Logger, req dto.FindManyRequest) ([]dto.EmployeeResponse, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany", req)
+	ret := m.ctrl.Call(m, "FindMany", log, req)
 	ret0, _ := ret[0].([]dto.EmployeeResponse)
 	ret1, _ := ret[1].(int64)
 	ret2, _ := ret[2].(error)
@@ -110,36 +111,36 @@ func (m *MockEmployeeServicer) FindMany(req dto.FindManyRequest) ([]dto.Employee
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockEmployeeServicerMockRecorder) FindMany(req any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) FindMany(log, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockEmployeeServicer)(nil).FindMany), req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockEmployeeServicer)(nil).FindMany), log, req)
 }
 
 // FindOne mocks base method.
-func (m *MockEmployeeServicer) FindOne(id string) (dto.EmployeeResponse, error) {
+func (m *MockEmployeeServicer) FindOne(log *zap.Logger, id string) (dto.EmployeeResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOne", id)
+	ret := m.ctrl.Call(m, "FindOne", log, id)
 	ret0, _ := ret[0].(dto.EmployeeResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindOne indicates an expected call of FindOne.
-func (mr *MockEmployeeServicerMockRecorder) FindOne(id any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) FindOne(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOne", reflect.TypeOf((*MockEmployeeServicer)(nil).FindOne), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOne", reflect.TypeOf((*MockEmployeeServicer)(nil).FindOne), log, id)
 }
 
 // UpdateAdminProf mocks base method.
-func (m *MockEmployeeServicer) UpdateAdminProf(payload dto.UpdateRequest) error {
+func (m *MockEmployeeServicer) UpdateAdminProf(log *zap.Logger, payload dto.UpdateRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAdminProf", payload)
+	ret := m.ctrl.Call(m, "UpdateAdminProf", log, payload)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateAdminProf indicates an expected call of UpdateAdminProf.
-func (mr *MockEmployeeServicerMockRecorder) UpdateAdminProf(payload any) *gomock.Call {
+func (mr *MockEmployeeServicerMockRecorder) UpdateAdminProf(log, payload any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAdminProf", reflect.TypeOf((*MockEmployeeServicer)(nil).UpdateAdminProf), payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAdminProf", reflect.TypeOf((*MockEmployeeServicer)(nil).UpdateAdminProf), log, payload)
 }

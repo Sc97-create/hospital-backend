@@ -761,6 +761,60 @@ func (IService *InvoiceServ) RetryPaymentLink(log *zap.Logger, invoiceID, idempo
 	return dto.InvoiceResponse{InvoiceID: invoice.ID, PaymentURL: paymentResponse.PaymentURL}, nil
 }
 
+func (IService *InvoiceServ) GetTodayCompletedInvoiceSummary(log *zap.Logger, organisationID string) (dto.TodayInvoiceCollectionSummary, error) {
+	log = ensureLog(log)
+	if strings.TrimSpace(organisationID) == "" {
+		return dto.TodayInvoiceCollectionSummary{}, wrapError.ErrInvalidRequest
+	}
+	query := `
+		SELECT
+			p.source AS payment_mode,
+			COUNT(*)::int AS invoice_count,
+			COALESCE(SUM(i.total_amount), 0) AS total_amount
+		FROM invoices i
+		INNER JOIN payments p ON p.invoice_id = i.id
+		WHERE i.organisation_id = $1
+			AND i.status = 'paid'
+			AND i.updated_at >= CURRENT_DATE
+			AND i.updated_at < CURRENT_DATE + INTERVAL '1 day'
+		GROUP BY p.source
+	`
+	rows, err := IService.InvRepo.GetTodayCompletedInvoiceSummary(log, query, organisationID)
+	if err != nil {
+		log.Error("dashboard invoice summary failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return dto.TodayInvoiceCollectionSummary{}, wrapError.ErrInvoiceFetchFailed
+	}
+	summary := buildTodayInvoiceCollectionSummary(rows)
+	log.Info("dashboard invoice summary success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("total_invoices", summary.TotalInvoices),
+		zap.Float64("total_amount", summary.TotalAmount),
+	)
+	return summary, nil
+}
+
+func buildTodayInvoiceCollectionSummary(rows []TodayInvoiceCollectionRow) dto.TodayInvoiceCollectionSummary {
+	summary := dto.TodayInvoiceCollectionSummary{}
+	for _, row := range rows {
+		bucket := dto.PaymentModeSummary{Count: row.Count, Amount: row.Amount}
+		switch row.PaymentMode {
+		case constants.PaymentCash:
+			summary.Cash = bucket
+		case constants.PaymentQR:
+			summary.QR = bucket
+		case constants.PaymentLink:
+			summary.Link = bucket
+		}
+		summary.TotalInvoices += row.Count
+		summary.TotalAmount += row.Amount
+	}
+	return summary
+}
+
 // toInvoiceDetailResponse is shared by GetInvoiceByPrescriptionID and GetInvoiceByAppointmentID —
 // same invoice shape either way, just looked up by a different key.
 func toInvoiceDetailResponse(row InvoiceWithPayment) dto.InvoiceByPrescriptionResponse {

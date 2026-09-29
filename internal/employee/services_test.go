@@ -2,16 +2,19 @@ package employee_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/employee/mocks"
+	"hospital-backend/internal/roles"
 	"hospital-backend/internal/testutil/servicetest"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newEmployeeService(t *testing.T, repo employee.EmployeeRepository) *employee.EmployeeService {
@@ -23,25 +26,25 @@ func TestServiceDeleteEmployee(t *testing.T) {
 
 	t.Run("empty id", func(t *testing.T) {
 		svc := newEmployeeService(t, nil)
-		if err := svc.DeleteEmployee(""); err == nil {
+		if err := svc.DeleteEmployee(servicetest.NopLogger(), ""); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("repo error", func(t *testing.T) {
 		repo := mocks.NewMockEmployeeRepository(ctrl)
-		repo.EXPECT().DeleteOne("user-1").Return(errors.New("delete error"))
+		repo.EXPECT().DeleteOne(gomock.Any(), "user-1").Return(errors.New("delete error"))
 		svc := newEmployeeService(t, repo)
-		if err := svc.DeleteEmployee("user-1"); err == nil {
+		if err := svc.DeleteEmployee(servicetest.NopLogger(), "user-1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("success", func(t *testing.T) {
 		repo := mocks.NewMockEmployeeRepository(ctrl)
-		repo.EXPECT().DeleteOne("user-1").Return(nil)
+		repo.EXPECT().DeleteOne(gomock.Any(), "user-1").Return(nil)
 		svc := newEmployeeService(t, repo)
-		if err := svc.DeleteEmployee("user-1"); err != nil {
+		if err := svc.DeleteEmployee(servicetest.NopLogger(), "user-1"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -52,22 +55,22 @@ func TestServiceFindOne(t *testing.T) {
 	repo := mocks.NewMockEmployeeRepository(ctrl)
 
 	t.Run("repo error", func(t *testing.T) {
-		repo.EXPECT().ReadOne("e1").Return(nil, errors.New("not found"))
+		repo.EXPECT().ReadOne(gomock.Any(), "e1").Return(nil, errors.New("not found"))
 		svc := newEmployeeService(t, repo)
-		if _, err := svc.FindOne("e1"); err == nil {
+		if _, err := svc.FindOne(servicetest.NopLogger(), "e1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("success", func(t *testing.T) {
-		repo.EXPECT().ReadOne("e1").Return(&employee.EmployeeListRow{
+		repo.EXPECT().ReadOne(gomock.Any(), "e1").Return(&employee.EmployeeListRow{
 			ID:        "e1",
 			FirstName: "Jane",
 			LastName:  "Doe",
 			IsActive:  true,
 		}, nil)
 		svc := newEmployeeService(t, repo)
-		resp, err := svc.FindOne("e1")
+		resp, err := svc.FindOne(servicetest.NopLogger(), "e1")
 		if err != nil || resp.EmployeeID != "e1" || resp.EmployeeName != "Jane Doe" {
 			t.Fatalf("got %+v err=%v", resp, err)
 		}
@@ -80,31 +83,31 @@ func TestServiceFindMany(t *testing.T) {
 
 	t.Run("read error", func(t *testing.T) {
 		repo := mocks.NewMockEmployeeRepository(ctrl)
-		repo.EXPECT().ReadMany(10, 0, req.OrganisationID, "").Return(nil, errors.New("read error"))
+		repo.EXPECT().ReadMany(gomock.Any(), 10, 0, req.OrganisationID, "").Return(nil, errors.New("read error"))
 		svc := newEmployeeService(t, repo)
-		if _, _, err := svc.FindMany(req); err == nil {
+		if _, _, err := svc.FindMany(servicetest.NopLogger(), req); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("count error", func(t *testing.T) {
 		repo := mocks.NewMockEmployeeRepository(ctrl)
-		repo.EXPECT().ReadMany(10, 0, req.OrganisationID, "").Return([]employee.EmployeeListRow{{ID: "e1"}}, nil)
-		repo.EXPECT().Count(req.OrganisationID, "").Return(int64(0), errors.New("count error"))
+		repo.EXPECT().ReadMany(gomock.Any(), 10, 0, req.OrganisationID, "").Return([]employee.EmployeeListRow{{ID: "e1"}}, nil)
+		repo.EXPECT().Count(gomock.Any(), req.OrganisationID, "").Return(int64(0), errors.New("count error"))
 		svc := newEmployeeService(t, repo)
-		if _, _, err := svc.FindMany(req); err == nil {
+		if _, _, err := svc.FindMany(servicetest.NopLogger(), req); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("success", func(t *testing.T) {
 		repo := mocks.NewMockEmployeeRepository(ctrl)
-		repo.EXPECT().ReadMany(10, 0, req.OrganisationID, "").Return([]employee.EmployeeListRow{
+		repo.EXPECT().ReadMany(gomock.Any(), 10, 0, req.OrganisationID, "").Return([]employee.EmployeeListRow{
 			{ID: "e1", FirstName: "Jane", LastName: "Doe", IsActive: true},
 		}, nil)
-		repo.EXPECT().Count(req.OrganisationID, "").Return(int64(1), nil)
+		repo.EXPECT().Count(gomock.Any(), req.OrganisationID, "").Return(int64(1), nil)
 		svc := newEmployeeService(t, repo)
-		resp, total, err := svc.FindMany(req)
+		resp, total, err := svc.FindMany(servicetest.NopLogger(), req)
 		if err != nil || total != 1 || len(resp) != 1 {
 			t.Fatalf("got len=%d total=%d err=%v", len(resp), total, err)
 		}
@@ -116,17 +119,17 @@ func TestServiceFindRoleIDByUserID(t *testing.T) {
 	repo := mocks.NewMockEmployeeRepository(ctrl)
 
 	t.Run("repo error", func(t *testing.T) {
-		repo.EXPECT().FindRoleIDByUserID("user-1").Return("", errors.New("not found"))
+		repo.EXPECT().FindRoleIDByUserID(gomock.Any(), "user-1").Return("", errors.New("not found"))
 		svc := newEmployeeService(t, repo)
-		if _, err := svc.FindRoleIDByUserID("user-1"); err == nil {
+		if _, err := svc.FindRoleIDByUserID(servicetest.NopLogger(), "user-1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("success", func(t *testing.T) {
-		repo.EXPECT().FindRoleIDByUserID("user-1").Return("role-1", nil)
+		repo.EXPECT().FindRoleIDByUserID(gomock.Any(), "user-1").Return("role-1", nil)
 		svc := newEmployeeService(t, repo)
-		roleID, err := svc.FindRoleIDByUserID("user-1")
+		roleID, err := svc.FindRoleIDByUserID(servicetest.NopLogger(), "user-1")
 		if err != nil || roleID != "role-1" {
 			t.Fatalf("got %q err=%v", roleID, err)
 		}
@@ -138,18 +141,36 @@ func TestServiceFindDoctors(t *testing.T) {
 	repo := mocks.NewMockEmployeeRepository(ctrl)
 
 	t.Run("repo error", func(t *testing.T) {
-		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1").Return(nil, errors.New("read error"))
+		repo.EXPECT().ReadDoctors(gomock.Any(), gomock.Any(), "org-1", roles.DefaultRoleDoctor).Return(nil, errors.New("read error"))
 		svc := newEmployeeService(t, repo)
-		if _, err := svc.FindDoctors("", "org-1"); err == nil {
+		if _, err := svc.FindDoctors(servicetest.NopLogger(), "", "org-1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("success", func(t *testing.T) {
-		repo.EXPECT().ReadDoctors(gomock.Any(), "org-1").Return([]employee.User{{ID: "doc-1"}}, nil)
+	t.Run("success filters doctor role", func(t *testing.T) {
+		repo.EXPECT().ReadDoctors(gomock.Any(), gomock.Any(), "org-1", roles.DefaultRoleDoctor).DoAndReturn(
+			func(_ *zap.Logger, query string, args ...any) ([]employee.User, error) {
+				if !strings.Contains(query, "roles.name") {
+					t.Fatalf("expected roles.name filter in query: %s", query)
+				}
+				return []employee.User{{ID: "doc-1"}}, nil
+			},
+		)
 		svc := newEmployeeService(t, repo)
-		got, err := svc.FindDoctors("", "org-1")
+		got, err := svc.FindDoctors(servicetest.NopLogger(), "", "org-1")
 		if err != nil || len(got) != 1 || got[0].ID != "doc-1" {
+			t.Fatalf("got %+v err=%v", got, err)
+		}
+	})
+
+	t.Run("success with search", func(t *testing.T) {
+		repo.EXPECT().ReadDoctors(gomock.Any(), gomock.Any(), "org-1", roles.DefaultRoleDoctor, "%john%", "%john%").Return(
+			[]employee.User{{ID: "doc-2", FirstName: "John"}}, nil,
+		)
+		svc := newEmployeeService(t, repo)
+		got, err := svc.FindDoctors(servicetest.NopLogger(), "john", "org-1")
+		if err != nil || len(got) != 1 || got[0].ID != "doc-2" {
 			t.Fatalf("got %+v err=%v", got, err)
 		}
 	})
@@ -201,6 +222,41 @@ func TestMapToEmployeeResponse(t *testing.T) {
 	})
 }
 
+func TestServiceGetEmployeeStatusCounts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	t.Run("missing organisation id", func(t *testing.T) {
+		svc := newEmployeeService(t, nil)
+		_, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "")
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("repo error", func(t *testing.T) {
+		repo := mocks.NewMockEmployeeRepository(ctrl)
+		repo.EXPECT().CountByActiveStatus(gomock.Any(), "org-1").Return(employee.EmployeeStatusCountRow{}, errors.New("db"))
+		svc := newEmployeeService(t, repo)
+		_, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "org-1")
+		if !errors.Is(err, wrapError.ErrEmployeesFetchFailed) {
+			t.Fatalf("expected fetch failed, got %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		repo := mocks.NewMockEmployeeRepository(ctrl)
+		repo.EXPECT().CountByActiveStatus(gomock.Any(), "org-1").Return(employee.EmployeeStatusCountRow{Active: 5, Inactive: 2}, nil)
+		svc := newEmployeeService(t, repo)
+		got, err := svc.GetEmployeeStatusCounts(servicetest.NopLogger(), "org-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Active != 5 || got.Inactive != 2 || got.Total != 7 {
+			t.Fatalf("unexpected counts: %+v", got)
+		}
+	})
+}
+
 func TestCreateEmployeeCode(t *testing.T) {
 	doj := "2026-03-15"
 	parsed, _ := time.Parse("2006-01-02", doj)
@@ -244,20 +300,28 @@ type codeCountRepo struct {
 	err   error
 }
 
-func (codeCountRepo) Create(*employee.User) error { panic("unused") }
-func (codeCountRepo) Update(string, map[string]interface{}) error {
+func (codeCountRepo) Create(*zap.Logger, *employee.User) error { panic("unused") }
+func (codeCountRepo) Update(*zap.Logger, string, map[string]interface{}) error {
 	panic("unused")
 }
-func (codeCountRepo) DeleteOne(string) error { panic("unused") }
-func (codeCountRepo) ReadMany(int, int, string, string) ([]employee.EmployeeListRow, error) {
+func (codeCountRepo) DeleteOne(*zap.Logger, string) error { panic("unused") }
+func (codeCountRepo) ReadMany(*zap.Logger, int, int, string, string) ([]employee.EmployeeListRow, error) {
 	panic("unused")
 }
-func (codeCountRepo) ReadOne(string) (*employee.EmployeeListRow, error) { panic("unused") }
-func (codeCountRepo) ReadDoctors(string, ...any) ([]employee.User, error) {
+func (codeCountRepo) ReadOne(*zap.Logger, string) (*employee.EmployeeListRow, error) {
 	panic("unused")
 }
-func (codeCountRepo) Count(string, string) (int64, error) { panic("unused") }
-func (r codeCountRepo) CountByCodePrefix(string, string) (int64, error) {
+func (codeCountRepo) ReadDoctors(*zap.Logger, string, ...any) ([]employee.User, error) {
+	panic("unused")
+}
+func (codeCountRepo) Count(*zap.Logger, string, string) (int64, error) { panic("unused") }
+func (r codeCountRepo) CountByCodePrefix(*zap.Logger, string, string) (int64, error) {
 	return r.count, r.err
 }
-func (codeCountRepo) FindRoleIDByUserID(string) (string, error) { panic("unused") }
+func (codeCountRepo) CountByActiveStatus(*zap.Logger, string) (employee.EmployeeStatusCountRow, error) {
+	panic("unused")
+}
+func (codeCountRepo) FindRoleIDByUserID(*zap.Logger, string) (string, error) { panic("unused") }
+func (codeCountRepo) FindOrganisationIDByUserID(*zap.Logger, string) (string, error) {
+	panic("unused")
+}

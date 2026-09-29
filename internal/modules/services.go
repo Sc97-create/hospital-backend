@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type ModuleService struct {
@@ -14,7 +15,8 @@ func NewModuleService(repo ModuleRepo) *ModuleService {
 	return &ModuleService{repo: repo}
 }
 
-func (Mod *ModuleService) DefaultModule() error {
+func (Mod *ModuleService) DefaultModule(log *zap.Logger) error {
+	log = ensureLog(log)
 	moduleArr := []Modules{}
 	for _, each := range ConstModules {
 		moduleArr = append(moduleArr, Modules{
@@ -25,9 +27,11 @@ func (Mod *ModuleService) DefaultModule() error {
 			IsActive:  true,
 		})
 	}
-	err := Mod.repo.BatchInsert(moduleArr, 2)
+	err := Mod.repo.BatchInsert(log, moduleArr, 2)
 	if err != nil {
+		log.Error("module seed failed", zap.String("reason", "db_insert"), zap.Error(err))
 		return err
 	}
+	log.Info("module seed success", zap.Int("count", len(moduleArr)))
 	return nil
 }

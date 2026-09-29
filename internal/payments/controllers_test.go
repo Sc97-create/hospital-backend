@@ -64,7 +64,7 @@ func TestRazorPayWebhook(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(webhook)
 			}
-			paymentCtrl := payments.NewPaymentController(mocks.NewMockPaymentServicer(ctrl), webhook)
+			paymentCtrl := payments.NewPaymentController(mocks.NewMockPaymentServicer(ctrl), webhook, nil)
 			app := controllertest.NewApp(t, func(app *fiber.App) {
 				app.Post("/webhooks/razorpay", paymentCtrl.RazorPayWebhook)
 			})
@@ -121,7 +121,7 @@ func TestUpdatePaymentManually(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(payment)
 			}
-			paymentCtrl := payments.NewPaymentController(payment, mocks.NewMockWebhookServicer(ctrl))
+			paymentCtrl := payments.NewPaymentController(payment, mocks.NewMockWebhookServicer(ctrl), nil)
 			app := controllertest.NewApp(t, func(app *fiber.App) {
 				app.Post("/payments/confirm", paymentCtrl.UpdatePaymentManually)
 			})

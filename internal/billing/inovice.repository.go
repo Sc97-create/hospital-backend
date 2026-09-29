@@ -19,6 +19,7 @@ type InvoiceRepo interface {
 	GetInvoiceByAppointmentID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error)
 	GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error)
 	GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args ...any) (BillDetailsRow, error)
+	GetTodayCompletedInvoiceSummary(log *zap.Logger, query string, organisationID string) ([]TodayInvoiceCollectionRow, error)
 }
 
 type DB struct {
@@ -92,6 +93,17 @@ func (d *DB) GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args 
 		return row, gorm.ErrRecordNotFound
 	}
 	return row, nil
+}
+
+func (d *DB) GetTodayCompletedInvoiceSummary(log *zap.Logger, query string, organisationID string) ([]TodayInvoiceCollectionRow, error) {
+	log = ensureLog(log)
+	var rows []TodayInvoiceCollectionRow
+	err := d.db.Raw(query, organisationID).Scan(&rows).Error
+	if err != nil {
+		log.Error("billing repo error", zap.String("op", "GetTodayCompletedInvoiceSummary"), zap.Error(err))
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (d *DB) UpdateInvoiceStatus(log *zap.Logger, tx *gorm.DB, invoiceID string, status string) error {

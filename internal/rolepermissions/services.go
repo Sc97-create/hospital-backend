@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -21,16 +22,39 @@ func NewRolePermissionService(db *gorm.DB, repo RolePermissionRepo) *RolePermiss
 	return &RolePermissionService{DB: db, repo: repo}
 }
 
-func (s *RolePermissionService) Create(rolePermission *RolePermission) error {
-	return s.repo.Create(rolePermission)
+func (s *RolePermissionService) Create(log *zap.Logger, rolePermission *RolePermission) error {
+	log = ensureLog(log)
+	if err := s.repo.Create(log, rolePermission); err != nil {
+		log.Error("role permission create failed",
+			zap.String("role_id", rolePermissionID(rolePermission)),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
 }
 
-func (s *RolePermissionService) FindModulesByRoleID(roleID string) (dto.RoleAccess, error) {
+func rolePermissionID(rolePermission *RolePermission) string {
+	if rolePermission == nil {
+		return ""
+	}
+	return rolePermission.RoleID
+}
+
+func (s *RolePermissionService) FindModulesByRoleID(log *zap.Logger, roleID string) (dto.RoleAccess, error) {
+	log = ensureLog(log)
 	if roleID == "" {
+		log.Warn("role permission lookup failed", zap.String("reason", "missing_role_id"))
 		return dto.RoleAccess{Permissions: []dto.RoleModulePermission{}}, nil
 	}
-	isAdmin, err := s.repo.IsAdminRole(roleID)
+	isAdmin, err := s.repo.IsAdminRole(log, roleID)
 	if err != nil {
+		log.Error("role permission lookup failed",
+			zap.String("role_id", roleID),
+			zap.String("reason", "admin_lookup"),
+			zap.Error(err),
+		)
 		return dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed
 	}
 	if isAdmin {
@@ -39,8 +63,13 @@ func (s *RolePermissionService) FindModulesByRoleID(roleID string) (dto.RoleAcce
 			Permissions: []dto.RoleModulePermission{},
 		}, nil
 	}
-	rows, err := s.repo.FindModulePermissionsByRoleID(roleID)
+	rows, err := s.repo.FindModulePermissionsByRoleID(log, roleID)
 	if err != nil {
+		log.Error("role permission lookup failed",
+			zap.String("role_id", roleID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
 		return dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed
 	}
 	return dto.RoleAccess{
@@ -77,14 +106,27 @@ func applyPermissionFlag(flags *dto.ModulePermissionFlags, name string) {
 	}
 }
 
-func (s *RolePermissionService) InsertMany(tx *gorm.DB, roleArr []roles.Role, permissionsArr []permissions.Permission, modulesArr []modules.Modules, organisationID string) error {
+// complexity-exception: seed call already takes the role, permission, and module catalogs plus organisation id
+func (s *RolePermissionService) InsertMany(log *zap.Logger, tx *gorm.DB, roleArr []roles.Role, permissionsArr []permissions.Permission, modulesArr []modules.Modules, organisationID string) error {
+	log = ensureLog(log)
 	rolePermissions := s.createRPModel(roleArr, permissionsArr, modulesArr, organisationID)
-	err := s.repo.BatchCreate(tx, rolePermissions)
+	err := s.repo.BatchCreate(log, tx, rolePermissions)
 	if err != nil {
+		log.Error("role permission seed failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_insert"),
+			zap.Int("count", len(rolePermissions)),
+			zap.Error(err),
+		)
 		return err
 	}
+	log.Info("role permission seed success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(rolePermissions)),
+	)
 	return nil
 }
+
 func (s *RolePermissionService) createRPModel(rolesArr []roles.Role, permissionsArr []permissions.Permission, modulesArr []modules.Modules, organisationID string) []RolePermission {
 	roleMap := make(map[string]string)
 	for _, each := range rolesArr {
@@ -98,159 +140,36 @@ func (s *RolePermissionService) createRPModel(rolesArr []roles.Role, permissions
 	for _, each := range permissionsArr {
 		permissionMap[each.Name] = each.ID
 	}
+
 	var rolePermissions []RolePermission
-	for _, each := range roles.DefaultRoleArr {
-		switch each {
-		case roles.DefaultRoleDoctor:
-			if roleId, ok := roleMap[each]; ok {
-				if moduleId, ok := moduleMap[modules.Appointment]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Prescription]; ok {
-					if addPermissionId, ok := permissionMap[permissions.Create]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, addPermissionId, moduleId, organisationID, false))
-					}
-					if editPermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, editPermissionId, moduleId, organisationID, false))
-					}
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Patient]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, updatePermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Employee]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Medicine]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleId, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
+	for _, roleName := range roles.DefaultRoleArr {
+		roleID, ok := roleMap[roleName]
+		if !ok {
+			continue
+		}
+		if roleName == roles.DefaultRoleAdmin {
+			rolePermissions = append(rolePermissions, s.toAdminRolePermModel(roleID, organisationID))
+			continue
+		}
+		for _, grant := range defaultRolePermissionMatrix[roleName] {
+			moduleID, ok := moduleMap[grant.Module]
+			if !ok {
+				continue
 			}
-		case roles.DefaultRoleAdmin:
-			if roleID, ok := roleMap[each]; ok {
-				rolePermissions = append(rolePermissions, s.toAdminRolePermModel(roleID, organisationID))
-			}
-		case roles.DefaultRolePharmacist:
-			/*
-				suppliers add
-				suppliers view
-				add medicine
-				update medicine
-				view medicine
-				pharma detail bill pay
-				pharma bill view
-				invoice view and print
-				billing in future view, downloaded, add
-			*/
-			if roleID, ok := roleMap[each]; ok {
-				if moduleId, ok := moduleMap[modules.Medicine]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, updatePermissionId, moduleId, organisationID, false))
-					}
-					if addPermissionId, ok := permissionMap[permissions.Create]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, addPermissionId, moduleId, organisationID, false))
-					}
+			for _, action := range grant.Actions {
+				permID, ok := permissionMap[action]
+				if !ok {
+					continue
 				}
-				if moduleId, ok := moduleMap[modules.Prescription]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, updatePermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Billing]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, updatePermissionId, moduleId, organisationID, false))
-					}
-					if addPermissionId, ok := permissionMap[permissions.Create]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, addPermissionId, moduleId, organisationID, false))
-					}
-				}
-			}
-		case roles.DefaultRoleReceptionist:
-			/*
-				add patient
-				view patient
-				update patient
-				add appointment
-				view appointment
-				update appointment
-				view billing
-			*/
-			if roleID, ok := roleMap[each]; ok {
-				if moduleId, ok := moduleMap[modules.Patient]; ok {
-					if addPermissionId, ok := permissionMap[permissions.Create]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, addPermissionId, moduleId, organisationID, false))
-					}
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, updatePermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Appointment]; ok {
-					if addPermissionId, ok := permissionMap[permissions.Create]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, addPermissionId, moduleId, organisationID, false))
-					}
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-					if updatePermissionId, ok := permissionMap[permissions.Update]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, updatePermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Billing]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
-			}
-		case roles.DefaultRoleNurse:
-			/*
-				view patient
-				view appointment
-			*/
-			if roleID, ok := roleMap[each]; ok {
-				if moduleId, ok := moduleMap[modules.Patient]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
-				if moduleId, ok := moduleMap[modules.Appointment]; ok {
-					if viewPermissionId, ok := permissionMap[permissions.View]; ok {
-						rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, viewPermissionId, moduleId, organisationID, false))
-					}
-				}
+				rolePermissions = append(rolePermissions, s.toRolePermModel(roleID, permID, moduleID, organisationID, false))
 			}
 		}
-
 	}
 	return rolePermissions
 }
 
 func (s *RolePermissionService) toRolePermModel(roleID string, permID string, moduleID string, organisationID string, isAdmin bool) RolePermission {
 	if !isAdmin && permID == "" && moduleID == "" {
-		// need to add logger for tracking this warn
 		return RolePermission{}
 	}
 
@@ -265,7 +184,6 @@ func (s *RolePermissionService) toRolePermModel(roleID string, permID string, mo
 	}
 }
 
-// toAdminRolePermModel stores only role_id; permission_id and module_id stay NULL.
 func (s *RolePermissionService) toAdminRolePermModel(roleID string, organisationID string) RolePermission {
 	return RolePermission{
 		ID:             uuid.New().String(),
@@ -284,6 +202,3 @@ func nullableUUID(value string) *string {
 	}
 	return &value
 }
-
-/*
- */

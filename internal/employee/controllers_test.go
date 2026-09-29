@@ -54,7 +54,7 @@ func TestAdd(t *testing.T) {
 			name: "success",
 			body: validEmployeeBody,
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().CreateEmployee(gomock.Any()).Return("emp-1", nil)
+				m.EXPECT().CreateEmployee(gomock.Any(), gomock.Any()).Return("emp-1", nil)
 			},
 			wantStatus: 200,
 		},
@@ -102,7 +102,7 @@ func TestDelete(t *testing.T) {
 			name: "success",
 			body: `{"user_id":"user-1"}`,
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().DeleteEmployee(gomock.Any()).Return(nil)
+				m.EXPECT().DeleteEmployee(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantStatus: 200,
 		},
@@ -140,7 +140,7 @@ func TestFindByID(t *testing.T) {
 			name:  "success",
 			query: "?user_id=user-1",
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().FindOne(gomock.Any()).Return(dto.EmployeeResponse{EmployeeID: "user-1"}, nil)
+				m.EXPECT().FindOne(gomock.Any(), gomock.Any()).Return(dto.EmployeeResponse{EmployeeID: "user-1"}, nil)
 			},
 			wantStatus: 200,
 		},
@@ -148,7 +148,7 @@ func TestFindByID(t *testing.T) {
 			name:  "service error",
 			query: "?user_id=user-1",
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().FindOne(gomock.Any()).Return(dto.EmployeeResponse{}, wrapError.ErrInvalidRequest)
+				m.EXPECT().FindOne(gomock.Any(), gomock.Any()).Return(dto.EmployeeResponse{}, wrapError.ErrInvalidRequest)
 			},
 			wantStatus: 409,
 		},
@@ -177,7 +177,7 @@ func TestFindByID(t *testing.T) {
 func TestFindMany(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockEmployeeServicer(ctrl)
-	mock.EXPECT().FindMany(gomock.Any()).Return([]dto.EmployeeResponse{{EmployeeID: "user-1"}}, int64(1), nil)
+	mock.EXPECT().FindMany(gomock.Any(), gomock.Any()).Return([]dto.EmployeeResponse{{EmployeeID: "user-1"}}, int64(1), nil)
 	empCtrl := employee.NewEmployeeControllerInterface(mock)
 	app := controllertest.NewApp(t, func(app *fiber.App) {
 		app.Get("/employees/list", empCtrl.FindMany)
@@ -205,7 +205,7 @@ func TestCreateAdmin(t *testing.T) {
 			name: "success",
 			body: `{"organisation_id":"org-1","first_name":"Admin","last_name":"User","password":"secret","confirm_password":"secret","email_id":"admin@example.com","mob_no":"9876543210"}`,
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().CreateAdminProf(gomock.Any()).Return("admin-1", nil)
+				m.EXPECT().CreateAdminProf(gomock.Any(), gomock.Any()).Return("admin-1", nil)
 			},
 			wantStatus: 200,
 		},
@@ -248,7 +248,7 @@ func TestUpdateUser(t *testing.T) {
 			name: "success",
 			body: `{"user_id":"u1","password":"secret","confirm_password":"secret"}`,
 			setup: func(m *mocks.MockEmployeeServicer) {
-				m.EXPECT().UpdateAdminProf(gomock.Any()).Return(nil)
+				m.EXPECT().UpdateAdminProf(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantStatus: 200,
 		},
@@ -278,7 +278,7 @@ func TestUpdateUser(t *testing.T) {
 func TestFindDoctors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockEmployeeServicer(ctrl)
-	mock.EXPECT().FindDoctors(gomock.Any(), gomock.Any()).Return([]dto.Doctor{{ID: "doc-1"}}, nil)
+	mock.EXPECT().FindDoctors(gomock.Any(), gomock.Any(), gomock.Any()).Return([]dto.Doctor{{ID: "doc-1"}}, nil)
 	empCtrl := employee.NewEmployeeControllerInterface(mock)
 	app := controllertest.NewApp(t, func(app *fiber.App) {
 		app.Get("/employees/doctors", empCtrl.FindDoctors)
@@ -293,7 +293,7 @@ func TestFindDoctors(t *testing.T) {
 func TestFindManyServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockEmployeeServicer(ctrl)
-	mock.EXPECT().FindMany(gomock.Any()).Return(nil, int64(0), errors.New("db error"))
+	mock.EXPECT().FindMany(gomock.Any(), gomock.Any()).Return(nil, int64(0), errors.New("db error"))
 	empCtrl := employee.NewEmployeeControllerInterface(mock)
 	app := controllertest.NewApp(t, func(app *fiber.App) {
 		app.Get("/employees/list", empCtrl.FindMany)

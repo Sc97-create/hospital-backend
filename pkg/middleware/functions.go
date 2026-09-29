@@ -77,7 +77,7 @@ func LoadRoleAccess(c *fiber.Ctx, loader RoleAccessLoader, roleLookup RoleIDFind
 		log.Warn("rbac load rejected", zap.String("reason", "missing_deps_or_user"))
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
 	}
-	roleID, err := roleLookup.FindRoleIDByUserID(userID)
+	roleID, err := roleLookup.FindRoleIDByUserID(log, userID)
 	if err != nil {
 		log.Warn("rbac load rejected",
 			zap.String("reason", "role_id_lookup"),
@@ -86,7 +86,7 @@ func LoadRoleAccess(c *fiber.Ctx, loader RoleAccessLoader, roleLookup RoleIDFind
 		)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
 	}
-	access, err := loader.FindModulesByRoleID(roleID)
+	access, err := loader.FindModulesByRoleID(log, roleID)
 	if err != nil {
 		log.Warn("rbac load rejected",
 			zap.String("reason", "role_permissions"),
@@ -123,7 +123,6 @@ func AuthorizeRBAC(c *fiber.Ctx) error {
 		)
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Forbidden"})
 	}
-	// Admins get full access — no route-map or module-action checks.
 	if access.IsAdmin {
 		return c.Next()
 	}
@@ -150,8 +149,6 @@ func AuthorizeRBAC(c *fiber.Ctx) error {
 }
 
 func resolveRequestRoutePath(c *fiber.Ctx) string {
-	// Prefer the concrete request path. Group-level middleware often sees
-	// c.Route().Path as the group prefix (e.g. /api/v1/patients), not the handler.
 	return normalizeRoutePath(c.Path())
 }
 
@@ -174,11 +171,50 @@ func hasModuleAction(access RoleAccessLocal, module, action string) bool {
 	}
 }
 
-// UseProtected attaches Authenticate → LoadRoleAccess → AuthorizeRBAC on a route group.
-func UseProtected(group fiber.Router, jwtSvc *jwt.JwtService, loader RoleAccessLoader, roleLookup RoleIDFinder) {
+// EnforceSubscription calls the central checkEnd API and blocks usage after expiry.
+// A nil access checker allows the request through.
+func EnforceSubscription(access SubscriptionAccess) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if access == nil {
+			return c.Next()
+		}
+		userID := GetUserID(c)
+		ended, message, err := access.Allow(c.Context(), userID)
+		if err != nil {
+			GetLogger(c).Warn("subscription check skipped",
+				zap.String("reason", "check_end"),
+				zap.String("user_id", userID),
+				zap.String("path", c.Path()),
+				zap.Error(err),
+			)
+			return c.Next()
+		}
+		if !ended {
+			return c.Next()
+		}
+		if strings.TrimSpace(message) == "" {
+			message = "subscription ended"
+		}
+		GetLogger(c).Warn("subscription usage blocked",
+			zap.String("user_id", userID),
+			zap.String("path", c.Path()),
+			zap.String("message", message),
+		)
+		return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+			"error":              message,
+			"subscription_ended": true,
+		})
+	}
+}
+
+// UseProtected attaches Authenticate → subscription check → LoadRoleAccess → AuthorizeRBAC.
+func UseProtected(group fiber.Router, jwtSvc *jwt.JwtService, loader RoleAccessLoader, roleLookup RoleIDFinder, subscription ...SubscriptionAccess) {
 	group.Use(func(c *fiber.Ctx) error {
 		return Authenticate(c, jwtSvc)
 	})
+	if len(subscription) > 0 {
+		group.Use(EnforceSubscription(subscription[0]))
+	}
 	group.Use(func(c *fiber.Ctx) error {
 		return LoadRoleAccess(c, loader, roleLookup)
 	})

@@ -13,7 +13,7 @@ import (
 	empdto "hospital-backend/internal/employee/dto"
 	meddto "hospital-backend/internal/medicine/dto"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	orgdto "hospital-backend/internal/organisation/DTO"
+	orgdto "hospital-backend/central/organisations/dto"
 	patientdto "hospital-backend/internal/patient/dto"
 	paymentdto "hospital-backend/internal/payments/dto"
 	prescdto "hospital-backend/internal/prescription/dto"
@@ -136,6 +136,7 @@ func ValidLoginUser() authdto.LoginUser {
 
 func ValidUpdatePasswordRequest() authdto.UpdatePasswordRequest {
 	return authdto.UpdatePasswordRequest{
+		Token:           "reset-token-plain",
 		Password:        "newpassword",
 		ConfirmPassword: "newpassword",
 	}
@@ -247,8 +248,9 @@ func ValidSupplierCreateRequest() meddto.Supplier {
 
 func ValidOrganisationPayload() orgdto.OrganisationPayload {
 	return orgdto.OrganisationPayload{
-		OrganisationName: "City Hospital",
+		TenantID:         "tenant-1",
 		LegalEntityName:  "City Hospital LLC",
-		HospitalType:     "general",
+		OrganisationType: "hospital",
+		FacilityName:     "City Hospital",
 	}
 }

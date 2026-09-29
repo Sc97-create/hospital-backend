@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockModuleRepo is a mock of ModuleRepo interface.
@@ -41,30 +42,30 @@ func (m *MockModuleRepo) EXPECT() *MockModuleRepoMockRecorder {
 }
 
 // BatchInsert mocks base method.
-func (m *MockModuleRepo) BatchInsert(arg0 []modules.Modules, arg1 int) error {
+func (m *MockModuleRepo) BatchInsert(log *zap.Logger, arg1 []modules.Modules, size int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchInsert", arg0, arg1)
+	ret := m.ctrl.Call(m, "BatchInsert", log, arg1, size)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchInsert indicates an expected call of BatchInsert.
-func (mr *MockModuleRepoMockRecorder) BatchInsert(arg0, arg1 any) *gomock.Call {
+func (mr *MockModuleRepoMockRecorder) BatchInsert(log, arg1, size any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockModuleRepo)(nil).BatchInsert), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockModuleRepo)(nil).BatchInsert), log, arg1, size)
 }
 
 // FindMany mocks base method.
-func (m *MockModuleRepo) FindMany() ([]modules.Modules, error) {
+func (m *MockModuleRepo) FindMany(log *zap.Logger) ([]modules.Modules, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany")
+	ret := m.ctrl.Call(m, "FindMany", log)
 	ret0, _ := ret[0].([]modules.Modules)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockModuleRepoMockRecorder) FindMany() *gomock.Call {
+func (mr *MockModuleRepoMockRecorder) FindMany(log any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockModuleRepo)(nil).FindMany))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockModuleRepo)(nil).FindMany), log)
 }

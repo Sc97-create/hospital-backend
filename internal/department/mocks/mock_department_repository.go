@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 	gorm "gorm.io/gorm"
 )
 
@@ -42,104 +43,104 @@ func (m *MockDepartmentRepository) EXPECT() *MockDepartmentRepositoryMockRecorde
 }
 
 // BatchInsert mocks base method.
-func (m *MockDepartmentRepository) BatchInsert(tx *gorm.DB, dept []department.Department) error {
+func (m *MockDepartmentRepository) BatchInsert(log *zap.Logger, tx *gorm.DB, dept []department.Department) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchInsert", tx, dept)
+	ret := m.ctrl.Call(m, "BatchInsert", log, tx, dept)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchInsert indicates an expected call of BatchInsert.
-func (mr *MockDepartmentRepositoryMockRecorder) BatchInsert(tx, dept any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) BatchInsert(log, tx, dept any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockDepartmentRepository)(nil).BatchInsert), tx, dept)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockDepartmentRepository)(nil).BatchInsert), log, tx, dept)
 }
 
 // Count mocks base method.
-func (m *MockDepartmentRepository) Count(organisationID string) (int64, error) {
+func (m *MockDepartmentRepository) Count(log *zap.Logger, organisationID string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Count", organisationID)
+	ret := m.ctrl.Call(m, "Count", log, organisationID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Count indicates an expected call of Count.
-func (mr *MockDepartmentRepositoryMockRecorder) Count(organisationID any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) Count(log, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockDepartmentRepository)(nil).Count), organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockDepartmentRepository)(nil).Count), log, organisationID)
 }
 
 // Create mocks base method.
-func (m *MockDepartmentRepository) Create(arg0 *gorm.DB, arg1 *department.Department) error {
+func (m *MockDepartmentRepository) Create(log *zap.Logger, tx *gorm.DB, dept *department.Department) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0, arg1)
+	ret := m.ctrl.Call(m, "Create", log, tx, dept)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockDepartmentRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) Create(log, tx, dept any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockDepartmentRepository)(nil).Create), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockDepartmentRepository)(nil).Create), log, tx, dept)
 }
 
 // FindByID mocks base method.
-func (m *MockDepartmentRepository) FindByID(id string) (department.Department, error) {
+func (m *MockDepartmentRepository) FindByID(log *zap.Logger, id string) (department.Department, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByID", id)
+	ret := m.ctrl.Call(m, "FindByID", log, id)
 	ret0, _ := ret[0].(department.Department)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByID indicates an expected call of FindByID.
-func (mr *MockDepartmentRepositoryMockRecorder) FindByID(id any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) FindByID(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockDepartmentRepository)(nil).FindByID), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockDepartmentRepository)(nil).FindByID), log, id)
 }
 
 // FindDeptByName mocks base method.
-func (m *MockDepartmentRepository) FindDeptByName(organisationID, name string) (department.Department, error) {
+func (m *MockDepartmentRepository) FindDeptByName(log *zap.Logger, organisationID, name string) (department.Department, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindDeptByName", organisationID, name)
+	ret := m.ctrl.Call(m, "FindDeptByName", log, organisationID, name)
 	ret0, _ := ret[0].(department.Department)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindDeptByName indicates an expected call of FindDeptByName.
-func (mr *MockDepartmentRepositoryMockRecorder) FindDeptByName(organisationID, name any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) FindDeptByName(log, organisationID, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDeptByName", reflect.TypeOf((*MockDepartmentRepository)(nil).FindDeptByName), organisationID, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDeptByName", reflect.TypeOf((*MockDepartmentRepository)(nil).FindDeptByName), log, organisationID, name)
 }
 
 // FindDeptID mocks base method.
-func (m *MockDepartmentRepository) FindDeptID(organisationID string) (string, error) {
+func (m *MockDepartmentRepository) FindDeptID(log *zap.Logger, organisationID string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindDeptID", organisationID)
+	ret := m.ctrl.Call(m, "FindDeptID", log, organisationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindDeptID indicates an expected call of FindDeptID.
-func (mr *MockDepartmentRepositoryMockRecorder) FindDeptID(organisationID any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) FindDeptID(log, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDeptID", reflect.TypeOf((*MockDepartmentRepository)(nil).FindDeptID), organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDeptID", reflect.TypeOf((*MockDepartmentRepository)(nil).FindDeptID), log, organisationID)
 }
 
 // FindMany mocks base method.
-func (m *MockDepartmentRepository) FindMany(organisationID string, limit, skip int) ([]department.Department, error) {
+func (m *MockDepartmentRepository) FindMany(log *zap.Logger, organisationID string, limit, skip int) ([]department.Department, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany", organisationID, limit, skip)
+	ret := m.ctrl.Call(m, "FindMany", log, organisationID, limit, skip)
 	ret0, _ := ret[0].([]department.Department)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockDepartmentRepositoryMockRecorder) FindMany(organisationID, limit, skip any) *gomock.Call {
+func (mr *MockDepartmentRepositoryMockRecorder) FindMany(log, organisationID, limit, skip any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockDepartmentRepository)(nil).FindMany), organisationID, limit, skip)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockDepartmentRepository)(nil).FindMany), log, organisationID, limit, skip)
 }

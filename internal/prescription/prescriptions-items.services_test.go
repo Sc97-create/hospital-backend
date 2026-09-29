@@ -230,7 +230,7 @@ func TestServiceGetMedicineInfo(t *testing.T) {
 		repo := prescmocks.NewMockPrescItemsRepo(ctrl)
 		repo.EXPECT().FindMedicineInfoByPID(gomock.Any(), context.TODO(), gomock.Any(), "rx-1").Return(nil, errors.New("db error"))
 		svc := newPrescriptionItemService(t, repo)
-		_, _, err := svc.GetMedicineInfo(log, "rx-1")
+		_, err := svc.GetMedicineInfo(log, "rx-1")
 		if !errors.Is(err, wrapError.ErrMedicineInfoFetchFailed) {
 			t.Fatalf("expected medicine info fetch failed, got %v", err)
 		}
@@ -242,7 +242,20 @@ func TestServiceGetMedicineInfo(t *testing.T) {
 		repo.EXPECT().FindMedicineInfoByPID(gomock.Any(), context.TODO(), gomock.Any(), "rx-1").Return([]prescription.MedicineDetInfo{}, nil)
 		repo.EXPECT().GetTotalCountByPrescID(gomock.Any(), "rx-1").Return(int64(0), errors.New("count error"))
 		svc := newPrescriptionItemService(t, repo)
-		_, _, err := svc.GetMedicineInfo(log, "rx-1")
+		_, err := svc.GetMedicineInfo(log, "rx-1")
+		if !errors.Is(err, wrapError.ErrMedicineInfoFetchFailed) {
+			t.Fatalf("expected medicine info fetch failed, got %v", err)
+		}
+	})
+
+	t.Run("patient fetch error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := prescmocks.NewMockPrescItemsRepo(ctrl)
+		repo.EXPECT().FindMedicineInfoByPID(gomock.Any(), context.TODO(), gomock.Any(), "rx-1").Return([]prescription.MedicineDetInfo{}, nil)
+		repo.EXPECT().GetTotalCountByPrescID(gomock.Any(), "rx-1").Return(int64(0), nil)
+		repo.EXPECT().GetPatientByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1").Return(prescription.MedicineInfoPatientRow{}, errors.New("patient error"))
+		svc := newPrescriptionItemService(t, repo)
+		_, err := svc.GetMedicineInfo(log, "rx-1")
 		if !errors.Is(err, wrapError.ErrMedicineInfoFetchFailed) {
 			t.Fatalf("expected medicine info fetch failed, got %v", err)
 		}
@@ -252,12 +265,18 @@ func TestServiceGetMedicineInfo(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := prescmocks.NewMockPrescItemsRepo(ctrl)
 		info := []prescription.MedicineDetInfo{{MedicineID: "med-1", MedicineName: "Paracetamol"}}
+		patientRow := prescription.MedicineInfoPatientRow{
+			PatientID:   "pat-1",
+			PatientCode: "CLI-919",
+			PatientName: "patient1",
+		}
 		repo.EXPECT().FindMedicineInfoByPID(gomock.Any(), context.TODO(), gomock.Any(), "rx-1").Return(info, nil)
 		repo.EXPECT().GetTotalCountByPrescID(gomock.Any(), "rx-1").Return(int64(1), nil)
+		repo.EXPECT().GetPatientByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1").Return(patientRow, nil)
 		svc := newPrescriptionItemService(t, repo)
-		got, total, err := svc.GetMedicineInfo(log, "rx-1")
-		if err != nil || len(got) != 1 || total != 1 {
-			t.Fatalf("got info=%+v total=%d err=%v", got, total, err)
+		got, err := svc.GetMedicineInfo(log, "rx-1")
+		if err != nil || len(got.Items) != 1 || got.Total != 1 || got.PatientData.PatientID != "pat-1" {
+			t.Fatalf("got result=%+v err=%v", got, err)
 		}
 	})
 }

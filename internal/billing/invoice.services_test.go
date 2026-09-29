@@ -265,6 +265,63 @@ func TestServiceGetBillDetailsByPrescriptionID(t *testing.T) {
 	}
 }
 
+func TestServiceGetTodayCompletedInvoiceSummary(t *testing.T) {
+	tests := []struct {
+		name    string
+		orgID   string
+		setup   func(*billingmocks.MockInvoiceRepo)
+		wantErr error
+		check   func(t *testing.T, got dto.TodayInvoiceCollectionSummary)
+	}{
+		{
+			name:    "missing organisation id",
+			orgID:   "",
+			wantErr: wrapError.ErrInvalidRequest,
+		},
+		{
+			name:  "repo error",
+			orgID: "org-1",
+			setup: func(m *billingmocks.MockInvoiceRepo) {
+				m.EXPECT().GetTodayCompletedInvoiceSummary(gomock.Any(), gomock.Any(), "org-1").Return(nil, errors.New("db"))
+			},
+			wantErr: wrapError.ErrInvoiceFetchFailed,
+		},
+		{
+			name:  "success",
+			orgID: "org-1",
+			setup: func(m *billingmocks.MockInvoiceRepo) {
+				m.EXPECT().GetTodayCompletedInvoiceSummary(gomock.Any(), gomock.Any(), "org-1").Return([]billing.TodayInvoiceCollectionRow{
+					{PaymentMode: "cash", Count: 1, Amount: 100},
+					{PaymentMode: "link", Count: 2, Amount: 300},
+				}, nil)
+			},
+			check: func(t *testing.T, got dto.TodayInvoiceCollectionSummary) {
+				if got.TotalInvoices != 3 || got.TotalAmount != 400 {
+					t.Fatalf("unexpected summary: %+v", got)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := billingmocks.NewMockInvoiceRepo(ctrl)
+			if tt.setup != nil {
+				tt.setup(repo)
+			}
+			svc := newInvoiceServ(repo, nil, nil, nil)
+			got, err := svc.GetTodayCompletedInvoiceSummary(servicetest.NopLogger(), tt.orgID)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected err %v, got %v", tt.wantErr, err)
+			}
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
+}
+
 func TestServiceRetryPaymentLink(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -16,6 +16,7 @@ type PrescItemsRepo interface {
 	UpdatePrescriptionItem(log *zap.Logger, item PrescriptionItems) error
 	GetTotalCountByPrescID(log *zap.Logger, prescriptionID string) (int64, error)
 	FindMedicineInfoByPID(log *zap.Logger, ctx context.Context, query string, args ...any) ([]MedicineDetInfo, error)
+	GetPatientByPrescriptionID(log *zap.Logger, query string, prescriptionID string) (MedicineInfoPatientRow, error)
 	GetQtyInfoByMed(log *zap.Logger, prescriptionID string) ([]PrescriptionItems, error)
 	GetItemStatusesByPrescriptionID(log *zap.Logger, tx *gorm.DB, prescriptionID string) ([]PrescriptionItems, error)
 	UpdateDispenseItemQty(log *zap.Logger, tx *gorm.DB, query string, prescriptionItemID string, dispensedQty int64) error
@@ -101,6 +102,17 @@ func (pdb *PrescriptionDB) FindMedicineInfoByPID(log *zap.Logger, ctx context.Co
 		return nil, err
 	}
 	return medicineInfo, nil
+}
+
+func (pdb *PrescriptionDB) GetPatientByPrescriptionID(log *zap.Logger, query string, prescriptionID string) (MedicineInfoPatientRow, error) {
+	log = ensureLog(log)
+	var patient MedicineInfoPatientRow
+	err := pdb.db.Raw(query, prescriptionID).Scan(&patient).Error
+	if err != nil {
+		log.Error("prescription item repo error", zap.String("op", "GetPatientByPrescriptionID"), zap.Error(err))
+		return MedicineInfoPatientRow{}, err
+	}
+	return patient, nil
 }
 
 func (pdb *PrescriptionDB) GetQtyInfoByMed(log *zap.Logger, prescriptionID string) ([]PrescriptionItems, error) {

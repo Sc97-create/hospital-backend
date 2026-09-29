@@ -1,7 +1,7 @@
 package patient
 
 import (
-	"hospital-backend/internal/organisation"
+	"hospital-backend/central/organisations"
 	"time"
 )
 
@@ -48,7 +48,7 @@ type Patient struct {
 	CreatedBy      string    `json:"created_by" gorm:"type:uuid"`
 	OrganisationID string    `json:"organisation_id" gorm:"type:uuid"`
 
-	Organisation organisation.Organisation `gorm:"foreignKey:OrganisationID"`
+	Organisation organisations.Organisation `gorm:"foreignKey:OrganisationID"`
 	Status       Status                    `json:"status" gorm:"default:'free'"`
 	CreatedAt    time.Time                 `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time                 `json:"updated_at" gorm:"autoUpdateTime"`

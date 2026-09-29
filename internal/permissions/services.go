@@ -2,9 +2,11 @@ package permissions
 
 import (
 	"hospital-backend/internal/modules"
+	wrapError "hospital-backend/shared/error"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type PermService struct {
@@ -15,7 +17,9 @@ type PermService struct {
 func NewService(PermRepo PermissionRepo, moduleLookup modules.ModuleRepo) *PermService {
 	return &PermService{PermissionRepo: PermRepo, ModuleLookup: moduleLookup}
 }
-func (PermSer *PermService) DefaultPerm() error {
+
+func (PermSer *PermService) DefaultPerm(log *zap.Logger) error {
+	log = ensureLog(log)
 	now := time.Now()
 	permArr := []Permission{}
 	for _, name := range AdminPermArr {
@@ -26,34 +30,25 @@ func (PermSer *PermService) DefaultPerm() error {
 			UpdatedAt: now,
 		})
 	}
-	err := PermSer.PermissionRepo.BatchInsert(permArr, 2)
-	if err != nil {
+	if err := PermSer.PermissionRepo.BatchInsert(log, permArr, 2); err != nil {
+		log.Error("permission seed failed", zap.String("reason", "db_insert"), zap.Error(err))
 		return err
 	}
+	log.Info("permission seed success", zap.Int("count", len(permArr)))
 	return nil
-} // need to hit when main is called
-func (PermSer *PermService) FindMany() ([]modules.Modules, []Permission, error) {
-	permissions, err := PermSer.PermissionRepo.FindMany()
+}
+
+func (PermSer *PermService) FindMany(log *zap.Logger) ([]modules.Modules, []Permission, error) {
+	log = ensureLog(log)
+	permissions, err := PermSer.PermissionRepo.FindMany(log)
 	if err != nil {
-		return nil, nil, err
+		log.Error("permission list failed", zap.String("reason", "db_permissions"), zap.Error(err))
+		return nil, nil, wrapError.ErrPermissionsFetchFailed
 	}
-	modules, err := PermSer.ModuleLookup.FindMany()
+	modules, err := PermSer.ModuleLookup.FindMany(log)
 	if err != nil {
-		return nil, nil, err
+		log.Error("permission list failed", zap.String("reason", "db_modules"), zap.Error(err))
+		return nil, nil, wrapError.ErrPermissionsFetchFailed
 	}
-	// moduleResp := []dto.ModuleResponse{}
-	// permissionResp := []dto.PermissionResponse{}
-	// for _, each := range modules {
-	// 	moduleResp = append(moduleResp, dto.ModuleResponse{
-	// 		ID:   each.ID,
-	// 		Name: each.Name,
-	// 	})
-	// }
-	// for _, each := range permissions {
-	// 	permissionResp = append(permissionResp, dto.PermissionResponse{
-	// 		ID:   each.ID,
-	// 		Name: each.Name,
-	// 	})
-	// }
 	return modules, permissions, nil
 }

@@ -49,15 +49,33 @@ func Load() (*Config, error) {
 	}
 	logLevel := viper.GetString("LOG_LEVEL")
 
+	passwordResetBaseURL := viper.GetString("PASSWORD_RESET_BASE_URL")
+	if passwordResetBaseURL == "" {
+		passwordResetBaseURL = "http://localhost:5173"
+	}
+
+	internalBasicAuthID := viper.GetString("CLIENT_ID")
+	internalBasicAuthSecret := viper.GetString("CLIENT_SECRET")
+	internalAPIBaseURL := viper.GetString("INTERNAL_API_BASE_URL")
+	if internalAPIBaseURL == "" {
+		internalAPIBaseURL = "http://127.0.0.1:" + port
+	}
+
 	return &Config{
-		AppEnv:         appEnv,
-		Env:            env,
-		LogLevel:       logLevel,
-		ServerPort:     port,
-		DatabaseURL:    viper.GetString("DATABASE_URL"),
-		PrivateKeyPath: viper.GetString("PRIVATE_KEY_PATH"),
-		PublicKeyPath:  viper.GetString("PUBLIC_KEY_PATH"),
-		LoginUrl:       viper.GetString("LOGIN_URL"),
+		AppEnv:               appEnv,
+		Env:                  env,
+		LogLevel:             logLevel,
+		ServerPort:           port,
+		DatabaseURL:          viper.GetString("DATABASE_URL"),
+		PrivateKeyPath:       viper.GetString("PRIVATE_KEY_PATH"),
+		PublicKeyPath:        viper.GetString("PUBLIC_KEY_PATH"),
+		LoginUrl:             viper.GetString("LOGIN_URL"),
+		PasswordResetBaseURL: passwordResetBaseURL,
+		InternalAPIBaseURL:   internalAPIBaseURL,
+		InternalBasicAuth: InternalBasicAuth{
+			ID:     internalBasicAuthID,
+			Secret: internalBasicAuthSecret,
+		},
 		NotificationConfig: NotificationConfig{
 			SMTPHost:     smtpHost,
 			SMTPPort:     smtpPort,

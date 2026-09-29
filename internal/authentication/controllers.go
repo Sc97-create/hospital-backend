@@ -6,6 +6,7 @@ import (
 	"hospital-backend/pkg/middleware"
 	wrapError "hospital-backend/shared/error"
 	"hospital-backend/shared/params"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -15,7 +16,9 @@ type AuthServicer interface {
 	Login(log *zap.Logger, req dto.LoginUser) (dto.LoginResponse, error)
 	RefreshToken(log *zap.Logger, refreshToken string) (dto.LoginResponse, error)
 	Logout(log *zap.Logger, refreshToken string) error
-	UpdatePassword(log *zap.Logger, userID string, req dto.UpdatePasswordRequest) error
+	UpdatePassword(log *zap.Logger, req dto.UpdatePasswordRequest) error
+	UpdatePasswordFirstLogin(log *zap.Logger, userID string, req dto.FirstLoginPasswordRequest) error
+	RequestPasswordReset(log *zap.Logger, emailID string) error
 }
 
 type AuthController struct {
@@ -108,11 +111,6 @@ func (a *AuthController) Logout(c *fiber.Ctx) error {
 
 func (a *AuthController) UpdatePassword(c *fiber.Ctx) error {
 	logger := middleware.GetLogger(c)
-	userID := middleware.GetUserID(c)
-	if userID == "" {
-		logger.Warn("password update failed", zap.String("reason", "missing_user"))
-		return wrapError.Wrap(wrapError.ErrSessionExpired, c, fiber.StatusUnauthorized)
-	}
 
 	payload, err := params.New(c)
 	if err != nil {
@@ -121,6 +119,14 @@ func (a *AuthController) UpdatePassword(c *fiber.Ctx) error {
 	}
 
 	req := dto.UpdatePasswordRequest{}
+	req.Token, err = payload.Getstring("token")
+	if err != nil || strings.TrimSpace(req.Token) == "" {
+		req.Token = strings.TrimSpace(c.Query("token"))
+	}
+	if strings.TrimSpace(req.Token) == "" {
+		logger.Warn("password update request invalid", zap.String("field", "token"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
 	req.Password, err = payload.Getstring("password")
 	if err != nil {
 		logger.Warn("password update request invalid", zap.String("field", "password"))
@@ -132,8 +138,8 @@ func (a *AuthController) UpdatePassword(c *fiber.Ctx) error {
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("password update attempt", zap.String("user_id", userID))
-	err = a.AuthService.UpdatePassword(logger, userID, req)
+	logger.Info("password update attempt")
+	err = a.AuthService.UpdatePassword(logger, req)
 	if err != nil {
 		status := fiber.StatusInternalServerError
 		if errors.Is(err, wrapError.ErrInvalidRequest) {
@@ -142,6 +148,78 @@ func (a *AuthController) UpdatePassword(c *fiber.Ctx) error {
 		return wrapError.Wrap(err, c, status)
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "password updated successfully"})
+}
+
+func (a *AuthController) UpdatePasswordFirstLogin(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	userID := middleware.GetUserID(c)
+	if userID == "" {
+		logger.Warn("first-login password update failed", zap.String("reason", "missing_user"))
+		return wrapError.Wrap(wrapError.ErrSessionExpired, c, fiber.StatusUnauthorized)
+	}
+
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("first-login password update request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	req := dto.FirstLoginPasswordRequest{}
+	req.Password, err = payload.Getstring("password")
+	if err != nil {
+		logger.Warn("first-login password update request invalid", zap.String("field", "password"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.ConfirmPassword, err = payload.Getstring("confirm_password")
+	if err != nil {
+		logger.Warn("first-login password update request invalid", zap.String("field", "confirm_password"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("first-login password update attempt", zap.String("user_id", userID))
+	err = a.AuthService.UpdatePasswordFirstLogin(logger, userID, req)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		if errors.Is(err, wrapError.ErrInvalidRequest) {
+			status = fiber.StatusBadRequest
+		}
+		return wrapError.Wrap(err, c, status)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "password updated successfully"})
+}
+
+func (a *AuthController) RequestPasswordReset(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("password reset request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	emailID, err := payload.Getstring("email_id")
+	if err != nil {
+		logger.Warn("password reset request invalid", zap.String("field", "email_id"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("password reset attempt", zap.String("email_id", emailID))
+	err = a.AuthService.RequestPasswordReset(logger, emailID)
+	if err != nil {
+		status := fiber.StatusInternalServerError
+		switch {
+		case errors.Is(err, wrapError.ErrInvalidRequest):
+			status = fiber.StatusBadRequest
+		case errors.Is(err, wrapError.ErrPasswordResetTooSoon):
+			status = fiber.StatusTooManyRequests
+		}
+		return wrapError.Wrap(err, c, status)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "If an account exists for that email, a reset link has been sent",
+		"code":    "200",
+	})
 }
 
 func (a *AuthController) setRefreshToken(c *fiber.Ctx, token string) {

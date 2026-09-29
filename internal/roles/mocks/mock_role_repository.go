@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 	gorm "gorm.io/gorm"
 )
 
@@ -42,104 +43,104 @@ func (m *MockRoleRepository) EXPECT() *MockRoleRepositoryMockRecorder {
 }
 
 // Count mocks base method.
-func (m *MockRoleRepository) Count(organisationID string) (int64, error) {
+func (m *MockRoleRepository) Count(log *zap.Logger, organisationID string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Count", organisationID)
+	ret := m.ctrl.Call(m, "Count", log, organisationID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Count indicates an expected call of Count.
-func (mr *MockRoleRepositoryMockRecorder) Count(organisationID any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) Count(log, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRoleRepository)(nil).Count), organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockRoleRepository)(nil).Count), log, organisationID)
 }
 
 // Create mocks base method.
-func (m *MockRoleRepository) Create(tx *gorm.DB, role *roles.Role) error {
+func (m *MockRoleRepository) Create(log *zap.Logger, tx *gorm.DB, role *roles.Role) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", tx, role)
+	ret := m.ctrl.Call(m, "Create", log, tx, role)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRoleRepositoryMockRecorder) Create(tx, role any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) Create(log, tx, role any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleRepository)(nil).Create), tx, role)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRoleRepository)(nil).Create), log, tx, role)
 }
 
 // FindByID mocks base method.
-func (m *MockRoleRepository) FindByID(id string) (roles.Role, error) {
+func (m *MockRoleRepository) FindByID(log *zap.Logger, id string) (roles.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByID", id)
+	ret := m.ctrl.Call(m, "FindByID", log, id)
 	ret0, _ := ret[0].(roles.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByID indicates an expected call of FindByID.
-func (mr *MockRoleRepositoryMockRecorder) FindByID(id any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) FindByID(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRoleRepository)(nil).FindByID), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRoleRepository)(nil).FindByID), log, id)
 }
 
 // FindMany mocks base method.
-func (m *MockRoleRepository) FindMany(organisationID string, limit, offset int) ([]roles.Role, error) {
+func (m *MockRoleRepository) FindMany(log *zap.Logger, organisationID string, limit, offset int) ([]roles.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany", organisationID, limit, offset)
+	ret := m.ctrl.Call(m, "FindMany", log, organisationID, limit, offset)
 	ret0, _ := ret[0].([]roles.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockRoleRepositoryMockRecorder) FindMany(organisationID, limit, offset any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) FindMany(log, organisationID, limit, offset any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockRoleRepository)(nil).FindMany), organisationID, limit, offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockRoleRepository)(nil).FindMany), log, organisationID, limit, offset)
 }
 
 // FindRoleByNames mocks base method.
-func (m *MockRoleRepository) FindRoleByNames(organisationID, name string) (roles.Role, error) {
+func (m *MockRoleRepository) FindRoleByNames(log *zap.Logger, organisationID, name string) (roles.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindRoleByNames", organisationID, name)
+	ret := m.ctrl.Call(m, "FindRoleByNames", log, organisationID, name)
 	ret0, _ := ret[0].(roles.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindRoleByNames indicates an expected call of FindRoleByNames.
-func (mr *MockRoleRepositoryMockRecorder) FindRoleByNames(organisationID, name any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) FindRoleByNames(log, organisationID, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleByNames", reflect.TypeOf((*MockRoleRepository)(nil).FindRoleByNames), organisationID, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleByNames", reflect.TypeOf((*MockRoleRepository)(nil).FindRoleByNames), log, organisationID, name)
 }
 
 // FindRoleByOrgID mocks base method.
-func (m *MockRoleRepository) FindRoleByOrgID(organisationID string) ([]roles.Role, error) {
+func (m *MockRoleRepository) FindRoleByOrgID(log *zap.Logger, organisationID string) ([]roles.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindRoleByOrgID", organisationID)
+	ret := m.ctrl.Call(m, "FindRoleByOrgID", log, organisationID)
 	ret0, _ := ret[0].([]roles.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindRoleByOrgID indicates an expected call of FindRoleByOrgID.
-func (mr *MockRoleRepositoryMockRecorder) FindRoleByOrgID(organisationID any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) FindRoleByOrgID(log, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleByOrgID", reflect.TypeOf((*MockRoleRepository)(nil).FindRoleByOrgID), organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleByOrgID", reflect.TypeOf((*MockRoleRepository)(nil).FindRoleByOrgID), log, organisationID)
 }
 
 // InsertMany mocks base method.
-func (m *MockRoleRepository) InsertMany(tx *gorm.DB, role []roles.Role) error {
+func (m *MockRoleRepository) InsertMany(log *zap.Logger, tx *gorm.DB, role []roles.Role) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertMany", tx, role)
+	ret := m.ctrl.Call(m, "InsertMany", log, tx, role)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InsertMany indicates an expected call of InsertMany.
-func (mr *MockRoleRepositoryMockRecorder) InsertMany(tx, role any) *gomock.Call {
+func (mr *MockRoleRepositoryMockRecorder) InsertMany(log, tx, role any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMany", reflect.TypeOf((*MockRoleRepository)(nil).InsertMany), tx, role)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMany", reflect.TypeOf((*MockRoleRepository)(nil).InsertMany), log, tx, role)
 }

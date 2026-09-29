@@ -7,6 +7,7 @@ import (
 	"hospital-backend/internal/permissions"
 	"hospital-backend/internal/rolepermissions/dto"
 	"hospital-backend/internal/roles"
+	"hospital-backend/pkg/constants"
 
 	"github.com/lib/pq"
 )
@@ -107,11 +108,11 @@ func TestCreateRPModel(t *testing.T) {
 		{ID: "p-update", Name: permissions.Update},
 	}
 	modArr := []modules.Modules{
-		{ID: "m-patient", Name: modules.Patient},
-		{ID: "m-appointment", Name: modules.Appointment},
-		{ID: "m-prescription", Name: modules.Prescription},
-		{ID: "m-employee", Name: modules.Employee},
-		{ID: "m-medicine", Name: modules.Medicine},
+		{ID: "m-patient", Name: constants.Patient},
+		{ID: "m-appointment", Name: constants.Appointment},
+		{ID: "m-prescription", Name: constants.Prescription},
+		{ID: "m-employee", Name: constants.Employee},
+		{ID: "m-medicine", Name: constants.Medicine},
 	}
 
 	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
@@ -138,5 +139,87 @@ func TestCreateRPModel(t *testing.T) {
 	}
 	if doctorCount == 0 || nurseCount == 0 {
 		t.Fatalf("expected doctor and nurse rows, doctor=%d nurse=%d", doctorCount, nurseCount)
+	}
+}
+
+func TestCreateRPModel_ReceptionistBillingCheckout(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-receptionist", Name: roles.DefaultRoleReceptionist}}
+	permArr := []permissions.Permission{
+		{ID: "p-view", Name: permissions.View},
+		{ID: "p-create", Name: permissions.Create},
+		{ID: "p-update", Name: permissions.Update},
+	}
+	modArr := []modules.Modules{
+		{ID: "m-patient", Name: constants.Patient},
+		{ID: "m-appointment", Name: constants.Appointment},
+		{ID: "m-billing", Name: constants.Billing},
+	}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	billingPerms := make(map[string]bool)
+	for _, row := range rows {
+		if row.RoleID != "role-receptionist" || row.ModuleID == nil || *row.ModuleID != "m-billing" {
+			continue
+		}
+		if row.PermissionID != nil {
+			billingPerms[*row.PermissionID] = true
+		}
+	}
+	for _, want := range []string{"p-view", "p-create", "p-update"} {
+		if !billingPerms[want] {
+			t.Fatalf("receptionist missing billing permission %q for checkout", want)
+		}
+	}
+}
+
+func TestCreateRPModel_ReceptionistDashboardView(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-receptionist", Name: roles.DefaultRoleReceptionist}}
+	permArr := []permissions.Permission{{ID: "p-view", Name: permissions.View}}
+	modArr := []modules.Modules{{ID: "m-dashboard", Name: constants.Dashboard}}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	var dashboardView bool
+	for _, row := range rows {
+		if row.RoleID != "role-receptionist" || row.ModuleID == nil || *row.ModuleID != "m-dashboard" {
+			continue
+		}
+		if row.PermissionID != nil && *row.PermissionID == "p-view" {
+			dashboardView = true
+		}
+	}
+	if !dashboardView {
+		t.Fatal("receptionist missing dashboard view permission")
+	}
+}
+
+func TestCreateRPModel_DoctorDashboardView(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-doctor", Name: roles.DefaultRoleDoctor}}
+	permArr := []permissions.Permission{{ID: "p-view", Name: permissions.View}}
+	modArr := []modules.Modules{
+		{ID: "m-dashboard", Name: constants.Dashboard},
+		{ID: "m-appointment", Name: constants.Appointment},
+	}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	var dashboardView bool
+	for _, row := range rows {
+		if row.RoleID != "role-doctor" || row.ModuleID == nil || *row.ModuleID != "m-dashboard" {
+			continue
+		}
+		if row.PermissionID != nil && *row.PermissionID == "p-view" {
+			dashboardView = true
+		}
+	}
+	if !dashboardView {
+		t.Fatal("doctor missing dashboard view permission")
 	}
 }

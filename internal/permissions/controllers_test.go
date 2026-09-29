@@ -23,14 +23,14 @@ func TestFindMany(t *testing.T) {
 		{
 			name: "success",
 			setup: func(m *mocks.MockPermissionServicer) {
-				m.EXPECT().FindMany().Return([]modules.Modules{{ID: "mod-1"}}, []permissions.Permission{{ID: "perm-1"}}, nil)
+				m.EXPECT().FindMany(gomock.Any()).Return([]modules.Modules{{ID: "mod-1"}}, []permissions.Permission{{ID: "perm-1"}}, nil)
 			},
 			wantStatus: fiber.StatusOK,
 		},
 		{
 			name: "service error",
 			setup: func(m *mocks.MockPermissionServicer) {
-				m.EXPECT().FindMany().Return(nil, nil, errors.New("db error"))
+				m.EXPECT().FindMany(gomock.Any()).Return(nil, nil, errors.New("db error"))
 			},
 			wantStatus: fiber.StatusInternalServerError,
 		},
@@ -44,9 +44,8 @@ func TestFindMany(t *testing.T) {
 				tt.setup(mock)
 			}
 			app := controllertest.NewApp(t, func(app *fiber.App) {
-				app.Get("/permissions", func(c *fiber.Ctx) error {
-					return permissions.FindMany(c, mock)
-				})
+				permCtrl := permissions.NewPermissionController(mock)
+				app.Get("/permissions", permCtrl.FindMany)
 			})
 			resp, _ := controllertest.Do(t, app, controllertest.Request{
 				Method: http.MethodGet,

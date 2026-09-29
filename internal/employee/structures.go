@@ -1,7 +1,7 @@
 package employee
 
 import (
-	"hospital-backend/internal/organisation"
+	"hospital-backend/central/organisations"
 	"time"
 )
 
@@ -41,6 +41,9 @@ type User struct {
 	EmergencyName    string `json:"emergency_name" gorm:"column:emergency_name;type:varchar(150)"`
 	EmergencyContact string `json:"emergency_contact" gorm:"column:emergency_contact;type:varchar(50)"`
 
+	// TenantID is set only for Super Admin users; null for all other roles.
+	TenantID *string `json:"tenant_id,omitempty" gorm:"column:tenant_id;type:uuid;index"`
+
 	OrganisationID string `json:"organisation_id" gorm:"column:organisation_id;type:uuid;not null;index;uniqueIndex:idx_org_username;uniqueIndex:idx_org_email"`
 
 	DepartmentID string `json:"department_id" gorm:"column:department_id;type:uuid;not null;index"`
@@ -51,11 +54,14 @@ type User struct {
 
 	LastLoginAttempt int `json:"last_login_attempt" gorm:"column:last_login_attempt;type:int;default:0"`
 
+	PasswordResetTokenHash string     `json:"-" gorm:"column:password_reset_token_hash;type:text"`
+	LastPwdUpdated         *time.Time `json:"last_pwd_updated,omitempty" gorm:"column:last_pwd_updated;type:timestamp"`
+
 	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 
 	// Relations
-	Organisation organisation.Organisation `gorm:"foreignKey:OrganisationID;references:ID"`
+	Organisation organisations.Organisation `gorm:"foreignKey:OrganisationID;references:ID"`
 }
 
 type EmployeeListRow struct {
@@ -72,6 +78,11 @@ type EmployeeListRow struct {
 	DepartmentID   string `gorm:"column:department_id"`
 	DepartmentName string `json:"department_name" gorm:"column:department_name"`
 	IsActive       bool   `gorm:"column:is_active"`
+}
+
+type EmployeeStatusCountRow struct {
+	Active   int `gorm:"column:active"`
+	Inactive int `gorm:"column:inactive"`
 }
 
 type InviteEmp struct {
