@@ -1,6 +1,7 @@
 package employee
 
 import (
+	"errors"
 	"hospital-backend/internal/employee/dto"
 	"hospital-backend/internal/employee/utils"
 	"hospital-backend/pkg/middleware"
@@ -22,13 +23,13 @@ type EmployeeControllers interface {
 	FindDoctors(c *fiber.Ctx) error
 }
 type EmployeeServicer interface {
-	CreateEmployee(payload dto.EmpRequest) (id string, err error)
-	DeleteEmployee(userID string) (err error)
-	FindOne(id string) (dto.EmployeeResponse, error)
-	FindMany(req dto.FindManyRequest) (employeeResp []dto.EmployeeResponse, total int64, err error)
-	CreateAdminProf(payload dto.EmpRequest) (userID string, err error)
-	UpdateAdminProf(payload dto.UpdateRequest) (err error)
-	FindDoctors(search string, organisationID string) (u []dto.Doctor, err error)
+	CreateEmployee(log *zap.Logger, payload dto.EmpRequest) (id string, err error)
+	DeleteEmployee(log *zap.Logger, userID string) (err error)
+	FindOne(log *zap.Logger, id string) (dto.EmployeeResponse, error)
+	FindMany(log *zap.Logger, req dto.FindManyRequest) (employeeResp []dto.EmployeeResponse, total int64, err error)
+	CreateAdminProf(log *zap.Logger, payload dto.EmpRequest) (userID string, err error)
+	UpdateAdminProf(log *zap.Logger, payload dto.UpdateRequest) (err error)
+	FindDoctors(log *zap.Logger, search string, organisationID string) (u []dto.Doctor, err error)
 }
 
 type EmployeeController struct {
@@ -51,9 +52,14 @@ func (e *EmployeeController) Add(c *fiber.Ctx) (err error) {
 		logger.Warn("employee create request invalid", zap.String("field", field))
 		return wrapError.Wrap(err, c, 409)
 	}
-	_, err = e.EmployeeService.CreateEmployee(userReq)
+	logger.Info("employee create attempt",
+		zap.String("organisation_id", userReq.OrganisationID),
+		zap.String("role_id", userReq.RoleID),
+		zap.String("department_id", userReq.DepartmentID),
+	)
+	_, err = e.EmployeeService.CreateEmployee(logger, userReq)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeCreateFailed), c, 409)
 	}
 	return c.Status(200).JSON(fiber.Map{"message": "success"})
 }
@@ -203,38 +209,51 @@ func (e *EmployeeController) parseEmergencyDetails(payload *params.Payload, req 
 	return "", nil
 }
 func (e *EmployeeController) Delete(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	payload, err := params.New(c)
 	if err != nil {
+		logger.Warn("employee delete request invalid", zap.Error(err))
 		return wrapError.Wrap(err, c, 409)
 	}
 	userID, err := payload.Getstring("user_id")
 	if err != nil {
+		logger.Warn("employee delete request invalid", zap.String("field", "user_id"))
 		return wrapError.Wrap(err, c, 409)
 	}
+	logger.Info("employee delete attempt", zap.String("user_id", userID))
 
-	err = e.EmployeeService.DeleteEmployee(userID)
+	err = e.EmployeeService.DeleteEmployee(logger, userID)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeDeleteFailed), c, 409)
 	}
 	return c.Status(200).JSON(fiber.Map{"message": "deleted successfully", "code": "xyz123"})
 }
 func (e *EmployeeController) FindByID(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	userID := c.Query("user_id")
+	if strings.TrimSpace(userID) == "" {
+		logger.Warn("employee get request invalid", zap.String("reason", "missing_user_id"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, 409)
+	}
+	logger.Info("employee get attempt", zap.String("user_id", userID))
 
-	user, err := e.EmployeeService.FindOne(userID)
+	user, err := e.EmployeeService.FindOne(logger, userID)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeFetchFailed), c, 409)
 	}
 	return c.Status(200).JSON(fiber.Map{"data": user, "message": "user fetched successfully"})
 }
 func (e *EmployeeController) FindMany(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	payload := dto.FindManyRequest{}
 	if err = c.QueryParser(&payload); err != nil {
+		logger.Warn("employee list request invalid", zap.Error(err))
 		return wrapError.Wrap(err, c, 409)
 	}
-	employees, total, err := e.EmployeeService.FindMany(payload)
+	logger.Info("employee list attempt", zap.String("organisation_id", payload.OrganisationID))
+	employees, total, err := e.EmployeeService.FindMany(logger, payload)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeesFetchFailed), c, 409)
 	}
 	var response dto.EmployeeListResponse
 	response.Data = employees
@@ -248,8 +267,10 @@ func (e *EmployeeController) FindMany(c *fiber.Ctx) (err error) {
 	return
 }
 func (e *EmployeeController) CreateAdmin(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	payload, err := params.New(c)
 	if err != nil {
+		logger.Warn("employee admin create request invalid", zap.Error(err))
 		return wrapError.Wrap(err, c, 409)
 	}
 	AdminReq := dto.EmpRequest{}
@@ -281,15 +302,18 @@ func (e *EmployeeController) CreateAdmin(c *fiber.Ctx) (err error) {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	userID, err := e.EmployeeService.CreateAdminProf(AdminReq)
+	logger.Info("employee admin create attempt", zap.String("organisation_id", AdminReq.OrganisationID))
+	userID, err := e.EmployeeService.CreateAdminProf(logger, AdminReq)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeCreateFailed), c, 409)
 	}
 	return c.JSON(fiber.Map{"message": "account created successfully", "code": 200, "user_id": userID})
 }
 func (e *EmployeeController) UpdateUser(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	payload, err := params.New(c)
 	if err != nil {
+		logger.Warn("employee update request invalid", zap.Error(err))
 		return wrapError.Wrap(err, c, 409)
 	}
 	AdminReq := dto.UpdateRequest{}
@@ -300,22 +324,46 @@ func (e *EmployeeController) UpdateUser(c *fiber.Ctx) (err error) {
 	AdminReq.Password, _ = payload.Getstring("password")
 	confirmPassword, _ := payload.Getstring("confirm_password")
 	if AdminReq.Password != confirmPassword {
+		logger.Warn("employee update request invalid", zap.String("reason", "password_mismatch"))
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, 409)
 	}
-	err = e.EmployeeService.UpdateAdminProf(AdminReq)
+	logger.Info("employee update attempt", zap.String("user_id", AdminReq.UserID))
+	err = e.EmployeeService.UpdateAdminProf(logger, AdminReq)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeUpdateFailed), c, 409)
 	}
 	return c.JSON(fiber.Map{"message": "updated successfully", "code": 200})
 }
 
 func (e *EmployeeController) FindDoctors(c *fiber.Ctx) (err error) {
+	logger := middleware.GetLogger(c)
 	name := c.Query("name")
 	organisationID := c.Query("organisation_id")
+	if strings.TrimSpace(organisationID) == "" {
+		logger.Warn("doctor list request invalid", zap.String("reason", "missing_organisation_id"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, 409)
+	}
+	logger.Info("doctor list attempt", zap.String("organisation_id", organisationID))
 
-	users, err := e.EmployeeService.FindDoctors(name, organisationID)
+	users, err := e.EmployeeService.FindDoctors(logger, name, organisationID)
 	if err != nil {
-		return wrapError.Wrap(err, c, 409)
+		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrDoctorsFetchFailed), c, 409)
 	}
 	return c.Status(200).JSON(fiber.Map{"data": users, "message": "doctors fetched successfully", "code": 200})
+}
+
+func safeEmployeeError(err, fallback error) error {
+	switch {
+	case errors.Is(err, ErrEmployeeNotFound),
+		errors.Is(err, wrapError.ErrInvalidRequest),
+		errors.Is(err, wrapError.ErrEmployeeCreateFailed),
+		errors.Is(err, wrapError.ErrEmployeeFetchFailed),
+		errors.Is(err, wrapError.ErrEmployeesFetchFailed),
+		errors.Is(err, wrapError.ErrEmployeeUpdateFailed),
+		errors.Is(err, wrapError.ErrEmployeeDeleteFailed),
+		errors.Is(err, wrapError.ErrDoctorsFetchFailed):
+		return err
+	default:
+		return fallback
+	}
 }

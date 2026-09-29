@@ -8,6 +8,7 @@ import (
 	"hospital-backend/internal/modules/mocks"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newModuleService(t *testing.T, repo modules.ModuleRepo) *modules.ModuleService {
@@ -19,10 +20,10 @@ func TestServiceDefaultModule(t *testing.T) {
 	t.Run("batch insert error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockModuleRepo(ctrl)
-		repo.EXPECT().BatchInsert(gomock.Any(), 2).Return(errors.New("insert failed"))
+		repo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), 2).Return(errors.New("insert failed"))
 
 		svc := newModuleService(t, repo)
-		if err := svc.DefaultModule(); err == nil {
+		if err := svc.DefaultModule(zap.NewNop()); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -30,8 +31,8 @@ func TestServiceDefaultModule(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockModuleRepo(ctrl)
-		repo.EXPECT().BatchInsert(gomock.Any(), 2).DoAndReturn(
-			func(mods []modules.Modules, batchSize int) error {
+		repo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), 2).DoAndReturn(
+			func(_ *zap.Logger, mods []modules.Modules, batchSize int) error {
 				if batchSize != 2 {
 					t.Fatalf("expected batch size 2, got %d", batchSize)
 				}
@@ -54,7 +55,7 @@ func TestServiceDefaultModule(t *testing.T) {
 		)
 
 		svc := newModuleService(t, repo)
-		if err := svc.DefaultModule(); err != nil {
+		if err := svc.DefaultModule(zap.NewNop()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

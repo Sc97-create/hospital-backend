@@ -1,6 +1,10 @@
 package razorpay
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	rzp "github.com/razorpay/razorpay-go"
+)
 
 type Config struct {
 	PaymentConfig PaymentConfig
@@ -14,13 +18,7 @@ type RazorpayConfig struct {
 	ApiKey    string
 	ApiSecret string
 	BaseUrl   string
-}
-
-type paymentLinkResponse struct {
-	ID          string `json:"id"`
-	ShortURL    string `json:"short_url"`
-	ReferenceID string `json:"reference_id"`
-	Status      string `json:"status"`
+	Client    *rzp.Client
 }
 
 type createPaymentLinkRequest struct {

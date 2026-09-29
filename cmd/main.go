@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"hospital-backend/appinit"
+	"hospital-backend/central/router"
 	"hospital-backend/config"
 	"hospital-backend/database"
+	"hospital-backend/internal/centralapi"
+	"hospital-backend/internal/subscriptiongate"
 	"hospital-backend/pkg/logger"
 	"hospital-backend/pkg/middleware"
 	"hospital-backend/pkg/middleware/routers"
@@ -49,11 +52,11 @@ func main() {
 	app := fiber.New(clientConfig)
 	middleware.HandleMiddleware(app)
 	containers := appinit.NewContainer(database.PostgreClient.GormDriver, cfg)
-	err = containers.PermissionService.DefaultPerm()
+	err = containers.PermissionService.DefaultPerm(logger.Log)
 	if err != nil {
 		logger.Log.Fatal("failed to seed default permissions", zap.Error(err))
 	}
-	err = containers.ModuleService.DefaultModule()
+	err = containers.ModuleService.DefaultModule(logger.Log)
 	if err != nil {
 		logger.Log.Fatal("failed to seed default modules", zap.Error(err))
 	}
@@ -63,23 +66,38 @@ func main() {
 		JWT:        containers.JwtManagement,
 		RolePerm:   containers.RolePermissionService,
 		RoleLookup: containers.EmployeeService,
+		Subscription: subscriptiongate.New(
+			centralapi.New(cfg.InternalAPIBaseURL, cfg.InternalBasicAuth.ID, cfg.InternalBasicAuth.Secret),
+			containers.EmployeeService,
+			containers.NotificationContainer.Service,
+		),
 	}
+	router.Register(app, containers.Central)
+	router.RegisterCheckEnd(app, containers.Central.Subscriptions, cfg.InternalBasicAuth)
 	routers.RegisterPatientRoutes(app, containers.PatientService, rbac)
-	routers.RegisterOrganisationRoutes(app, containers.OrganisationService)
 	routers.RegisterEmployeeRoutes(app, containers.EmployeeService, rbac)
 	routers.RegisterMedicineRoutes(app, containers.MedContainer.Medicineservices, rbac)
 	routers.RegisterAuthRoute(app, containers.AuthService, rbac)
 	routers.RegisterPermissionRoutes(app, containers.PermissionService, rbac)
 	routers.RegisterDepartmentRoutes(app, containers.DepartmentService, rbac)
 	routers.RegisterRoleRoutes(app, containers.RoleService, rbac)
-	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement)
+	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement, rbac.Subscription)
 	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems, rbac)
 	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService, rbac)
 	routers.RegisterDashboardRoutes(app, containers.DashboardContainer.Service, rbac)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice, rbac)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
 	routers.RegisterBillingRoutes(app, containers.BillingService, rbac)
-	routers.RegisterPaymentRoutes(app, containers.PaymentContainer.Mod.Paymentservice, containers.PaymentContainer.Mod.WebhookService, rbac)
+	routers.RegisterJWTRoutes(app, containers.JwtManagement, cfg.InternalBasicAuth)
+	routers.RegisterOrgBootstrapRoutes(app, containers.OrgBootstrap, cfg.InternalBasicAuth)
+	routers.RegisterPaymentRoutes(
+		app,
+		containers.PaymentContainer.Mod.Paymentservice,
+		containers.PaymentContainer.Mod.WebhookService,
+		containers.PaymentContainer.Mod.RazorpayClient,
+		cfg.InternalBasicAuth,
+		rbac,
+	)
 	err = app.Listen(fmt.Sprintf(":%s", cfg.ServerPort))
 	if err != nil {
 		logger.Log.Fatal("server failed to start", zap.Error(err))

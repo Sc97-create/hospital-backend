@@ -1,7 +1,7 @@
 package employee
 
 import (
-	"hospital-backend/internal/organisation"
+	"hospital-backend/central/organisations"
 	"time"
 )
 
@@ -41,6 +41,9 @@ type User struct {
 	EmergencyName    string `json:"emergency_name" gorm:"column:emergency_name;type:varchar(150)"`
 	EmergencyContact string `json:"emergency_contact" gorm:"column:emergency_contact;type:varchar(50)"`
 
+	// TenantID is set only for Super Admin users; null for all other roles.
+	TenantID *string `json:"tenant_id,omitempty" gorm:"column:tenant_id;type:uuid;index"`
+
 	OrganisationID string `json:"organisation_id" gorm:"column:organisation_id;type:uuid;not null;index;uniqueIndex:idx_org_username;uniqueIndex:idx_org_email"`
 
 	DepartmentID string `json:"department_id" gorm:"column:department_id;type:uuid;not null;index"`
@@ -58,7 +61,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
 
 	// Relations
-	Organisation organisation.Organisation `gorm:"foreignKey:OrganisationID;references:ID"`
+	Organisation organisations.Organisation `gorm:"foreignKey:OrganisationID;references:ID"`
 }
 
 type EmployeeListRow struct {

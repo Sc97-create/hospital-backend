@@ -5,27 +5,36 @@ import (
 
 	"hospital-backend/internal/rolepermissions/dto"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type RolePermissionRepo interface {
-	Create(rolePermission *RolePermission) error
-	BatchCreate(tx *gorm.DB, rolePermissions []RolePermission) error
-	FindById(id string) (*RolePermission, error)
-	FindModulePermissionsByRoleID(roleID string) ([]dto.ModulePermissionRow, error)
-	IsAdminRole(roleID string) (bool, error)
+	Create(log *zap.Logger, rolePermission *RolePermission) error
+	BatchCreate(log *zap.Logger, tx *gorm.DB, rolePermissions []RolePermission) error
+	FindById(log *zap.Logger, id string) (*RolePermission, error)
+	FindModulePermissionsByRoleID(log *zap.Logger, roleID string) ([]dto.ModulePermissionRow, error)
+	IsAdminRole(log *zap.Logger, roleID string) (bool, error)
 }
 
-func (RPerm *RolePermissionDb) Create(rolePermission *RolePermission) error {
-	return RPerm.DB.Create(rolePermission).Error
+func (RPerm *RolePermissionDb) Create(log *zap.Logger, rolePermission *RolePermission) error {
+	log = ensureLog(log)
+	err := RPerm.DB.Create(rolePermission).Error
+	if err != nil {
+		logDBError(log, "Create", err)
+	}
+	return err
 }
-func (RPerm *RolePermissionDb) BatchCreate(tx *gorm.DB, rolePermissions []RolePermission) (err error) {
+
+func (RPerm *RolePermissionDb) BatchCreate(log *zap.Logger, tx *gorm.DB, rolePermissions []RolePermission) (err error) {
+	log = ensureLog(log)
 	db := RPerm.DB
 	if tx != nil {
 		db = tx
 	}
 	for i := range rolePermissions {
 		if err = createRolePermission(db, &rolePermissions[i]); err != nil {
+			logDBError(log, "BatchCreate", err)
 			return err
 		}
 	}
@@ -48,12 +57,19 @@ func createRolePermission(db *gorm.DB, rp *RolePermission) error {
 	}
 	return q.Create(rp).Error
 }
-func (RPerm *RolePermissionDb) FindById(id string) (*RolePermission, error) {
+
+func (RPerm *RolePermissionDb) FindById(log *zap.Logger, id string) (*RolePermission, error) {
+	log = ensureLog(log)
 	var rolePermission RolePermission
-	return &rolePermission, RPerm.DB.First(&rolePermission, id).Error
+	err := RPerm.DB.First(&rolePermission, id).Error
+	if err != nil {
+		logDBError(log, "FindById", err)
+	}
+	return &rolePermission, err
 }
 
-func (RPerm *RolePermissionDb) FindModulePermissionsByRoleID(roleID string) ([]dto.ModulePermissionRow, error) {
+func (RPerm *RolePermissionDb) FindModulePermissionsByRoleID(log *zap.Logger, roleID string) ([]dto.ModulePermissionRow, error) {
+	log = ensureLog(log)
 	query := `SELECT mo.name AS module_name, array_agg(pr.name) AS permission_names
 		FROM role_permissions rp
 		JOIN modules mo ON rp.module_id = mo.id
@@ -62,10 +78,14 @@ func (RPerm *RolePermissionDb) FindModulePermissionsByRoleID(roleID string) ([]d
 		GROUP BY mo.id, mo.name`
 	var rows []dto.ModulePermissionRow
 	err := RPerm.DB.Raw(query, roleID).Scan(&rows).Error
+	if err != nil {
+		logDBError(log, "FindModulePermissionsByRoleID", err)
+	}
 	return rows, err
 }
 
-func (RPerm *RolePermissionDb) IsAdminRole(roleID string) (bool, error) {
+func (RPerm *RolePermissionDb) IsAdminRole(log *zap.Logger, roleID string) (bool, error) {
+	log = ensureLog(log)
 	var isAdmin bool
 	err := RPerm.DB.Raw(
 		`SELECT EXISTS (
@@ -73,5 +93,8 @@ func (RPerm *RolePermissionDb) IsAdminRole(roleID string) (bool, error) {
 		)`,
 		roleID,
 	).Scan(&isAdmin).Error
+	if err != nil {
+		logDBError(log, "IsAdminRole", err)
+	}
 	return isAdmin, err
 }

@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockPermissionRepo is a mock of PermissionRepo interface.
@@ -41,45 +42,45 @@ func (m *MockPermissionRepo) EXPECT() *MockPermissionRepoMockRecorder {
 }
 
 // BatchInsert mocks base method.
-func (m *MockPermissionRepo) BatchInsert(arg0 []permissions.Permission, arg1 int) error {
+func (m *MockPermissionRepo) BatchInsert(log *zap.Logger, arg1 []permissions.Permission, size int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchInsert", arg0, arg1)
+	ret := m.ctrl.Call(m, "BatchInsert", log, arg1, size)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchInsert indicates an expected call of BatchInsert.
-func (mr *MockPermissionRepoMockRecorder) BatchInsert(arg0, arg1 any) *gomock.Call {
+func (mr *MockPermissionRepoMockRecorder) BatchInsert(log, arg1, size any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockPermissionRepo)(nil).BatchInsert), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchInsert", reflect.TypeOf((*MockPermissionRepo)(nil).BatchInsert), log, arg1, size)
 }
 
 // FindMany mocks base method.
-func (m *MockPermissionRepo) FindMany() ([]permissions.Permission, error) {
+func (m *MockPermissionRepo) FindMany(log *zap.Logger) ([]permissions.Permission, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindMany")
+	ret := m.ctrl.Call(m, "FindMany", log)
 	ret0, _ := ret[0].([]permissions.Permission)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindMany indicates an expected call of FindMany.
-func (mr *MockPermissionRepoMockRecorder) FindMany() *gomock.Call {
+func (mr *MockPermissionRepoMockRecorder) FindMany(log any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockPermissionRepo)(nil).FindMany))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMany", reflect.TypeOf((*MockPermissionRepo)(nil).FindMany), log)
 }
 
 // GetPermissionByName mocks base method.
-func (m *MockPermissionRepo) GetPermissionByName() ([]string, error) {
+func (m *MockPermissionRepo) GetPermissionByName(log *zap.Logger) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPermissionByName")
+	ret := m.ctrl.Call(m, "GetPermissionByName", log)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPermissionByName indicates an expected call of GetPermissionByName.
-func (mr *MockPermissionRepoMockRecorder) GetPermissionByName() *gomock.Call {
+func (mr *MockPermissionRepoMockRecorder) GetPermissionByName(log any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPermissionByName", reflect.TypeOf((*MockPermissionRepo)(nil).GetPermissionByName))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPermissionByName", reflect.TypeOf((*MockPermissionRepo)(nil).GetPermissionByName), log)
 }

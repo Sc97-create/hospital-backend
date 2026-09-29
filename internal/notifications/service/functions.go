@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // Notificationservice handles notification operations
@@ -23,9 +24,16 @@ func NewNotificationService(repo repository.Repository, render *render.HTMLRende
 }
 
 func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest) error {
+	log := ensureLog(nil)
 	notificationdata := s.parseeventdata(data.Data)
 	content, err := s.renderer.Render(data.NotificationType, notificationdata)
 	if err != nil {
+		log.Error("notification create failed",
+			zap.String("notification_type", data.NotificationType),
+			zap.String("organisation_id", notificationdata.OrganisationID),
+			zap.String("reason", "render"),
+			zap.Error(err),
+		)
 		return err
 	}
 	notification := &notifications.Notification{
@@ -47,7 +55,22 @@ func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest
 		UpdatedAt:   time.Now(),
 	}
 
-	return s.repo.Create(ctx, notification)
+	if err = s.repo.Create(ctx, notification); err != nil {
+		log.Error("notification create failed",
+			zap.String("notification_id", notification.ID),
+			zap.String("organisation_id", notification.OrganisationID),
+			zap.String("notification_type", data.NotificationType),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
+		return err
+	}
+	log.Info("notification enqueued",
+		zap.String("notification_id", notification.ID),
+		zap.String("organisation_id", notification.OrganisationID),
+		zap.String("notification_type", data.NotificationType),
+	)
+	return nil
 }
 func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 	v, ok := data.(map[string]interface{})
@@ -62,18 +85,21 @@ func (s *Notificationservice) parseeventdata(data any) dto.NotificationModel {
 
 func parseEmployeeEvent(v map[string]interface{}) dto.NotificationModel {
 	return dto.NotificationModel{
-		EmployeeName:    mapString(v, "employee_name"),
-		EmployeeEmail:   mapString(v, "employee_email"),
-		RoleName:        mapString(v, "role_name"),
-		DepartmentName:  mapString(v, "department_name"),
-		HospitalName:    mapString(v, "hospital_name"),
-		OrganisationID:  mapString(v, "organisation_id"),
-		LoginURL:        mapString(v, "login_url"),
-		TempPassword:    mapString(v, "temp_password"),
-		ResetURL:        mapString(v, "reset_url"),
-		CooldownMinutes: mapString(v, "cooldown_minutes"),
-		PatientEmail:    mapString(v, "employee_email"),
-		EmployeeID:      mapString(v, "employee_id"),
+		EmployeeName:     mapString(v, "employee_name"),
+		EmployeeEmail:    mapString(v, "employee_email"),
+		RoleName:         mapString(v, "role_name"),
+		DepartmentName:   mapString(v, "department_name"),
+		HospitalName:     mapString(v, "hospital_name"),
+		OrganisationID:   mapString(v, "organisation_id"),
+		LoginURL:         mapString(v, "login_url"),
+		TempPassword:     mapString(v, "temp_password"),
+		ResetURL:         mapString(v, "reset_url"),
+		CooldownMinutes:  mapString(v, "cooldown_minutes"),
+		VerificationCode: mapString(v, "verification_code"),
+		ExpiryMinutes:    mapString(v, "expiry_minutes"),
+		Message:          mapString(v, "message"),
+		PatientEmail:     mapString(v, "employee_email"),
+		EmployeeID:       mapString(v, "employee_id"),
 	}
 }
 

@@ -12,8 +12,33 @@ var (
 
 	// ErrRefreshSession covers missing/invalid/expired refresh tokens (map to HTTP 401).
 	// ErrRefreshInternal covers rotate/DB failures after a valid session (map to HTTP 500).
-	ErrRefreshSession  = errors.New("refresh session invalid")
-	ErrRefreshInternal = errors.New("refresh internal error")
+	ErrRefreshSession          = errors.New("refresh session invalid")
+	ErrRefreshInternal         = errors.New("refresh internal error")
+	ErrAccessTokenCreateFailed = errors.New("failed to create access token")
+
+	// Tenant domain
+	ErrTenantCreateFailed           = errors.New("failed to create tenant")
+	ErrTenantAlreadyHasOrganisation = errors.New("tenant already has an organisation")
+	ErrTenantNotFound               = errors.New("tenant not found")
+	ErrTenantUpdateFailed           = errors.New("failed to update tenant")
+	ErrUserNotFound                 = errors.New("user not found")
+	ErrUserUpdateFailed             = errors.New("failed to update user")
+
+	// Plan / subscription domain
+	ErrPlanNotFound             = errors.New("plan not found")
+	ErrPlanFetchFailed          = errors.New("failed to fetch plans")
+	ErrSubscriptionCreateFailed = errors.New("failed to create subscription")
+	ErrSubscriptionUpdateFailed = errors.New("failed to update subscription")
+	ErrSubscriptionNotFound     = errors.New("subscription not found")
+
+	// Customer domain
+	ErrCustomerAlreadyExists   = errors.New("customer already exists")
+	ErrCustomerCreateFailed    = errors.New("failed to create customer")
+	ErrCustomerNotFound        = errors.New("customer not found")
+	ErrCustomerUpdateFailed    = errors.New("failed to update customer")
+	ErrCustomerVerifyFailed    = errors.New("failed to verify customer email")
+	ErrInvalidVerificationCode = errors.New("invalid verification code")
+	ErrVerificationCodeExpired = errors.New("verification code expired")
 
 	// Patient domain
 	ErrOrganisationNotFound     = errors.New("organisation not found")
@@ -26,6 +51,7 @@ var (
 	ErrPatientFetchFailed       = errors.New("failed to fetch patient")
 	ErrPatientsFetchFailed      = errors.New("failed to fetch patients")
 	ErrEmployeesFetchFailed     = errors.New("failed to fetch employees")
+	ErrOrganisationSetupFailed  = errors.New("failed to set up organisation")
 
 	// Appointment domain
 	ErrOrgScheduleNotFound     = errors.New("organisation schedule not found")
@@ -33,6 +59,7 @@ var (
 	ErrOrgScheduleFetchFailed  = errors.New("failed to fetch organisation schedule")
 	ErrAppointmentNotFound     = errors.New("appointment not found")
 	ErrAppointmentCreateFailed = errors.New("failed to create appointment")
+	ErrAppointmentSlotTaken    = errors.New("doctor slot is already booked")
 	ErrAppointmentFetchFailed  = errors.New("failed to fetch appointment")
 	ErrAppointmentsFetchFailed = errors.New("failed to fetch appointments")
 	ErrAppointmentUpdateFailed = errors.New("failed to update appointment")
@@ -69,11 +96,16 @@ var (
 	ErrAppointmentMismatch      = errors.New("appointment does not belong to this patient/organisation")
 
 	// Payments domain
-	ErrPaymentNotFound      = errors.New("payment not found")
-	ErrPaymentCreateFailed  = errors.New("failed to create payment")
-	ErrPaymentConfirmFailed = errors.New("payment confirm failed")
-	ErrPaymentFulfillFailed = errors.New("payment fulfillment failed")
-	ErrWebhookProcessFailed = errors.New("failed to process webhook")
+	ErrPaymentNotFound         = errors.New("payment not found")
+	ErrPaymentCreateFailed     = errors.New("failed to create payment")
+	ErrPaymentConfirmFailed    = errors.New("payment confirm failed")
+	ErrPaymentFulfillFailed    = errors.New("payment fulfillment failed")
+	ErrInvalidAmount           = errors.New("invalid amount")
+	ErrInvalidCurrency         = errors.New("invalid currency")
+	ErrOrderCreateFailed       = errors.New("failed to create payment order")
+	ErrUnauthorized            = errors.New("unauthorized")
+	ErrInvalidPaymentSignature = errors.New("invalid payment signature")
+	ErrWebhookProcessFailed    = errors.New("failed to process webhook")
 
 	// Medicine / supplier domain
 	ErrMedicineNotFound       = errors.New("medicine not found")
@@ -88,4 +120,12 @@ var (
 	ErrPasswordResetTooSoon = errors.New("password reset already requested recently")
 
 	ErrRolePermissionsFetchFailed = errors.New("failed to fetch role permissions")
+	ErrDepartmentsFetchFailed     = errors.New("failed to fetch departments")
+	ErrRolesFetchFailed           = errors.New("failed to fetch roles")
+	ErrPermissionsFetchFailed     = errors.New("failed to fetch permissions")
+	ErrEmployeeCreateFailed       = errors.New("failed to create employee")
+	ErrEmployeeFetchFailed        = errors.New("failed to fetch employee")
+	ErrEmployeeUpdateFailed       = errors.New("failed to update employee")
+	ErrEmployeeDeleteFailed       = errors.New("failed to delete employee")
+	ErrDoctorsFetchFailed         = errors.New("failed to fetch doctors")
 )

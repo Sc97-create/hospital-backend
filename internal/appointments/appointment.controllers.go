@@ -117,6 +117,8 @@ func (A *AppointmentController) wrapCreateError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, errWrap.ErrOrgScheduleNotFound):
 		return errWrap.Wrap(err, c, fiber.StatusNotFound)
+	case errors.Is(err, errWrap.ErrAppointmentSlotTaken):
+		return errWrap.Wrap(err, c, fiber.StatusConflict)
 	case errors.Is(err, errWrap.ErrAppointmentCreateFailed):
 		return errWrap.Wrap(err, c, fiber.StatusInternalServerError)
 	default:

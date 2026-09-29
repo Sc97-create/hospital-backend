@@ -1,6 +1,11 @@
 package migration
 
 import (
+	"hospital-backend/central/customers"
+	"hospital-backend/central/organisations"
+	"hospital-backend/central/plans"
+	"hospital-backend/central/subscriptions"
+	"hospital-backend/central/tenants"
 	"hospital-backend/database"
 	"hospital-backend/internal/admins"
 	"hospital-backend/internal/appointments"
@@ -12,7 +17,6 @@ import (
 	"hospital-backend/internal/medicine/medmigration"
 	"hospital-backend/internal/modules"
 	"hospital-backend/internal/notifications"
-	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/payments"
 	"hospital-backend/internal/permissions"
@@ -24,7 +28,32 @@ import (
 )
 
 func Migrate() (err error) {
-	err = database.PostgreClient.AutoMigrate(&organisation.Organisation{})
+	err = database.PostgreClient.AutoMigrate(&customers.Customer{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&customers.SignupCode{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&tenants.Tenant{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = plans.AutoMigrate(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = subscriptions.AutoMigrate(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&organisations.Organisation{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return

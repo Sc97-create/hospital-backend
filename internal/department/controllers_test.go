@@ -24,7 +24,7 @@ func TestFindMany(t *testing.T) {
 			name:  "success default page",
 			query: "?organisation_id=org-1&limit=10",
 			setup: func(m *mocks.MockDepartmentServicer) {
-				m.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any()).Return([]department.Department{{ID: "dept-1", Name: "Cardiology"}}, int64(1), nil)
+				m.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return([]department.Department{{ID: "dept-1", Name: "Cardiology"}}, int64(1), nil)
 			},
 			wantStatus: fiber.StatusOK,
 		},
@@ -32,7 +32,7 @@ func TestFindMany(t *testing.T) {
 			name:  "service error",
 			query: "?organisation_id=org-1&limit=10&page=2",
 			setup: func(m *mocks.MockDepartmentServicer) {
-				m.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, int64(0), errors.New("db error"))
+				m.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, int64(0), errors.New("db error"))
 			},
 			wantStatus: fiber.StatusInternalServerError,
 		},

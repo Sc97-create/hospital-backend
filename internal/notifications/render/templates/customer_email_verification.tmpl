@@ -1,0 +1,16 @@
+{{define "content"}}
+<p style="margin:0 0 16px 0;">Dear {{.EmployeeName}},</p>
+
+<p style="margin:0 0 20px 0;">
+  Use the verification code below to confirm your email address
+  (<strong>{{.EmployeeEmail}}</strong>).
+</p>
+
+<p style="margin:0 0 24px 0; font-size:28px; letter-spacing:6px; font-weight:bold; color:#2c3e50;">
+  {{.VerificationCode}}
+</p>
+
+<p style="margin:0 0 12px 0; color:#666666; font-size:14px;">
+  This code expires in {{.ExpiryMinutes}} minutes. If you did not create an account, you can ignore this email.
+</p>
+{{end}}

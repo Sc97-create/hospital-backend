@@ -495,11 +495,13 @@ Prefer explicit SQL migration scripts for renames/backfills; do not rely on Auto
 ### Organisation module
 
 - [ ] Update structures, DTOs, controllers, services, repo
+- [x] Scaffold central package: `central/organisations` (model/repo/service/controller)
 - [x] Remove `LicenseCreator` from signup TX
 - [ ] Tenant resolve/create in signup TX
 - [ ] Address + data_sharing update paths
 - [ ] List-by-tenant API
 - [x] Regenerate mocks; fix unit tests (license expectations removed)
+- [x] Wire `central/organisations` into appinit / routes / migration (replace `internal/organisation`)
 
 ### Service catalog module
 

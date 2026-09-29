@@ -14,17 +14,22 @@ import (
 // organisation update/get (no organisation module).
 
 var PublicRoutes = map[string]struct{}{
-	"/api/v1/authentication/login":                {},
-	"/api/v1/authentication/refresh":              {},
-	"/api/v1/authentication/logout":               {},
-	"/api/v1/authentication/updatePassword":            {},
-	"/api/v1/authentication/updatePasswordFirstLogin":  {},
-	"/api/v1/authentication/requestPasswordReset":      {},
-	"/api/v1/employee/getDoctors":           {},
-	"/api/v1/employee/findbyID":             {},
-	"/api/v1/employee/create":               {},
-	"/api/v1/payment/webhook":               {},
-	"/api/v1/organisation/signupOrg":        {},
+	"/api/v1/authentication/login":                                    {},
+	"/api/v1/authentication/refresh":                                  {},
+	"/api/v1/authentication/logout":                                   {},
+	"/api/v1/authentication/updatePassword":                           {},
+	"/api/v1/authentication/updatePasswordFirstLogin":                 {},
+	"/api/v1/authentication/requestPasswordReset":                     {},
+	"/api/v1/employee/getDoctors":                                     {},
+	"/api/v1/employee/findbyID":                                       {},
+	"/api/v1/employee/create":                                         {},
+	"/api/v1/payment/webhook":                                         {},
+	"/api/v1/hospital/internal/payment/createOrder":                   {},
+	"/api/v1/hospital/internal/jwt/accessToken":                       {},
+	"/api/v1/hospital/internal/organisation/addRoles":                 {},
+	"/api/v1/hospital/internal/organisation/addRolePermissions":       {},
+	"/api/v1/hospital/internal/organisation/addFirstUser":             {},
+	"/api/v1/central/internal/subscription/checkEnd/:organisation_id": {},
 }
 
 var CreateRoutes = map[string]string{
@@ -73,11 +78,11 @@ var ViewRoutes = map[string]string{
 	"/api/v1/billing/getInvoiceByPrescriptionID/:prescriptionID":     constants.Billing,
 	"/api/v1/billing/getInvoiceByAppointmentID/:appointmentID":       constants.Billing,
 	"/api/v1/billing/getBillDetailsByPrescriptionID/:prescriptionID": constants.Billing,
-	"/api/v1/dashboard/getByStatus":            constants.Dashboard,
-	"/api/v1/dashboard/getTodayAppointments":   constants.Dashboard,
-	"/api/v1/dashboard/getTodayInvoiceSummary":  constants.Dashboard,
-	"/api/v1/dashboard/getEmployeeStatusCounts": constants.Dashboard,
-	"/api/v1/dashboard/getTodayPrescriptions":   constants.Dashboard,
+	"/api/v1/dashboard/getByStatus":                                  constants.Dashboard,
+	"/api/v1/dashboard/getTodayAppointments":                         constants.Dashboard,
+	"/api/v1/dashboard/getTodayInvoiceSummary":                       constants.Dashboard,
+	"/api/v1/dashboard/getEmployeeStatusCounts":                      constants.Dashboard,
+	"/api/v1/dashboard/getTodayPrescriptions":                        constants.Dashboard,
 }
 
 var DeleteRoutes = map[string]string{

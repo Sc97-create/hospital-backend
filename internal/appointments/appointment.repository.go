@@ -6,7 +6,7 @@ import (
 )
 
 type AppointmentRepository interface {
-	Create(log *zap.Logger, appointment *Appointment) error
+	Create(log *zap.Logger, tx *gorm.DB, appointment *Appointment) error
 	GetAppointmentsByIDs(log *zap.Logger, query string, cond ...any) ([]Appointment, error)
 	FindManyByOrganisationID(log *zap.Logger, query string, cond ...any) ([]map[string]interface{}, error)
 	GetTotalAppointmentsByOrgID(log *zap.Logger, query string, cond ...any) (int, error)
@@ -19,9 +19,13 @@ type AppointmentRepository interface {
 	GetNotificationsDetails(log *zap.Logger, query string, cond ...any) (map[string]interface{}, error)
 }
 
-func (r *CommonDB) Create(log *zap.Logger, appointment *Appointment) error {
+func (r *CommonDB) Create(log *zap.Logger, tx *gorm.DB, appointment *Appointment) error {
 	log = ensureLog(log)
-	err := r.db.Create(appointment).Error
+	db := r.db
+	if tx != nil {
+		db = tx
+	}
+	err := db.Create(appointment).Error
 	if err != nil {
 		log.Error("appointment repo error", zap.String("op", "Create"), zap.Error(err))
 		return err

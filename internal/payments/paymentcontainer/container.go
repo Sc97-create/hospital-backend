@@ -17,8 +17,9 @@ func NewContainer(
 	cfg config.Config,
 	prescriptionStatus payments.PrescriptionStatusUpdater,
 	fulfillment payments.IPaymentFulfillment,
+	subscriptionActivator payments.TenantEntitlementActivator,
 ) *PaymentContainer {
-	mod := module.NewModule(db, cfg, prescriptionStatus, fulfillment)
+	mod := module.NewModule(db, cfg, prescriptionStatus, fulfillment, subscriptionActivator)
 	return &PaymentContainer{
 		Mod: mod,
 	}

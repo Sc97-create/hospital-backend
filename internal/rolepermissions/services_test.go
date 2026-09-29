@@ -15,6 +15,7 @@ import (
 
 	"github.com/lib/pq"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newRolePermService(t *testing.T, repo rolepermissions.RolePermissionRepo) *rolepermissions.RolePermissionService {
@@ -27,10 +28,10 @@ func TestServiceCreate(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRolePermissionRepo(ctrl)
 		rp := &rolepermissions.RolePermission{RoleID: "role-1"}
-		repo.EXPECT().Create(rp).Return(errors.New("db error"))
+		repo.EXPECT().Create(gomock.Any(), rp).Return(errors.New("db error"))
 
 		svc := newRolePermService(t, repo)
-		if err := svc.Create(rp); err == nil {
+		if err := svc.Create(zap.NewNop(), rp); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -39,10 +40,10 @@ func TestServiceCreate(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRolePermissionRepo(ctrl)
 		rp := &rolepermissions.RolePermission{RoleID: "role-1"}
-		repo.EXPECT().Create(rp).Return(nil)
+		repo.EXPECT().Create(gomock.Any(), rp).Return(nil)
 
 		svc := newRolePermService(t, repo)
-		if err := svc.Create(rp); err != nil {
+		if err := svc.Create(zap.NewNop(), rp); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -50,12 +51,12 @@ func TestServiceCreate(t *testing.T) {
 
 func TestServiceFindModulesByRoleID(t *testing.T) {
 	tests := []struct {
-		name       string
-		roleID     string
-		setup      func(*mocks.MockRolePermissionRepo)
-		wantErr    error
-		wantAdmin  bool
-		wantPerms  int
+		name      string
+		roleID    string
+		setup     func(*mocks.MockRolePermissionRepo)
+		wantErr   error
+		wantAdmin bool
+		wantPerms int
 	}{
 		{
 			name:      "empty role id",
@@ -67,7 +68,7 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			name:   "is admin check error",
 			roleID: "role-1",
 			setup: func(m *mocks.MockRolePermissionRepo) {
-				m.EXPECT().IsAdminRole("role-1").Return(false, errors.New("db error"))
+				m.EXPECT().IsAdminRole(gomock.Any(), "role-1").Return(false, errors.New("db error"))
 			},
 			wantErr: wrapError.ErrRolePermissionsFetchFailed,
 		},
@@ -75,7 +76,7 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			name:   "admin role",
 			roleID: "role-admin",
 			setup: func(m *mocks.MockRolePermissionRepo) {
-				m.EXPECT().IsAdminRole("role-admin").Return(true, nil)
+				m.EXPECT().IsAdminRole(gomock.Any(), "role-admin").Return(true, nil)
 			},
 			wantAdmin: true,
 			wantPerms: 0,
@@ -84,8 +85,8 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			name:   "module permissions error",
 			roleID: "role-1",
 			setup: func(m *mocks.MockRolePermissionRepo) {
-				m.EXPECT().IsAdminRole("role-1").Return(false, nil)
-				m.EXPECT().FindModulePermissionsByRoleID("role-1").Return(nil, errors.New("query failed"))
+				m.EXPECT().IsAdminRole(gomock.Any(), "role-1").Return(false, nil)
+				m.EXPECT().FindModulePermissionsByRoleID(gomock.Any(), "role-1").Return(nil, errors.New("query failed"))
 			},
 			wantErr: wrapError.ErrRolePermissionsFetchFailed,
 		},
@@ -93,8 +94,8 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			name:   "success with permissions",
 			roleID: "role-1",
 			setup: func(m *mocks.MockRolePermissionRepo) {
-				m.EXPECT().IsAdminRole("role-1").Return(false, nil)
-				m.EXPECT().FindModulePermissionsByRoleID("role-1").Return([]dto.ModulePermissionRow{
+				m.EXPECT().IsAdminRole(gomock.Any(), "role-1").Return(false, nil)
+				m.EXPECT().FindModulePermissionsByRoleID(gomock.Any(), "role-1").Return([]dto.ModulePermissionRow{
 					{ModuleName: "patient", PermissionNames: pq.StringArray{"view", "create"}},
 					{ModuleName: "appointment", PermissionNames: pq.StringArray{"view"}},
 				}, nil)
@@ -113,7 +114,7 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			}
 
 			svc := newRolePermService(t, repo)
-			got, err := svc.FindModulesByRoleID(tt.roleID)
+			got, err := svc.FindModulesByRoleID(zap.NewNop(), tt.roleID)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("expected error %v, got %v", tt.wantErr, err)
@@ -167,10 +168,10 @@ func TestServiceInsertMany(t *testing.T) {
 	t.Run("batch create error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRolePermissionRepo(ctrl)
-		repo.EXPECT().BatchCreate(gomock.Any(), gomock.Any()).Return(errors.New("batch failed"))
+		repo.EXPECT().BatchCreate(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("batch failed"))
 
 		svc := newRolePermService(t, repo)
-		if err := svc.InsertMany(nil, roleArr, permArr, modArr, "org-1"); err == nil {
+		if err := svc.InsertMany(zap.NewNop(), nil, roleArr, permArr, modArr, "org-1"); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -178,8 +179,8 @@ func TestServiceInsertMany(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRolePermissionRepo(ctrl)
-		repo.EXPECT().BatchCreate(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ interface{}, rows []rolepermissions.RolePermission) error {
+		repo.EXPECT().BatchCreate(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ *zap.Logger, _ interface{}, rows []rolepermissions.RolePermission) error {
 				if len(rows) == 0 {
 					t.Fatal("expected seeded role permissions")
 				}
@@ -203,7 +204,7 @@ func TestServiceInsertMany(t *testing.T) {
 		)
 
 		svc := newRolePermService(t, repo)
-		if err := svc.InsertMany(nil, roleArr, permArr, modArr, "org-1"); err != nil {
+		if err := svc.InsertMany(zap.NewNop(), nil, roleArr, permArr, modArr, "org-1"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

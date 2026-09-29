@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hospital-backend/central/organisations"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	"hospital-backend/internal/organisation"
 	"hospital-backend/internal/patient/dto"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
@@ -25,7 +25,7 @@ type NotificationEnqueuer interface {
 
 type PatientService struct {
 	PRepo         PatientRepository
-	OrgService    organisation.OrganisationServicer
+	OrgService    organisations.OrganisationServicer
 	notifications NotificationEnqueuer
 }
 
@@ -38,7 +38,7 @@ func (e *validationError) Error() string {
 	return e.Msg
 }
 
-func NewPatientService(p PatientRepository, orgService organisation.OrganisationServicer, notifications NotificationEnqueuer) *PatientService {
+func NewPatientService(p PatientRepository, orgService organisations.OrganisationServicer, notifications NotificationEnqueuer) *PatientService {
 	return &PatientService{PRepo: p, OrgService: orgService, notifications: notifications}
 }
 
@@ -132,14 +132,14 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	return patientModel.ID, nil
 }
 
-func (p *PatientService) parseNotificationDetails(patientModel Patient, orgData organisation.Organisation) (map[string]interface{}, error) {
+func (p *PatientService) parseNotificationDetails(patientModel Patient, orgData organisations.Organisation) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"patient_name":     patientModel.Name,
 		"patient_email_id": patientModel.EmailID,
 		"patient_code":     patientModel.UHID,
 		"patient_id":       patientModel.ID,
 		"organisation_id":  orgData.ID,
-		"hospital_name":    orgData.OrganisationName,
+		"hospital_name":    orgData.FacilityName,
 	}, nil
 }
 
@@ -384,7 +384,7 @@ func (p *PatientService) GetNotificationPatientByID(log *zap.Logger, patientID s
 	log = ensureLog(log)
 	log.Debug("patient notification lookup", zap.String("patient_id", patientID))
 
-	query := `select p.uh_id as patient_code,p.name as patient_name,p.email_id as patient_email_id,p.mobile_number as patient_phone,p.blood_group as patient_bg,p.address as patient_address,o.organisation_name as hospital_name,p.organisation_id,p.id as patient_id from patients p 
+	query := `select p.uh_id as patient_code,p.name as patient_name,p.email_id as patient_email_id,p.mobile_number as patient_phone,p.blood_group as patient_bg,p.address as patient_address,o.facility_name as hospital_name,p.organisation_id,p.id as patient_id from patients p 
 	join organisations o on p.organisation_id=o.id where p.id = $1`
 	patient, err := p.PRepo.ReadOneWithOrganisationID(log, query, patientID)
 	if err != nil {

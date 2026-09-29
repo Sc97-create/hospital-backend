@@ -40,7 +40,7 @@ type JwtServicer interface {
 }
 
 type RolePermissionServicer interface {
-	FindModulesByRoleID(roleID string) (rpdto.RoleAccess, error)
+	FindModulesByRoleID(log *zap.Logger, roleID string) (rpdto.RoleAccess, error)
 }
 
 type NotificationEnqueuer interface {
@@ -212,7 +212,7 @@ func (a *UserService) loadRoleAccess(log *zap.Logger, roleID string) (rpdto.Role
 	if a.RolePermissionSvc == nil {
 		return rpdto.RoleAccess{Permissions: []rpdto.RoleModulePermission{}}, nil
 	}
-	access, err := a.RolePermissionSvc.FindModulesByRoleID(roleID)
+	access, err := a.RolePermissionSvc.FindModulesByRoleID(log, roleID)
 	if err != nil {
 		log.Error("login failed",
 			zap.String("role_id", roleID),

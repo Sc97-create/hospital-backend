@@ -79,8 +79,17 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 	}
 
 	appointmentModel := s.toApptmntModel(requestPayload, orgSchedResp.ID)
-	err = s.Repository.Create(log, &appointmentModel)
+	err = s.persistAppointment(log, &appointmentModel)
 	if err != nil {
+		if isSlotTaken(err) {
+			log.Warn("appointment create failed",
+				zap.String("organisation_id", requestPayload.OrganisationID),
+				zap.String("patient_id", requestPayload.PatientID),
+				zap.String("doctor_id", requestPayload.DoctorID),
+				zap.String("reason", "slot_taken"),
+			)
+			return dto.NewApptmntResp{}, wrapError.ErrAppointmentSlotTaken
+		}
 		log.Error("appointment create failed",
 			zap.String("organisation_id", requestPayload.OrganisationID),
 			zap.String("patient_id", requestPayload.PatientID),
@@ -141,11 +150,28 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 	return
 }
 
+func (s *AppointmentService) persistAppointment(log *zap.Logger, appointment *Appointment) error {
+	if s.Db == nil {
+		return s.Repository.Create(log, nil, appointment)
+	}
+	return s.Db.Transaction(func(tx *gorm.DB) error {
+		return s.Repository.Create(log, tx, appointment)
+	})
+}
+
+func isSlotTaken(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate") || strings.Contains(msg, "unique") || strings.Contains(msg, "23505")
+}
+
 func (s *AppointmentService) GetNotificationDetails(log *zap.Logger, appointmentID string) (map[string]interface{}, error) {
 	log = ensureLog(log)
 	query := `select a.appointment_date,a.start_time,
 	a.end_time,a.appointment_code,u.username as doctor_name,p.name as patient_name,
-	p.email_id as patient_email_id,p.uh_id as patient_code,p.id as patient_id,a.organisation_id,o.organisation_name as hospital_name
+	p.email_id as patient_email_id,p.uh_id as patient_code,p.id as patient_id,a.organisation_id,o.facility_name as hospital_name
 	from appointments a
 	join organisations o
 	on a.organisation_id=o.id

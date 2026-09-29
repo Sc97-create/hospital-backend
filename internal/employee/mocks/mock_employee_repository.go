@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockEmployeeRepository is a mock of EmployeeRepository interface.
@@ -41,97 +42,112 @@ func (m *MockEmployeeRepository) EXPECT() *MockEmployeeRepositoryMockRecorder {
 }
 
 // Count mocks base method.
-func (m *MockEmployeeRepository) Count(organisationID, search string) (int64, error) {
+func (m *MockEmployeeRepository) Count(log *zap.Logger, organisationID, search string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Count", organisationID, search)
+	ret := m.ctrl.Call(m, "Count", log, organisationID, search)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Count indicates an expected call of Count.
-func (mr *MockEmployeeRepositoryMockRecorder) Count(organisationID, search any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) Count(log, organisationID, search any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockEmployeeRepository)(nil).Count), organisationID, search)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockEmployeeRepository)(nil).Count), log, organisationID, search)
 }
 
 // CountByActiveStatus mocks base method.
-func (m *MockEmployeeRepository) CountByActiveStatus(organisationID string) (employee.EmployeeStatusCountRow, error) {
+func (m *MockEmployeeRepository) CountByActiveStatus(log *zap.Logger, organisationID string) (employee.EmployeeStatusCountRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountByActiveStatus", organisationID)
+	ret := m.ctrl.Call(m, "CountByActiveStatus", log, organisationID)
 	ret0, _ := ret[0].(employee.EmployeeStatusCountRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CountByActiveStatus indicates an expected call of CountByActiveStatus.
-func (mr *MockEmployeeRepositoryMockRecorder) CountByActiveStatus(organisationID any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) CountByActiveStatus(log, organisationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByActiveStatus", reflect.TypeOf((*MockEmployeeRepository)(nil).CountByActiveStatus), organisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByActiveStatus", reflect.TypeOf((*MockEmployeeRepository)(nil).CountByActiveStatus), log, organisationID)
 }
 
 // CountByCodePrefix mocks base method.
-func (m *MockEmployeeRepository) CountByCodePrefix(organisationID, prefix string) (int64, error) {
+func (m *MockEmployeeRepository) CountByCodePrefix(log *zap.Logger, organisationID, prefix string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountByCodePrefix", organisationID, prefix)
+	ret := m.ctrl.Call(m, "CountByCodePrefix", log, organisationID, prefix)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CountByCodePrefix indicates an expected call of CountByCodePrefix.
-func (mr *MockEmployeeRepositoryMockRecorder) CountByCodePrefix(organisationID, prefix any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) CountByCodePrefix(log, organisationID, prefix any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByCodePrefix", reflect.TypeOf((*MockEmployeeRepository)(nil).CountByCodePrefix), organisationID, prefix)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByCodePrefix", reflect.TypeOf((*MockEmployeeRepository)(nil).CountByCodePrefix), log, organisationID, prefix)
 }
 
 // Create mocks base method.
-func (m *MockEmployeeRepository) Create(arg0 *employee.User) error {
+func (m *MockEmployeeRepository) Create(log *zap.Logger, arg1 *employee.User) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0)
+	ret := m.ctrl.Call(m, "Create", log, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockEmployeeRepositoryMockRecorder) Create(arg0 any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) Create(log, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockEmployeeRepository)(nil).Create), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockEmployeeRepository)(nil).Create), log, arg1)
 }
 
 // DeleteOne mocks base method.
-func (m *MockEmployeeRepository) DeleteOne(arg0 string) error {
+func (m *MockEmployeeRepository) DeleteOne(log *zap.Logger, id string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOne", arg0)
+	ret := m.ctrl.Call(m, "DeleteOne", log, id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteOne indicates an expected call of DeleteOne.
-func (mr *MockEmployeeRepositoryMockRecorder) DeleteOne(arg0 any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) DeleteOne(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOne", reflect.TypeOf((*MockEmployeeRepository)(nil).DeleteOne), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOne", reflect.TypeOf((*MockEmployeeRepository)(nil).DeleteOne), log, id)
+}
+
+// FindOrganisationIDByUserID mocks base method.
+func (m *MockEmployeeRepository) FindOrganisationIDByUserID(log *zap.Logger, userID string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrganisationIDByUserID", log, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrganisationIDByUserID indicates an expected call of FindOrganisationIDByUserID.
+func (mr *MockEmployeeRepositoryMockRecorder) FindOrganisationIDByUserID(log, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationIDByUserID", reflect.TypeOf((*MockEmployeeRepository)(nil).FindOrganisationIDByUserID), log, userID)
 }
 
 // FindRoleIDByUserID mocks base method.
-func (m *MockEmployeeRepository) FindRoleIDByUserID(userID string) (string, error) {
+func (m *MockEmployeeRepository) FindRoleIDByUserID(log *zap.Logger, userID string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindRoleIDByUserID", userID)
+	ret := m.ctrl.Call(m, "FindRoleIDByUserID", log, userID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindRoleIDByUserID indicates an expected call of FindRoleIDByUserID.
-func (mr *MockEmployeeRepositoryMockRecorder) FindRoleIDByUserID(userID any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) FindRoleIDByUserID(log, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleIDByUserID", reflect.TypeOf((*MockEmployeeRepository)(nil).FindRoleIDByUserID), userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindRoleIDByUserID", reflect.TypeOf((*MockEmployeeRepository)(nil).FindRoleIDByUserID), log, userID)
 }
 
 // ReadDoctors mocks base method.
-func (m *MockEmployeeRepository) ReadDoctors(query string, args ...any) ([]employee.User, error) {
+func (m *MockEmployeeRepository) ReadDoctors(log *zap.Logger, query string, args ...any) ([]employee.User, error) {
 	m.ctrl.T.Helper()
-	varargs := []any{query}
+	varargs := []any{log, query}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
@@ -142,52 +158,52 @@ func (m *MockEmployeeRepository) ReadDoctors(query string, args ...any) ([]emplo
 }
 
 // ReadDoctors indicates an expected call of ReadDoctors.
-func (mr *MockEmployeeRepositoryMockRecorder) ReadDoctors(query any, args ...any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) ReadDoctors(log, query any, args ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{query}, args...)
+	varargs := append([]any{log, query}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadDoctors", reflect.TypeOf((*MockEmployeeRepository)(nil).ReadDoctors), varargs...)
 }
 
 // ReadMany mocks base method.
-func (m *MockEmployeeRepository) ReadMany(limit, skip int, organisationID, search string) ([]employee.EmployeeListRow, error) {
+func (m *MockEmployeeRepository) ReadMany(log *zap.Logger, limit, skip int, organisationID, search string) ([]employee.EmployeeListRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadMany", limit, skip, organisationID, search)
+	ret := m.ctrl.Call(m, "ReadMany", log, limit, skip, organisationID, search)
 	ret0, _ := ret[0].([]employee.EmployeeListRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadMany indicates an expected call of ReadMany.
-func (mr *MockEmployeeRepositoryMockRecorder) ReadMany(limit, skip, organisationID, search any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) ReadMany(log, limit, skip, organisationID, search any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMany", reflect.TypeOf((*MockEmployeeRepository)(nil).ReadMany), limit, skip, organisationID, search)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMany", reflect.TypeOf((*MockEmployeeRepository)(nil).ReadMany), log, limit, skip, organisationID, search)
 }
 
 // ReadOne mocks base method.
-func (m *MockEmployeeRepository) ReadOne(id string) (*employee.EmployeeListRow, error) {
+func (m *MockEmployeeRepository) ReadOne(log *zap.Logger, id string) (*employee.EmployeeListRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadOne", id)
+	ret := m.ctrl.Call(m, "ReadOne", log, id)
 	ret0, _ := ret[0].(*employee.EmployeeListRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadOne indicates an expected call of ReadOne.
-func (mr *MockEmployeeRepositoryMockRecorder) ReadOne(id any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) ReadOne(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOne", reflect.TypeOf((*MockEmployeeRepository)(nil).ReadOne), id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOne", reflect.TypeOf((*MockEmployeeRepository)(nil).ReadOne), log, id)
 }
 
 // Update mocks base method.
-func (m *MockEmployeeRepository) Update(arg0 string, arg1 map[string]any) error {
+func (m *MockEmployeeRepository) Update(log *zap.Logger, id string, update map[string]any) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", arg0, arg1)
+	ret := m.ctrl.Call(m, "Update", log, id, update)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockEmployeeRepositoryMockRecorder) Update(arg0, arg1 any) *gomock.Call {
+func (mr *MockEmployeeRepositoryMockRecorder) Update(log, id, update any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockEmployeeRepository)(nil).Update), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockEmployeeRepository)(nil).Update), log, id, update)
 }

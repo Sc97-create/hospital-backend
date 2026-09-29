@@ -18,6 +18,8 @@ type Config struct {
 	PublicKeyPath        string
 	NotificationConfig   NotificationConfig
 	RazorPayClient       RazorPayClient
+	InternalBasicAuth    InternalBasicAuth
+	InternalAPIBaseURL   string
 	LoginUrl             string
 	PasswordResetBaseURL string
 }
@@ -30,6 +32,13 @@ type RazorpayConfig struct {
 	BaseUrl   string
 	ApiKey    string
 	ApiSecret string
+}
+
+// InternalBasicAuth is the global Basic credential used by internal service APIs.
+// Values come from CLIENT_ID and CLIENT_SECRET. Send as: Authorization: Basic base64(id:secret)
+type InternalBasicAuth struct {
+	ID     string
+	Secret string
 }
 
 type NotificationConfig struct {

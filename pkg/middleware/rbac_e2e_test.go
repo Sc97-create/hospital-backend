@@ -18,12 +18,13 @@ import (
 
 	"hospital-backend/config"
 	"hospital-backend/internal/jwt"
-	"hospital-backend/pkg/constants"
 	rpdto "hospital-backend/internal/rolepermissions/dto"
+	"hospital-backend/pkg/constants"
 	"hospital-backend/pkg/logger"
 
 	"github.com/gofiber/fiber/v2"
 	jwtlib "github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ type mockRoleLookup struct {
 	err    error
 }
 
-func (m *mockRoleLookup) FindRoleIDByUserID(userID string) (string, error) {
+func (m *mockRoleLookup) FindRoleIDByUserID(_ *zap.Logger, userID string) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
@@ -51,7 +52,7 @@ type mockRoleAccessLoader struct {
 	err    error
 }
 
-func (m *mockRoleAccessLoader) FindModulesByRoleID(roleID string) (rpdto.RoleAccess, error) {
+func (m *mockRoleAccessLoader) FindModulesByRoleID(_ *zap.Logger, roleID string) (rpdto.RoleAccess, error) {
 	if m.err != nil {
 		return rpdto.RoleAccess{}, m.err
 	}

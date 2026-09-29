@@ -8,6 +8,7 @@ import (
 	"hospital-backend/internal/roles/mocks"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newRoleService(t *testing.T, repo roles.RoleRepository) *roles.RoleServices {
@@ -26,23 +27,23 @@ func TestServiceFindMany(t *testing.T) {
 		{
 			name: "find many error",
 			setup: func(m *mocks.MockRoleRepository) {
-				m.EXPECT().FindMany("org-1", 10, 0).Return(nil, errors.New("db error"))
+				m.EXPECT().FindMany(gomock.Any(), "org-1", 10, 0).Return(nil, errors.New("db error"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "count error",
 			setup: func(m *mocks.MockRoleRepository) {
-				m.EXPECT().FindMany("org-1", 10, 0).Return([]roles.Role{{ID: "r1", Name: "Doctor"}}, nil)
-				m.EXPECT().Count("org-1").Return(int64(0), errors.New("count error"))
+				m.EXPECT().FindMany(gomock.Any(), "org-1", 10, 0).Return([]roles.Role{{ID: "r1", Name: "Doctor"}}, nil)
+				m.EXPECT().Count(gomock.Any(), "org-1").Return(int64(0), errors.New("count error"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "success",
 			setup: func(m *mocks.MockRoleRepository) {
-				m.EXPECT().FindMany("org-1", 10, 0).Return([]roles.Role{{ID: "r1", Name: "Doctor"}}, nil)
-				m.EXPECT().Count("org-1").Return(int64(1), nil)
+				m.EXPECT().FindMany(gomock.Any(), "org-1", 10, 0).Return([]roles.Role{{ID: "r1", Name: "Doctor"}}, nil)
+				m.EXPECT().Count(gomock.Any(), "org-1").Return(int64(1), nil)
 			},
 			wantTotal: 1,
 			wantLen:   1,
@@ -58,7 +59,7 @@ func TestServiceFindMany(t *testing.T) {
 			}
 
 			svc := newRoleService(t, repo)
-			list, total, err := svc.FindMany("org-1", 10, 0)
+			list, total, err := svc.FindMany(zap.NewNop(), "org-1", 10, 0)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -82,10 +83,10 @@ func TestServiceInsertMany(t *testing.T) {
 	t.Run("repo error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().InsertMany(gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
+		repo.EXPECT().InsertMany(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
 
 		svc := newRoleService(t, repo)
-		_, err := svc.InsertMany(nil, "org-1")
+		_, err := svc.InsertMany(zap.NewNop(), nil, "org-1")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -94,8 +95,8 @@ func TestServiceInsertMany(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().InsertMany(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ interface{}, roleList []roles.Role) error {
+		repo.EXPECT().InsertMany(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ *zap.Logger, _ interface{}, roleList []roles.Role) error {
 				if len(roleList) != len(roles.DefaultRoleArr) {
 					t.Fatalf("expected %d roles, got %d", len(roles.DefaultRoleArr), len(roleList))
 				}
@@ -112,7 +113,7 @@ func TestServiceInsertMany(t *testing.T) {
 		)
 
 		svc := newRoleService(t, repo)
-		got, err := svc.InsertMany(nil, "org-1")
+		got, err := svc.InsertMany(zap.NewNop(), nil, "org-1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -126,9 +127,9 @@ func TestServiceFindRoleByOrgID(t *testing.T) {
 	t.Run("repo error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindRoleByOrgID("org-1").Return(nil, errors.New("db error"))
+		repo.EXPECT().FindRoleByOrgID(gomock.Any(), "org-1").Return(nil, errors.New("db error"))
 		svc := newRoleService(t, repo)
-		_, err := svc.FindRoleByOrgID("org-1")
+		_, err := svc.FindRoleByOrgID(zap.NewNop(), "org-1")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -141,9 +142,9 @@ func TestServiceFindRoleByOrgID(t *testing.T) {
 			{ID: "r1", Name: "Doctor", OrganisationID: "org-1"},
 			{ID: "r2", Name: "Nurse", OrganisationID: "org-1"},
 		}
-		repo.EXPECT().FindRoleByOrgID("org-1").Return(want, nil)
+		repo.EXPECT().FindRoleByOrgID(gomock.Any(), "org-1").Return(want, nil)
 		svc := newRoleService(t, repo)
-		got, err := svc.FindRoleByOrgID("org-1")
+		got, err := svc.FindRoleByOrgID(zap.NewNop(), "org-1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -155,9 +156,9 @@ func TestServiceFindRoleByOrgID(t *testing.T) {
 	t.Run("empty result", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindRoleByOrgID("org-empty").Return([]roles.Role{}, nil)
+		repo.EXPECT().FindRoleByOrgID(gomock.Any(), "org-empty").Return([]roles.Role{}, nil)
 		svc := newRoleService(t, repo)
-		got, err := svc.FindRoleByOrgID("org-empty")
+		got, err := svc.FindRoleByOrgID(zap.NewNop(), "org-empty")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -171,9 +172,9 @@ func TestServiceFindRoleByNames(t *testing.T) {
 	t.Run("repo error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindRoleByNames("org-1", "Doctor").Return(roles.Role{}, errors.New("not found"))
+		repo.EXPECT().FindRoleByNames(gomock.Any(), "org-1", "Doctor").Return(roles.Role{}, errors.New("not found"))
 		svc := newRoleService(t, repo)
-		_, err := svc.FindRoleByNames("org-1", "Doctor")
+		_, err := svc.FindRoleByNames(zap.NewNop(), "org-1", "Doctor")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -182,9 +183,9 @@ func TestServiceFindRoleByNames(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindRoleByNames("org-1", "Doctor").Return(roles.Role{ID: "r1", Name: "Doctor"}, nil)
+		repo.EXPECT().FindRoleByNames(gomock.Any(), "org-1", "Doctor").Return(roles.Role{ID: "r1", Name: "Doctor"}, nil)
 		svc := newRoleService(t, repo)
-		got, err := svc.FindRoleByNames("org-1", "Doctor")
+		got, err := svc.FindRoleByNames(zap.NewNop(), "org-1", "Doctor")
 		if err != nil || got.ID != "r1" {
 			t.Fatalf("got %+v err=%v", got, err)
 		}
@@ -195,9 +196,9 @@ func TestServiceFindByID(t *testing.T) {
 	t.Run("repo error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindByID("r1").Return(roles.Role{}, errors.New("not found"))
+		repo.EXPECT().FindByID(gomock.Any(), "r1").Return(roles.Role{}, errors.New("not found"))
 		svc := newRoleService(t, repo)
-		_, err := svc.FindByID("r1")
+		_, err := svc.FindByID(zap.NewNop(), "r1")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -206,9 +207,9 @@ func TestServiceFindByID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		repo := mocks.NewMockRoleRepository(ctrl)
-		repo.EXPECT().FindByID("r1").Return(roles.Role{ID: "r1", Name: "Doctor"}, nil)
+		repo.EXPECT().FindByID(gomock.Any(), "r1").Return(roles.Role{ID: "r1", Name: "Doctor"}, nil)
 		svc := newRoleService(t, repo)
-		got, err := svc.FindByID("r1")
+		got, err := svc.FindByID(zap.NewNop(), "r1")
 		if err != nil || got.Name != "Doctor" {
 			t.Fatalf("got %+v err=%v", got, err)
 		}

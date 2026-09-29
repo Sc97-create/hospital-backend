@@ -38,6 +38,18 @@ var defaultRolePermissionMatrix = map[string][]moduleActions{
 		{Module: constants.Patient, Actions: []string{permissions.View}},
 		{Module: constants.Appointment, Actions: []string{permissions.View}},
 	},
-	// DefaultRoleHospitalAdmin / DefaultRoleLabTechnician: no default module grants yet.
+	roles.DefaultRoleHospitalAdmin: {
+		{Module: constants.Patient, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Employee, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Medicine, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Department, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Role, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Appointment, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Report, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Prescription, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Billing, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.Dashboard, Actions: []string{permissions.View}},
+	},
+	// DefaultRoleLabTechnician: no default module grants yet.
 	// DefaultRoleAdmin is handled separately via is_admin (full access).
 }

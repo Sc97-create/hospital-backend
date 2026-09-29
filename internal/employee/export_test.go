@@ -1,6 +1,10 @@
 package employee
 
-import "hospital-backend/internal/employee/dto"
+import (
+	"hospital-backend/internal/employee/dto"
+
+	"go.uber.org/zap"
+)
 
 // Test hooks for employee_test (avoids package employee internal tests + mocks import cycle).
 func (s *EmployeeService) TestGetPageSkip(limit, pageNo int) (int, int) {
@@ -12,7 +16,7 @@ func (s *EmployeeService) TestMapToEmployeeResponse(row EmployeeListRow) dto.Emp
 }
 
 func (s *EmployeeService) TestCreateEmployeeCode(organisationID, dateOfJoining string) (string, error) {
-	return s.createEmployeeCode(organisationID, dateOfJoining)
+	return s.createEmployeeCode(zap.NewNop(), organisationID, dateOfJoining)
 }
 
 func NewEmployeeServiceForTest(repo EmployeeRepository) *EmployeeService {

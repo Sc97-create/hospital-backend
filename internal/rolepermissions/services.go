@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -21,16 +22,39 @@ func NewRolePermissionService(db *gorm.DB, repo RolePermissionRepo) *RolePermiss
 	return &RolePermissionService{DB: db, repo: repo}
 }
 
-func (s *RolePermissionService) Create(rolePermission *RolePermission) error {
-	return s.repo.Create(rolePermission)
+func (s *RolePermissionService) Create(log *zap.Logger, rolePermission *RolePermission) error {
+	log = ensureLog(log)
+	if err := s.repo.Create(log, rolePermission); err != nil {
+		log.Error("role permission create failed",
+			zap.String("role_id", rolePermissionID(rolePermission)),
+			zap.String("reason", "db_create"),
+			zap.Error(err),
+		)
+		return err
+	}
+	return nil
 }
 
-func (s *RolePermissionService) FindModulesByRoleID(roleID string) (dto.RoleAccess, error) {
+func rolePermissionID(rolePermission *RolePermission) string {
+	if rolePermission == nil {
+		return ""
+	}
+	return rolePermission.RoleID
+}
+
+func (s *RolePermissionService) FindModulesByRoleID(log *zap.Logger, roleID string) (dto.RoleAccess, error) {
+	log = ensureLog(log)
 	if roleID == "" {
+		log.Warn("role permission lookup failed", zap.String("reason", "missing_role_id"))
 		return dto.RoleAccess{Permissions: []dto.RoleModulePermission{}}, nil
 	}
-	isAdmin, err := s.repo.IsAdminRole(roleID)
+	isAdmin, err := s.repo.IsAdminRole(log, roleID)
 	if err != nil {
+		log.Error("role permission lookup failed",
+			zap.String("role_id", roleID),
+			zap.String("reason", "admin_lookup"),
+			zap.Error(err),
+		)
 		return dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed
 	}
 	if isAdmin {
@@ -39,8 +63,13 @@ func (s *RolePermissionService) FindModulesByRoleID(roleID string) (dto.RoleAcce
 			Permissions: []dto.RoleModulePermission{},
 		}, nil
 	}
-	rows, err := s.repo.FindModulePermissionsByRoleID(roleID)
+	rows, err := s.repo.FindModulePermissionsByRoleID(log, roleID)
 	if err != nil {
+		log.Error("role permission lookup failed",
+			zap.String("role_id", roleID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
 		return dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed
 	}
 	return dto.RoleAccess{
@@ -77,12 +106,24 @@ func applyPermissionFlag(flags *dto.ModulePermissionFlags, name string) {
 	}
 }
 
-func (s *RolePermissionService) InsertMany(tx *gorm.DB, roleArr []roles.Role, permissionsArr []permissions.Permission, modulesArr []modules.Modules, organisationID string) error {
+// complexity-exception: seed call already takes the role, permission, and module catalogs plus organisation id
+func (s *RolePermissionService) InsertMany(log *zap.Logger, tx *gorm.DB, roleArr []roles.Role, permissionsArr []permissions.Permission, modulesArr []modules.Modules, organisationID string) error {
+	log = ensureLog(log)
 	rolePermissions := s.createRPModel(roleArr, permissionsArr, modulesArr, organisationID)
-	err := s.repo.BatchCreate(tx, rolePermissions)
+	err := s.repo.BatchCreate(log, tx, rolePermissions)
 	if err != nil {
+		log.Error("role permission seed failed",
+			zap.String("organisation_id", organisationID),
+			zap.String("reason", "db_insert"),
+			zap.Int("count", len(rolePermissions)),
+			zap.Error(err),
+		)
 		return err
 	}
+	log.Info("role permission seed success",
+		zap.String("organisation_id", organisationID),
+		zap.Int("count", len(rolePermissions)),
+	)
 	return nil
 }
 

@@ -31,7 +31,7 @@ func TestFindModulesByRoleID(t *testing.T) {
 			name: "service error",
 			path: "/role-permissions/modules/role-1",
 			setup: func(m *mocks.MockRolePermissionServicer) {
-				m.EXPECT().FindModulesByRoleID("role-1").Return(dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed)
+				m.EXPECT().FindModulesByRoleID(gomock.Any(), "role-1").Return(dto.RoleAccess{}, wrapError.ErrRolePermissionsFetchFailed)
 			},
 			wantStatus: fiber.StatusInternalServerError,
 		},
@@ -39,7 +39,7 @@ func TestFindModulesByRoleID(t *testing.T) {
 			name: "success via path param",
 			path: "/role-permissions/modules/role-1",
 			setup: func(m *mocks.MockRolePermissionServicer) {
-				m.EXPECT().FindModulesByRoleID("role-1").Return(dto.RoleAccess{
+				m.EXPECT().FindModulesByRoleID(gomock.Any(), "role-1").Return(dto.RoleAccess{
 					IsAdmin: false,
 					Permissions: []dto.RoleModulePermission{
 						{ModuleName: "patient", Permissions: dto.ModulePermissionFlags{View: true}},
@@ -52,7 +52,7 @@ func TestFindModulesByRoleID(t *testing.T) {
 			name: "success via query",
 			path: "/role-permissions/modules?role_id=role-2",
 			setup: func(m *mocks.MockRolePermissionServicer) {
-				m.EXPECT().FindModulesByRoleID("role-2").Return(dto.RoleAccess{IsAdmin: true}, nil)
+				m.EXPECT().FindModulesByRoleID(gomock.Any(), "role-2").Return(dto.RoleAccess{IsAdmin: true}, nil)
 			},
 			wantStatus: fiber.StatusOK,
 		},
@@ -60,7 +60,7 @@ func TestFindModulesByRoleID(t *testing.T) {
 			name: "generic service error",
 			path: "/role-permissions/modules/role-1",
 			setup: func(m *mocks.MockRolePermissionServicer) {
-				m.EXPECT().FindModulesByRoleID("role-1").Return(dto.RoleAccess{}, errors.New("db error"))
+				m.EXPECT().FindModulesByRoleID(gomock.Any(), "role-1").Return(dto.RoleAccess{}, errors.New("db error"))
 			},
 			wantStatus: fiber.StatusInternalServerError,
 		},

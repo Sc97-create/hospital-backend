@@ -36,10 +36,10 @@ type Appointment struct {
 	ScheduleID      string    `json:"schedule_id" gorm:"type:uuid"`
 	SeriesID        string    `json:"series_id" gorm:"column:series_id;"`
 	PatientID       string    `json:"patient_id" gorm:"column:patient_id;type:uuid"`
-	DoctorID        string    `json:"doctor_id" gorm:"column:doctor_id;type:uuid"`
-	OrganisationID  string    `json:"organisation_id" gorm:"column:organisation_id;type:uuid"`
+	DoctorID        string    `json:"doctor_id" gorm:"column:doctor_id;type:uuid;uniqueIndex:idx_org_doctor_start,priority:2,where:status <> 'cancelled' AND status <> 'missed'"`
+	OrganisationID  string    `json:"organisation_id" gorm:"column:organisation_id;type:uuid;uniqueIndex:idx_org_doctor_start,priority:1,where:status <> 'cancelled' AND status <> 'missed'"`
 	AppointmentDate time.Time `json:"appointment_date" gorm:"type:timestamp;column:appointment_date"`
-	StartTime       time.Time `json:"start_time" gorm:"column:start_time;type:timestamptz"`
+	StartTime       time.Time `json:"start_time" gorm:"column:start_time;type:timestamptz;uniqueIndex:idx_org_doctor_start,priority:3,where:status <> 'cancelled' AND status <> 'missed'"`
 	EndTime         time.Time `json:"end_time" gorm:"column:end_time;type:timestamptz"`
 	VisitType       string    `json:"visit_type" gorm:"column:visit_type;type:text"`
 	Status          Status    `json:"status" gorm:"column:status;type:text"`

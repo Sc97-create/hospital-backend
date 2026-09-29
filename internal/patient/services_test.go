@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"hospital-backend/internal/organisation"
-	orgmocks "hospital-backend/internal/organisation/mocks"
+	"hospital-backend/central/organisations"
+	orgmocks "hospital-backend/central/organisations/mocks"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/patient/dto"
 	"hospital-backend/internal/patient/mocks"
@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func newPatientService(t *testing.T, repo patient.PatientRepository, org organisation.OrganisationServicer) *patient.PatientService {
+func newPatientService(t *testing.T, repo patient.PatientRepository, org organisations.OrganisationServicer) *patient.PatientService {
 	t.Helper()
 	return patient.NewPatientService(repo, org, servicetest.NoopNotifier{})
 }
@@ -281,7 +281,7 @@ func TestCreatePatientSrv(t *testing.T) {
 			name:    "org not found",
 			payload: valid,
 			setup: func(_ *mocks.MockPatientRepository, org *orgmocks.MockOrganisationServicer) {
-				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisation.Organisation{}, wrapError.ErrOrganisationNotFound)
+				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisations.Organisation{}, wrapError.ErrOrganisationNotFound)
 			},
 			wantErr: wrapError.ErrOrganisationNotFound,
 		},
@@ -289,14 +289,14 @@ func TestCreatePatientSrv(t *testing.T) {
 			name:    "validation fail",
 			payload: dto.PatientInfo{OrganisationID: "org-1", Name: "", Gender: "male", Age: "30", Weight: "65"},
 			setup: func(_ *mocks.MockPatientRepository, org *orgmocks.MockOrganisationServicer) {
-				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisation.Organisation{ID: "org-1"}, nil)
+				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisations.Organisation{ID: "org-1"}, nil)
 			},
 		},
 		{
 			name:    "duplicate patient",
 			payload: valid,
 			setup: func(repo *mocks.MockPatientRepository, org *orgmocks.MockOrganisationServicer) {
-				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisation.Organisation{ID: "org-1", OrganisationName: "City Hospital"}, nil)
+				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisations.Organisation{ID: "org-1", FacilityName: "City Hospital"}, nil)
 				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("duplicate key"))
 			},
 			wantErr: wrapError.ErrPatientAlreadyExists,
@@ -305,7 +305,7 @@ func TestCreatePatientSrv(t *testing.T) {
 			name:    "repo create error",
 			payload: valid,
 			setup: func(repo *mocks.MockPatientRepository, org *orgmocks.MockOrganisationServicer) {
-				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisation.Organisation{ID: "org-1", OrganisationName: "City Hospital"}, nil)
+				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisations.Organisation{ID: "org-1", FacilityName: "City Hospital"}, nil)
 				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db fail"))
 			},
 			wantErr: wrapError.ErrPatientCreateFailed,
@@ -314,7 +314,7 @@ func TestCreatePatientSrv(t *testing.T) {
 			name:    "success",
 			payload: valid,
 			setup: func(repo *mocks.MockPatientRepository, org *orgmocks.MockOrganisationServicer) {
-				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisation.Organisation{ID: "org-1", OrganisationName: "City Hospital"}, nil)
+				org.EXPECT().GetOrgByID(gomock.Any(), "org-1").Return(organisations.Organisation{ID: "org-1", FacilityName: "City Hospital"}, nil)
 				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 			},
 		},

@@ -2,9 +2,6 @@ package razorpay
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"math"
@@ -12,6 +9,8 @@ import (
 
 	"hospital-backend/internal/payments/dto"
 	"hospital-backend/pkg/constants"
+
+	rzputils "github.com/razorpay/razorpay-go/utils"
 )
 
 type gateway struct {
@@ -99,10 +98,7 @@ func (g *gateway) VerifySignature(payload []byte, signature string) (bool, error
 	if signature == "" {
 		return false, errors.New("missing razorpay signature")
 	}
-	mac := hmac.New(sha256.New, []byte(g.client.PaymentConfig.WebhookSecret))
-	mac.Write(payload)
-	expected := hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(expected), []byte(signature)) {
+	if !rzputils.VerifyWebhookSignature(string(payload), signature, g.client.PaymentConfig.WebhookSecret) {
 		return false, errors.New("payment verification failed")
 	}
 	return true, nil
@@ -121,11 +117,16 @@ func (g *gateway) toParsedWebhookEvent(webhookEvent WebhookEvent, payload []byte
 	paymentLink := webhookEvent.Payload.PaymentLink.Entity
 	order := webhookEvent.Payload.Order.Entity
 
+	orderID := order.ID
+	if orderID == "" {
+		orderID = payment.OrderID
+	}
+
 	event := dto.ParsedWebhookEvent{
 		EventType:         webhookEvent.Event,
 		ProviderEventID:   webhookEvent.AccountID,
 		ProviderLinkID:    paymentLink.ID,
-		ProviderOrderID:   order.ID,
+		ProviderOrderID:   orderID,
 		ProviderPaymentID: payment.ID,
 		ReferenceID:       paymentLink.ReferenceID,
 		AmountPaid:        float64(payment.Amount) / 100, // paise → rupees

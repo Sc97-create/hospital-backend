@@ -140,7 +140,7 @@ SELECT
 	p.created_at AS consulted_on,
 	p.patient_id,
 	p.organisation_id,
-	o.organisation_name AS hospital_name,
+	o.facility_name AS hospital_name,
 	u.username AS doctor_name,
 	pa.name AS patient_name,
 	pa.email_id AS patient_email_id,

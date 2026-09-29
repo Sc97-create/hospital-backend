@@ -43,17 +43,17 @@ func (m *MockAppointmentRepository) EXPECT() *MockAppointmentRepositoryMockRecor
 }
 
 // Create mocks base method.
-func (m *MockAppointmentRepository) Create(log *zap.Logger, appointment *appointments.Appointment) error {
+func (m *MockAppointmentRepository) Create(log *zap.Logger, tx *gorm.DB, appointment *appointments.Appointment) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", log, appointment)
+	ret := m.ctrl.Call(m, "Create", log, tx, appointment)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockAppointmentRepositoryMockRecorder) Create(log, appointment any) *gomock.Call {
+func (mr *MockAppointmentRepositoryMockRecorder) Create(log, tx, appointment any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAppointmentRepository)(nil).Create), log, appointment)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAppointmentRepository)(nil).Create), log, tx, appointment)
 }
 
 // FindManyByOrganisationID mocks base method.

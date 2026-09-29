@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+	zap "go.uber.org/zap"
 )
 
 // MockRolePermissionServicer is a mock of RolePermissionServicer interface.
@@ -41,16 +42,16 @@ func (m *MockRolePermissionServicer) EXPECT() *MockRolePermissionServicerMockRec
 }
 
 // FindModulesByRoleID mocks base method.
-func (m *MockRolePermissionServicer) FindModulesByRoleID(roleID string) (dto.RoleAccess, error) {
+func (m *MockRolePermissionServicer) FindModulesByRoleID(log *zap.Logger, roleID string) (dto.RoleAccess, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindModulesByRoleID", roleID)
+	ret := m.ctrl.Call(m, "FindModulesByRoleID", log, roleID)
 	ret0, _ := ret[0].(dto.RoleAccess)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindModulesByRoleID indicates an expected call of FindModulesByRoleID.
-func (mr *MockRolePermissionServicerMockRecorder) FindModulesByRoleID(roleID any) *gomock.Call {
+func (mr *MockRolePermissionServicerMockRecorder) FindModulesByRoleID(log, roleID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindModulesByRoleID", reflect.TypeOf((*MockRolePermissionServicer)(nil).FindModulesByRoleID), roleID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindModulesByRoleID", reflect.TypeOf((*MockRolePermissionServicer)(nil).FindModulesByRoleID), log, roleID)
 }

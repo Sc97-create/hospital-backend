@@ -290,7 +290,7 @@ func TestServiceLogin(t *testing.T) {
 		}, nil)
 		jwtMock.EXPECT().InsertRefreshToken(gomock.Any(), gomock.Any(), user.ID, "jti-1").Return(nil)
 		repo.EXPECT().UpdateLastLoginAttempt(log, user.ID, user.LastLoginAttempt+1).Return(nil)
-		roleMock.EXPECT().FindModulesByRoleID(user.RoleID).Return(rpdto.RoleAccess{IsAdmin: true}, nil)
+		roleMock.EXPECT().FindModulesByRoleID(gomock.Any(), user.RoleID).Return(rpdto.RoleAccess{IsAdmin: true}, nil)
 
 		svc := newAuthService(t, repo, jwtMock, roleMock)
 		resp, err := svc.Login(log, login)
@@ -414,7 +414,7 @@ func TestServiceLogin(t *testing.T) {
 		jwtMock.EXPECT().FindIDByUserID(user.ID).Return("refresh-id", nil)
 		jwtMock.EXPECT().UpdateRefreshToken("refresh-id", user.ID, user.OrganisationID).Return("updated-refresh", nil)
 		repo.EXPECT().UpdateLastLoginAttempt(log, user.ID, user.LastLoginAttempt+1).Return(nil)
-		roleMock.EXPECT().FindModulesByRoleID(user.RoleID).Return(rpdto.RoleAccess{}, nil)
+		roleMock.EXPECT().FindModulesByRoleID(gomock.Any(), user.RoleID).Return(rpdto.RoleAccess{}, nil)
 
 		svc := newAuthService(t, repo, jwtMock, roleMock)
 		resp, err := svc.Login(log, login)
@@ -460,7 +460,7 @@ func TestServiceLogin(t *testing.T) {
 		jwtMock.EXPECT().FindIDByUserID(user.ID).Return("refresh-id", nil)
 		jwtMock.EXPECT().UpdateRefreshToken("refresh-id", user.ID, user.OrganisationID).Return("refresh", nil)
 		repo.EXPECT().UpdateLastLoginAttempt(log, user.ID, user.LastLoginAttempt+1).Return(nil)
-		roleMock.EXPECT().FindModulesByRoleID(user.RoleID).Return(rpdto.RoleAccess{}, errors.New("perm error"))
+		roleMock.EXPECT().FindModulesByRoleID(gomock.Any(), user.RoleID).Return(rpdto.RoleAccess{}, errors.New("perm error"))
 
 		svc := newAuthService(t, repo, jwtMock, roleMock)
 		_, err := svc.Login(log, login)
@@ -481,7 +481,7 @@ func TestServiceLogin(t *testing.T) {
 		jwtMock.EXPECT().FindIDByUserID(user.ID).Return("refresh-id", nil)
 		jwtMock.EXPECT().UpdateRefreshToken("refresh-id", user.ID, user.OrganisationID).Return("refresh-token", nil)
 		repo.EXPECT().UpdateLastLoginAttempt(log, user.ID, user.LastLoginAttempt+1).Return(nil)
-		roleMock.EXPECT().FindModulesByRoleID(user.RoleID).Return(rpdto.RoleAccess{IsAdmin: false, Permissions: perms}, nil)
+		roleMock.EXPECT().FindModulesByRoleID(gomock.Any(), user.RoleID).Return(rpdto.RoleAccess{IsAdmin: false, Permissions: perms}, nil)
 
 		svc := newAuthService(t, repo, jwtMock, roleMock)
 		resp, err := svc.Login(log, login)

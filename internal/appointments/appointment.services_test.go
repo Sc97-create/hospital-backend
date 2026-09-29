@@ -331,11 +331,11 @@ func TestGetAppointmentsGroupedByStatus(t *testing.T) {
 			setup: func(m *apptmocks.MockAppointmentRepository) {
 				m.EXPECT().FindManyByOrganisationID(gomock.Any(), gomock.Any(), gomock.Any()).Return([]map[string]interface{}{
 					{
-						"status": "ongoing",
+						"status":     "ongoing",
 						"start_time": now, "end_time": end, "appointment_date": today,
 					},
 					{
-						"status": "waiting",
+						"status":     "waiting",
 						"start_time": now, "end_time": end, "appointment_date": today,
 					},
 				}, nil)
@@ -480,16 +480,25 @@ func TestCreateApptmnt(t *testing.T) {
 			payload: payload,
 			setup: func(repo *apptmocks.MockAppointmentRepository, sched *adminmocks.MockOrganisationScheduleServicer) {
 				sched.EXPECT().GetScheduleByOrganisationID(gomock.Any(), "org-1").Return(servicetest.ValidOrgSchedule(), nil)
-				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db"))
+				repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db"))
 			},
 			wantErr: wrapError.ErrAppointmentCreateFailed,
+		},
+		{
+			name:    "slot already booked",
+			payload: payload,
+			setup: func(repo *apptmocks.MockAppointmentRepository, sched *adminmocks.MockOrganisationScheduleServicer) {
+				sched.EXPECT().GetScheduleByOrganisationID(gomock.Any(), "org-1").Return(servicetest.ValidOrgSchedule(), nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("duplicate key value violates unique constraint \"idx_org_doctor_start\""))
+			},
+			wantErr: wrapError.ErrAppointmentSlotTaken,
 		},
 		{
 			name:    "success",
 			payload: payload,
 			setup: func(repo *apptmocks.MockAppointmentRepository, sched *adminmocks.MockOrganisationScheduleServicer) {
 				sched.EXPECT().GetScheduleByOrganisationID(gomock.Any(), "org-1").Return(servicetest.ValidOrgSchedule(), nil)
-				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				repo.EXPECT().GetNotificationsDetails(gomock.Any(), gomock.Any(), gomock.Any()).Return(map[string]interface{}{
 					"patient_id": "pat-1",
 				}, nil)

@@ -10,6 +10,7 @@ import (
 	"hospital-backend/internal/permissions/mocks"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 func newPermService(t *testing.T, permRepo permissions.PermissionRepo, moduleRepo modules.ModuleRepo) *permissions.PermService {
@@ -28,23 +29,23 @@ func TestServiceFindMany(t *testing.T) {
 		{
 			name: "permission repo error",
 			setup: func(perm *mocks.MockPermissionRepo, _ *modmocks.MockModuleRepo) {
-				perm.EXPECT().FindMany().Return(nil, errors.New("perm error"))
+				perm.EXPECT().FindMany(gomock.Any()).Return(nil, errors.New("perm error"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "module repo error",
 			setup: func(perm *mocks.MockPermissionRepo, mod *modmocks.MockModuleRepo) {
-				perm.EXPECT().FindMany().Return([]permissions.Permission{{ID: "p1"}}, nil)
-				mod.EXPECT().FindMany().Return(nil, errors.New("module error"))
+				perm.EXPECT().FindMany(gomock.Any()).Return([]permissions.Permission{{ID: "p1"}}, nil)
+				mod.EXPECT().FindMany(gomock.Any()).Return(nil, errors.New("module error"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "success",
 			setup: func(perm *mocks.MockPermissionRepo, mod *modmocks.MockModuleRepo) {
-				perm.EXPECT().FindMany().Return([]permissions.Permission{{ID: "p1", Name: "view"}}, nil)
-				mod.EXPECT().FindMany().Return([]modules.Modules{{ID: "m1", Name: "patient"}}, nil)
+				perm.EXPECT().FindMany(gomock.Any()).Return([]permissions.Permission{{ID: "p1", Name: "view"}}, nil)
+				mod.EXPECT().FindMany(gomock.Any()).Return([]modules.Modules{{ID: "m1", Name: "patient"}}, nil)
 			},
 			wantMod:  1,
 			wantPerm: 1,
@@ -61,7 +62,7 @@ func TestServiceFindMany(t *testing.T) {
 			}
 
 			svc := newPermService(t, permRepo, modRepo)
-			mods, perms, err := svc.FindMany()
+			mods, perms, err := svc.FindMany(zap.NewNop())
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -82,10 +83,10 @@ func TestServiceDefaultPerm(t *testing.T) {
 	t.Run("batch insert error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		permRepo := mocks.NewMockPermissionRepo(ctrl)
-		permRepo.EXPECT().BatchInsert(gomock.Any(), 2).Return(errors.New("insert failed"))
+		permRepo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), 2).Return(errors.New("insert failed"))
 
 		svc := newPermService(t, permRepo, nil)
-		if err := svc.DefaultPerm(); err == nil {
+		if err := svc.DefaultPerm(zap.NewNop()); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -93,8 +94,8 @@ func TestServiceDefaultPerm(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		permRepo := mocks.NewMockPermissionRepo(ctrl)
-		permRepo.EXPECT().BatchInsert(gomock.Any(), 2).DoAndReturn(
-			func(perms []permissions.Permission, batchSize int) error {
+		permRepo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), 2).DoAndReturn(
+			func(_ *zap.Logger, perms []permissions.Permission, batchSize int) error {
 				if batchSize != 2 {
 					t.Fatalf("expected batch size 2, got %d", batchSize)
 				}
@@ -114,7 +115,7 @@ func TestServiceDefaultPerm(t *testing.T) {
 		)
 
 		svc := newPermService(t, permRepo, nil)
-		if err := svc.DefaultPerm(); err != nil {
+		if err := svc.DefaultPerm(zap.NewNop()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

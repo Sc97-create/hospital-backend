@@ -12,7 +12,7 @@ package hospitalbackend
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/rolepermissions/mocks/mock_role_permission_servicer.go -package=mocks hospital-backend/internal/rolepermissions RolePermissionServicer
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/permissions/mocks/mock_permission_servicer.go -package=mocks hospital-backend/internal/permissions PermissionServicer
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/employee/mocks/mock_employee_servicer.go -package=mocks hospital-backend/internal/employee EmployeeServicer
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/organisation/mocks/mock_organisation_servicer.go -package=mocks hospital-backend/internal/organisation OrganisationServicer
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=central/organisations/mocks/mock_organisation_servicer.go -package=mocks hospital-backend/central/organisations OrganisationServicer
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/payments/mocks/mock_payment_servicer.go -package=mocks hospital-backend/internal/payments PaymentServicer,WebhookServicer
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/prescription/mocks/mock_prescription_servicer.go -package=mocks hospital-backend/internal/prescription PrescriptionServicer,PrescriptionItemServicer
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/medicine/mocks/mock_medicine_servicer.go -package=mocks hospital-backend/internal/medicine MedicineServicer,SupplierServicer
@@ -36,8 +36,7 @@ package hospitalbackend
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/roles/mocks/mock_role_repository.go -package=mocks hospital-backend/internal/roles RoleRepository
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/permissions/mocks/mock_permission_repository.go -package=mocks hospital-backend/internal/permissions PermissionRepo
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/employee/mocks/mock_employee_repository.go -package=mocks hospital-backend/internal/employee EmployeeRepository
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/organisation/mocks/mock_signup_deps.go -package=mocks hospital-backend/internal/organisation PermissionCatalogLookup,RoleSeeder,DepartmentSeeder,RolePermissionSeeder
-//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/organisation/mocks/mock_organisation_repository.go -package=mocks hospital-backend/internal/organisation OrganisationRepo
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=central/organisations/mocks/mock_organisation_repository.go -package=mocks hospital-backend/central/organisations OrganisationRepo
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/payments/mocks/mock_payments_repository.go -package=mocks hospital-backend/internal/payments IPaymentsRepository,IWebhookRepository,IPaymentAttempts
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/payments/mocks/mock_payment_fulfillment.go -package=mocks hospital-backend/internal/payments IPaymentFulfillment,PaymentAttemptServicer,FulfillmentServicer,PaymentInvoiceLookup,PrescriptionStatusUpdater
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=internal/payments/providers/mocks/mock_provider.go -package=mocks hospital-backend/internal/payments/providers Provider,IPaymentFactory
