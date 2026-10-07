@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"hospital-backend/internal/billing/dto"
+	patientdto "hospital-backend/internal/patient/dto"
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/zap"
@@ -15,7 +16,7 @@ func TestValidatePaymentTypeInputs(t *testing.T) {
 	log := zap.NewNop()
 
 	if err := svc.validatePaymentTypeInputs(log, PaymentTypePrescription, dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrInvalidRequest) {
-		t.Fatalf("expected missing prescription_id error, got %v", err)
+		t.Fatalf("expected missing billing_id error, got %v", err)
 	}
 
 	if err := svc.validatePaymentTypeInputs(log, PaymentType("bad"), dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrInvalidPaymentType) {
@@ -44,7 +45,7 @@ func TestToInvoiceModel(t *testing.T) {
 		PatientID:      "pat-1",
 		CashierID:      "cash-1",
 		OrganisationID: "org-1",
-		PrescriptionID: "rx-1",
+		BillingID:      "rx-1",
 		Financials: dto.Financial{
 			SubtotalAmount: 100,
 			TaxAmount:      10,
@@ -59,14 +60,49 @@ func TestToInvoiceModel(t *testing.T) {
 	if inv.PaymentType != PaymentTypePrescription || inv.Status != StatusUnpaid {
 		t.Fatalf("unexpected invoice fields: %+v", inv)
 	}
-	if inv.PrescriptionID == nil || *inv.PrescriptionID != "rx-1" {
-		t.Fatal("expected prescription id pointer")
+	if inv.BillingID != "rx-1" {
+		t.Fatal("expected billing id for prescription")
 	}
 
-	req.AppointmentID = "appt-1"
+	req.BillingID = "appt-1"
 	inv = svc.toInvoiceModel(req, PaymentTypeConsultation)
-	if inv.AppointmentID == nil || *inv.AppointmentID != "appt-1" {
-		t.Fatal("expected appointment id pointer for consultation")
+	if inv.BillingID != "appt-1" || inv.PaymentType != PaymentTypeConsultation {
+		t.Fatal("expected billing id for consultation")
+	}
+}
+
+func TestToPaymentlinkModelBillingID(t *testing.T) {
+	svc := &InvoiceServ{}
+	patient := patientdto.PatientResponse{
+		PatientID:    "pat-1",
+		PatientName:  "Ada",
+		PatientEmail: "ada@example.com",
+		PatientPhone: "999",
+	}
+	req := dto.CheckoutReq{
+		BillingID:      "rx-billing-1",
+		CashierID:      "cash-1",
+		PaymentMode:    "upi",
+		IdempotencyKey: "idem-rx",
+		Financials:     dto.Financial{TotalAmount: 150.4},
+	}
+
+	cmd := svc.toPaymentlinkModel(req, patient, "inv-1", "INV-1", PaymentTypePrescription)
+	if cmd.InvoiceID != "inv-1" {
+		t.Fatalf("expected invoice_id inv-1, got %q", cmd.InvoiceID)
+	}
+	if cmd.PrescriptionID != "rx-billing-1" {
+		t.Fatalf("prescription payment must carry billing_id as prescription_id, got %q", cmd.PrescriptionID)
+	}
+
+	req.BillingID = "appt-billing-1"
+	req.IdempotencyKey = "idem-appt"
+	cmd = svc.toPaymentlinkModel(req, patient, "inv-2", "INV-2", PaymentTypeConsultation)
+	if cmd.PrescriptionID != "" {
+		t.Fatalf("consultation payment must not set prescription_id from billing_id, got %q", cmd.PrescriptionID)
+	}
+	if cmd.InvoiceID != "inv-2" {
+		t.Fatalf("expected invoice_id inv-2, got %q", cmd.InvoiceID)
 	}
 }
 

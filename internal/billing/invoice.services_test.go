@@ -87,11 +87,11 @@ func TestCreateInvoiceValidation(t *testing.T) {
 	}
 
 	req = servicetest.ValidCheckoutReq()
-	req.PrescriptionID = ""
+	req.BillingID = ""
 	svc = newInvoiceServ(nil, stubPayment{idemErr: gorm.ErrRecordNotFound}, nil, nil)
 	_, err = svc.CreateInvoice(servicetest.NopLogger(), req)
 	if !errors.Is(err, wrapError.ErrInvalidRequest) {
-		t.Fatalf("expected missing prescription_id, got %v", err)
+		t.Fatalf("expected missing billing_id, got %v", err)
 	}
 }
 
@@ -113,16 +113,15 @@ func TestCreateInvoiceIdempotencyReplay(t *testing.T) {
 func TestCreateInvoiceConsultationValidation(t *testing.T) {
 	req := servicetest.ValidCheckoutReq()
 	req.PaymentType = "consultation"
-	req.PrescriptionID = ""
-	req.AppointmentID = ""
+	req.BillingID = ""
 
 	svc := newInvoiceServ(nil, stubPayment{idemErr: gorm.ErrRecordNotFound}, nil, stubAppointment{})
 	_, err := svc.CreateInvoice(servicetest.NopLogger(), req)
 	if !errors.Is(err, wrapError.ErrInvalidRequest) {
-		t.Fatalf("expected missing appointment_id, got %v", err)
+		t.Fatalf("expected missing billing_id, got %v", err)
 	}
 
-	req.AppointmentID = "appt-1"
+	req.BillingID = "appt-1"
 	svc = newInvoiceServ(
 		nil,
 		stubPayment{idemErr: gorm.ErrRecordNotFound},
@@ -147,7 +146,7 @@ func TestServiceGetInvoiceByPrescriptionID(t *testing.T) {
 			name: "not found",
 			id:   "rx-1",
 			setup: func(m *billingmocks.MockInvoiceRepo) {
-				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1").Return(billing.InvoiceWithPayment{}, gorm.ErrRecordNotFound)
+				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1", "prescription").Return(billing.InvoiceWithPayment{}, gorm.ErrRecordNotFound)
 			},
 			wantErr: wrapError.ErrInvoiceNotFound,
 		},
@@ -155,7 +154,7 @@ func TestServiceGetInvoiceByPrescriptionID(t *testing.T) {
 			name: "db error",
 			id:   "rx-1",
 			setup: func(m *billingmocks.MockInvoiceRepo) {
-				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1").Return(billing.InvoiceWithPayment{}, errors.New("db"))
+				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1", "prescription").Return(billing.InvoiceWithPayment{}, errors.New("db"))
 			},
 			wantErr: wrapError.ErrInvoiceFetchFailed,
 		},
@@ -163,7 +162,7 @@ func TestServiceGetInvoiceByPrescriptionID(t *testing.T) {
 			name: "success",
 			id:   "rx-1",
 			setup: func(m *billingmocks.MockInvoiceRepo) {
-				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1").Return(billing.InvoiceWithPayment{
+				m.EXPECT().GetInvoiceByPrescriptionID(gomock.Any(), gomock.Any(), "rx-1", "prescription").Return(billing.InvoiceWithPayment{
 					Invoice: billing.Invoice{ID: "inv-1", Status: billing.StatusUnpaid},
 				}, nil)
 			},
@@ -198,7 +197,7 @@ func TestServiceGetInvoiceByPrescriptionID(t *testing.T) {
 func TestServiceGetInvoiceByAppointmentID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := billingmocks.NewMockInvoiceRepo(ctrl)
-	repo.EXPECT().GetInvoiceByAppointmentID(gomock.Any(), gomock.Any(), "appt-1").Return(billing.InvoiceWithPayment{
+	repo.EXPECT().GetInvoiceByAppointmentID(gomock.Any(), gomock.Any(), "appt-1", "consultation").Return(billing.InvoiceWithPayment{
 		Invoice: billing.Invoice{ID: "inv-1"},
 	}, nil)
 

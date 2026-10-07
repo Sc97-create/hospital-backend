@@ -19,7 +19,7 @@ const validCheckoutBody = `{
 		"cashier_id":"cash-1",
 		"payment_mode":"cash",
 		"organisation_id":"org-1",
-		"prescription_id":"rx-1",
+		"billing_id":"rx-1",
 		"financials":{"sub_total_amount":100,"tax_amount":10,"total_amount":110},
 		"dispense_items":[{
 			"medicine_id":"med-1",
@@ -51,7 +51,7 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name:       "missing patient_id",
-			body:       `{"cashier_id":"c1","payment_mode":"cash","organisation_id":"o1","financials":{"sub_total_amount":1,"tax_amount":0,"total_amount":1},"prescription_id":"rx-1","dispense_items":[]}`,
+			body:       `{"cashier_id":"c1","payment_mode":"cash","organisation_id":"o1","financials":{"sub_total_amount":1,"tax_amount":0,"total_amount":1},"billing_id":"rx-1","dispense_items":[]}`,
 			headers:    map[string]string{"Idempotency-Key": "key-1"},
 			wantStatus: fiber.StatusBadRequest,
 		},

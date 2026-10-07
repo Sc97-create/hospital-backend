@@ -47,10 +47,10 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 
 	var checkoutReq dto.CheckoutReq
 	// Optional: empty payment_type defaults to "prescription" in the service (back-compat).
-	// supplier_id is only meaningful for a prescription checkout, and appointment_id only for consultation.
+	// supplier_id is only meaningful for a prescription checkout.
 	checkoutReq.PaymentType, _ = payload.Getstring("payment_type")
 	checkoutReq.SupplierID, _ = payload.Getstring("supplier_id")
-	checkoutReq.AppointmentID, _ = payload.Getstring("appointment_id")
+	checkoutReq.BillingID, _ = payload.Getstring("billing_id")
 
 	checkoutReq.PatientID, err = payload.Getstring("patient_id")
 	if err != nil {
@@ -88,14 +88,13 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 	if err = IB.parsePrescriptionFields(payload, &checkoutReq); err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "prescription_id/dispense_items"))
+		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "billing_id/dispense_items"))
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
 	logger.Info("invoice checkout attempt",
 		zap.String("payment_type", checkoutReq.PaymentType),
-		zap.String("prescription_id", checkoutReq.PrescriptionID),
-		zap.String("appointment_id", checkoutReq.AppointmentID),
+		zap.String("billing_id", checkoutReq.BillingID),
 		zap.String("patient_id", checkoutReq.PatientID),
 		zap.String("organisation_id", checkoutReq.OrganisationID),
 		zap.String("cashier_id", checkoutReq.CashierID),
@@ -132,16 +131,18 @@ func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 	}
 }
 
-// parsePrescriptionFields parses prescription_id + dispense_items — required only for a
-// prescription checkout. Consultation checkouts (payment_type=consultation) have neither.
+// parsePrescriptionFields requires billing_id + dispense_items for prescription checkout.
+// Consultation checkouts only need billing_id (already read above; service validates).
 func (IB *Ibilling) parsePrescriptionFields(payload *params.Payload, checkoutReq *dto.CheckoutReq) error {
 	if checkoutReq.PaymentType == string(PaymentTypeConsultation) {
 		return nil
 	}
 	var err error
-	checkoutReq.PrescriptionID, err = payload.Getstring("prescription_id")
-	if err != nil {
-		return err
+	if strings.TrimSpace(checkoutReq.BillingID) == "" {
+		checkoutReq.BillingID, err = payload.Getstring("billing_id")
+		if err != nil {
+			return err
+		}
 	}
 	items, err := payload.GetChildren("dispense_items")
 	if err != nil {

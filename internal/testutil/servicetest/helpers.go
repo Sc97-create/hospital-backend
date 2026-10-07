@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
+	orgdto "hospital-backend/central/organisations/dto"
 	admindto "hospital-backend/internal/admins/dto"
-	authdto "hospital-backend/internal/authentication/dto"
 	apptdto "hospital-backend/internal/appointments/dto"
+	authdto "hospital-backend/internal/authentication/dto"
 	"hospital-backend/internal/billing/dto"
 	"hospital-backend/internal/employee"
 	empdto "hospital-backend/internal/employee/dto"
 	meddto "hospital-backend/internal/medicine/dto"
 	notificationdto "hospital-backend/internal/notifications/dto"
-	orgdto "hospital-backend/central/organisations/dto"
 	patientdto "hospital-backend/internal/patient/dto"
 	paymentdto "hospital-backend/internal/payments/dto"
 	prescdto "hospital-backend/internal/prescription/dto"
@@ -89,7 +89,7 @@ func ValidCheckoutReq() dto.CheckoutReq {
 	return dto.CheckoutReq{
 		IdempotencyKey: "idem-1",
 		PaymentType:    "prescription",
-		PrescriptionID: "rx-1",
+		BillingID:      "rx-1",
 		PatientID:      "pat-1",
 		CashierID:      "cash-1",
 		OrganisationID: "org-1",

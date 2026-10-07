@@ -4,7 +4,7 @@ import "hospital-backend/pkg/types"
 
 type MedInvoiceItemResponse struct {
 	PrescriptionItemID            string        `json:"prescription_item_id"`
-	PrescriptionID                string        `json:"prescription_id"` // from invoices.prescription_id
+	PrescriptionID                string        `json:"prescription_id"` // invoices.billing_id when payment_type=prescription
 	MedicineInventoryID           string        `json:"medicine_inventory_id"`
 	OrganisationID                string        `json:"organisation_id"`
 	MedicineID                    string        `json:"medicine_id"`
@@ -28,8 +28,7 @@ type InvoiceByPrescriptionResponse struct {
 	ID             string  `json:"id"`
 	InvoiceCode    string  `json:"invoice_code"`
 	PaymentType    string  `json:"payment_type"`
-	PrescriptionID string  `json:"prescription_id,omitempty"`
-	AppointmentID  string  `json:"appointment_id,omitempty"`
+	BillingID      string  `json:"billing_id"`
 	PatientID      string  `json:"patient_id"`
 	Status         string  `json:"status"`
 	CashierID      string  `json:"cashier_id"`
