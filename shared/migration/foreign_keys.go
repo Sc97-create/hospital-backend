@@ -9,6 +9,16 @@ import (
 // ensureSharedForeignKeys adds FKs for models AutoMigrated in this package
 // (no dedicated package migrate helper owns them).
 func ensureSharedForeignKeys(gdb *gorm.DB) error {
+	// notifications intentionally has no FKs (org/patient/employee refs are soft).
+	for _, sql := range []string{
+		`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS fk_notifications_organisation`,
+		`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS fk_notifications_patient`,
+		`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS fk_notifications_employee`,
+	} {
+		if err := gdb.Exec(sql).Error; err != nil {
+			return err
+		}
+	}
 	return db.EnsureForeignKeys(gdb, []string{
 		// Central
 		`ALTER TABLE organisations
@@ -98,19 +108,7 @@ func ensureSharedForeignKeys(gdb *gorm.DB) error {
 		   FOREIGN KEY (organisation_id) REFERENCES organisations(id)
 		   ON UPDATE CASCADE ON DELETE RESTRICT`,
 
-		// Notifications
-		`ALTER TABLE notifications
-		   ADD CONSTRAINT fk_notifications_organisation
-		   FOREIGN KEY (organisation_id) REFERENCES organisations(id)
-		   ON UPDATE CASCADE ON DELETE RESTRICT`,
-		`ALTER TABLE notifications
-		   ADD CONSTRAINT fk_notifications_patient
-		   FOREIGN KEY (patient_id) REFERENCES patients(id)
-		   ON UPDATE CASCADE ON DELETE RESTRICT`,
-		`ALTER TABLE notifications
-		   ADD CONSTRAINT fk_notifications_employee
-		   FOREIGN KEY (employee_id) REFERENCES users(id)
-		   ON UPDATE CASCADE ON DELETE RESTRICT`,
+		// notification_attempts → notifications (notifications itself has no FKs)
 		`ALTER TABLE notification_attempts
 		   ADD CONSTRAINT fk_notification_attempts_notification
 		   FOREIGN KEY (notification_id) REFERENCES notifications(id)

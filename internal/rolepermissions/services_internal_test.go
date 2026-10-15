@@ -8,14 +8,12 @@ import (
 	"hospital-backend/internal/rolepermissions/dto"
 	"hospital-backend/internal/roles"
 	"hospital-backend/pkg/constants"
-
-	"github.com/lib/pq"
 )
 
 func TestMapModulePermissionRows(t *testing.T) {
 	rows := []dto.ModulePermissionRow{
-		{ModuleName: "patient", PermissionNames: pq.StringArray{"view", "create", "unknown"}},
-		{ModuleName: "billing", PermissionNames: pq.StringArray{"update", "delete"}},
+		{ModuleName: "patient", PermissionNames: []string{"view", "create", "unknown"}},
+		{ModuleName: "billing", PermissionNames: []string{"update", "delete"}},
 	}
 
 	got := mapModulePermissionRows(rows)
@@ -221,5 +219,88 @@ func TestCreateRPModel_DoctorDashboardView(t *testing.T) {
 	}
 	if !dashboardView {
 		t.Fatal("doctor missing dashboard view permission")
+	}
+}
+
+func TestCreateRPModel_DoctorLabCreateViewNoUpdate(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-doctor", Name: roles.DefaultRoleDoctor}}
+	permArr := []permissions.Permission{
+		{ID: "p-create", Name: permissions.Create},
+		{ID: "p-view", Name: permissions.View},
+		{ID: "p-update", Name: permissions.Update},
+	}
+	modArr := []modules.Modules{{ID: "m-lab", Name: constants.Lab}}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	got := map[string]bool{}
+	for _, row := range rows {
+		if row.RoleID != "role-doctor" || row.ModuleID == nil || *row.ModuleID != "m-lab" || row.PermissionID == nil {
+			continue
+		}
+		got[*row.PermissionID] = true
+	}
+	if !got["p-create"] || !got["p-view"] {
+		t.Fatalf("doctor missing lab create/view: %+v", got)
+	}
+	if got["p-update"] {
+		t.Fatal("doctor must not have lab update (status changes)")
+	}
+}
+
+func TestCreateRPModel_LabTechnicianBillingCheckout(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-lab", Name: roles.DefaultRoleLabTechnician}}
+	permArr := []permissions.Permission{
+		{ID: "p-view", Name: permissions.View},
+		{ID: "p-create", Name: permissions.Create},
+		{ID: "p-update", Name: permissions.Update},
+	}
+	modArr := []modules.Modules{{ID: "m-billing", Name: constants.Billing}}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	billingPerms := make(map[string]bool)
+	for _, row := range rows {
+		if row.RoleID != "role-lab" || row.ModuleID == nil || *row.ModuleID != "m-billing" || row.PermissionID == nil {
+			continue
+		}
+		billingPerms[*row.PermissionID] = true
+	}
+	for _, want := range []string{"p-view", "p-create", "p-update"} {
+		if !billingPerms[want] {
+			t.Fatalf("lab technician missing billing permission %q for checkout/payment", want)
+		}
+	}
+}
+
+func TestCreateRPModel_LabTechnicianLabViewUpdateNoCreate(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-lab", Name: roles.DefaultRoleLabTechnician}}
+	permArr := []permissions.Permission{
+		{ID: "p-view", Name: permissions.View},
+		{ID: "p-create", Name: permissions.Create},
+		{ID: "p-update", Name: permissions.Update},
+	}
+	modArr := []modules.Modules{{ID: "m-lab", Name: constants.Lab}}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	labPerms := make(map[string]bool)
+	for _, row := range rows {
+		if row.RoleID != "role-lab" || row.ModuleID == nil || *row.ModuleID != "m-lab" || row.PermissionID == nil {
+			continue
+		}
+		labPerms[*row.PermissionID] = true
+	}
+	if !labPerms["p-view"] || !labPerms["p-update"] {
+		t.Fatalf("lab technician missing lab view/update: %+v", labPerms)
+	}
+	if labPerms["p-create"] {
+		t.Fatal("lab technician must not have lab create")
 	}
 }

@@ -70,7 +70,8 @@ func (RPerm *RolePermissionDb) FindById(log *zap.Logger, id string) (*RolePermis
 
 func (RPerm *RolePermissionDb) FindModulePermissionsByRoleID(log *zap.Logger, roleID string) ([]dto.ModulePermissionRow, error) {
 	log = ensureLog(log)
-	query := `SELECT mo.name AS module_name, array_agg(pr.name) AS permission_names
+	query := `SELECT mo.name AS module_name,
+			COALESCE(json_agg(pr.name), '[]'::json) AS permission_names
 		FROM role_permissions rp
 		JOIN modules mo ON rp.module_id = mo.id
 		JOIN permissions pr ON rp.permission_id = pr.id

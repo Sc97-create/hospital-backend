@@ -16,6 +16,7 @@ type InvoiceServicer interface {
 	CreateInvoice(log *zap.Logger, reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error)
 	GetInvoiceByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.InvoiceByPrescriptionResponse, error)
 	GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error)
+	CheckBillingExists(log *zap.Logger, billingID string) (int64, error)
 	GetBillDetailsByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.BillDetailsByPrescriptionResponse, error)
 	RetryPaymentLink(log *zap.Logger, invoiceID, idempotencyKey string) (dto.InvoiceResponse, error)
 }
@@ -28,6 +29,7 @@ type BillingHandler interface {
 	Checkout(c *fiber.Ctx) error
 	GetInvoiceByPrescriptionID(c *fiber.Ctx) error
 	GetInvoiceByAppointmentID(c *fiber.Ctx) error
+	CheckBillingExists(c *fiber.Ctx) error
 	GetBillDetailsByPrescriptionID(c *fiber.Ctx) error
 	RetryPaymentLink(c *fiber.Ctx) error
 }
@@ -113,10 +115,12 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, wrapErrors.ErrInvoiceAlreadyExists),
-		errors.Is(err, wrapErrors.ErrAppointmentAlreadyBilled):
+		errors.Is(err, wrapErrors.ErrAppointmentAlreadyBilled),
+		errors.Is(err, wrapErrors.ErrLabOrderAlreadyBilled):
 		return wrapErrors.Wrap(err, c, fiber.StatusConflict)
 	case errors.Is(err, wrapErrors.ErrPatientNotFound),
-		errors.Is(err, wrapErrors.ErrAppointmentNotFound):
+		errors.Is(err, wrapErrors.ErrAppointmentNotFound),
+		errors.Is(err, wrapErrors.ErrLabOrderNotFound):
 		return wrapErrors.Wrap(err, c, fiber.StatusNotFound)
 	case errors.Is(err, wrapErrors.ErrMedicineNotInPrescription),
 		errors.Is(err, wrapErrors.ErrQtyExceedsRemaining),
@@ -124,6 +128,7 @@ func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 		errors.Is(err, wrapErrors.ErrUnsupportedPaymentMode),
 		errors.Is(err, wrapErrors.ErrInvalidPaymentType),
 		errors.Is(err, wrapErrors.ErrAppointmentMismatch),
+		errors.Is(err, wrapErrors.ErrLabOrderMismatch),
 		errors.Is(err, wrapErrors.ErrInvalidRequest):
 		return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
 	default:
@@ -132,9 +137,10 @@ func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 }
 
 // parsePrescriptionFields requires billing_id + dispense_items for prescription checkout.
-// Consultation checkouts only need billing_id (already read above; service validates).
+// Consultation / lab_order checkouts only need billing_id (already read above; service validates).
 func (IB *Ibilling) parsePrescriptionFields(payload *params.Payload, checkoutReq *dto.CheckoutReq) error {
-	if checkoutReq.PaymentType == string(PaymentTypeConsultation) {
+	if checkoutReq.PaymentType == string(PaymentTypeConsultation) ||
+		checkoutReq.PaymentType == string(PaymentTypeLabOrder) {
 		return nil
 	}
 	var err error
@@ -209,6 +215,28 @@ func (IB *Ibilling) wrapBillDetailsError(c *fiber.Ctx, err error) error {
 	default:
 		return wrapErrors.Wrap(err, c, fiber.StatusInternalServerError)
 	}
+}
+
+// CheckBillingExists returns count 1 if an invoice exists for billing_id, otherwise 0.
+func (IB *Ibilling) CheckBillingExists(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	billingID := strings.TrimSpace(c.Params("billingID"))
+	if billingID == "" {
+		logger.Warn("billing exists check request invalid", zap.String("reason", "missing_billing_id"))
+		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	count, err := IB.BillingServ.CheckBillingExists(logger, billingID)
+	if err != nil {
+		if errors.Is(err, wrapErrors.ErrInvalidRequest) {
+			return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
+		}
+		return wrapErrors.Wrap(wrapErrors.ErrInvoiceFetchFailed, c, fiber.StatusInternalServerError)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"code":  200,
+		"count": count,
+	})
 }
 
 // GetInvoiceByAppointmentID is the consultation-invoice lookup — consultation invoices have

@@ -72,6 +72,21 @@ func (mr *MockInvoiceServicerMockRecorder) GetBillDetailsByPrescriptionID(log, p
 }
 
 // GetInvoiceByAppointmentID mocks base method.
+// CheckBillingExists mocks base method.
+func (m *MockInvoiceServicer) CheckBillingExists(log *zap.Logger, billingID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckBillingExists", log, billingID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CheckBillingExists indicates an expected call of CheckBillingExists.
+func (mr *MockInvoiceServicerMockRecorder) CheckBillingExists(log, billingID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckBillingExists", reflect.TypeOf((*MockInvoiceServicer)(nil).CheckBillingExists), log, billingID)
+}
+
 func (m *MockInvoiceServicer) GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetInvoiceByAppointmentID", log, appointmentID)

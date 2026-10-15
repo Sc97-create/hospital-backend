@@ -151,6 +151,15 @@ func (s *FulfillmentService) FulfillPaidInvoice(log *zap.Logger, tx *gorm.DB, in
 		return wrapError.ErrPaymentFulfillFailed
 	}
 
+	if err = s.Deps.MarkLabOrderPaidForInvoice(tx, invoiceID); err != nil {
+		log.Error("payment fulfillment failed",
+			zap.String("invoice_id", invoiceID),
+			zap.String("reason", "lab_order_payment_flag"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPaymentFulfillFailed
+	}
+
 	log.Info("payment fulfillment success",
 		zap.String("invoice_id", invoiceID),
 		zap.String("prescription_id", prescriptionID),

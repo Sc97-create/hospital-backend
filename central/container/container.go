@@ -16,6 +16,7 @@ import (
 
 // Deps are hospital-side collaborators central does not own.
 // Access tokens are minted by calling the internal JWT API.
+// Hospital admin provisioning is wired in appinit onto Organisations/Tenants.Admin.
 type Deps struct {
 	Verifier      middleware.TokenVerifier
 	Notifications customers.NotificationEnqueuer
@@ -54,9 +55,6 @@ func New(db *gorm.DB, cfg *config.Config, deps Deps) *Container {
 		cfg.RazorPayClient.RPayConfig.ApiKey,
 	)
 	customerService := customers.NewCustomerService(customerRepo, api, deps.Notifications)
-	api.Customers = customerService
-	organisationService.Admin = api
-	tenantService.Admin = api
 	return &Container{
 		Organisations: organisationService,
 		Tenants:       tenantService,

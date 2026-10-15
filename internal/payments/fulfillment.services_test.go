@@ -69,6 +69,10 @@ func (s *stubFulfillmentDeps) UpdateInvoiceStatus(_ *gorm.DB, invoiceID, status 
 	return s.updateInvoiceErr
 }
 
+func (s *stubFulfillmentDeps) MarkLabOrderPaidForInvoice(_ *gorm.DB, _ string) error {
+	return nil
+}
+
 func (s *stubFulfillmentDeps) GetNotificationPatientByID(_ string) (map[string]interface{}, error) {
 	return s.patientInfo, s.patientErr
 }

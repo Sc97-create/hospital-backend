@@ -18,6 +18,7 @@ type InvoiceRepo interface {
 	GetInvoiceByPrescriptionID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error)
 	GetInvoiceByAppointmentID(log *zap.Logger, query string, args ...any) (InvoiceWithPayment, error)
 	GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error)
+	CountByBillingID(log *zap.Logger, billingID string) (int64, error)
 	GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args ...any) (BillDetailsRow, error)
 	GetTodayCompletedInvoiceSummary(log *zap.Logger, query string, organisationID string) ([]TodayInvoiceCollectionRow, error)
 }
@@ -79,6 +80,20 @@ func (d *DB) GetInvoiceByID(log *zap.Logger, invoiceID string) (Invoice, error) 
 		return invoice, err
 	}
 	return invoice, err
+}
+
+func (d *DB) CountByBillingID(log *zap.Logger, billingID string) (int64, error) {
+	log = ensureLog(log)
+	var count int64
+	err := d.db.Raw(
+		`SELECT CASE WHEN EXISTS (SELECT 1 FROM invoices WHERE billing_id = ?) THEN 1 ELSE 0 END`,
+		billingID,
+	).Scan(&count).Error
+	if err != nil {
+		log.Error("billing repo error", zap.String("op", "CountByBillingID"), zap.Error(err))
+		return 0, err
+	}
+	return count, nil
 }
 
 func (d *DB) GetBillDetailsByPrescriptionID(log *zap.Logger, query string, args ...any) (BillDetailsRow, error) {

@@ -29,6 +29,8 @@ type IPaymentFulfillment interface {
 	UpdateExtPrescriptionStatus(tx *gorm.DB, prescriptionID string, status string) error   // prescription-level status
 	ResolveAndUpdateParentPrescriptionStatus(tx *gorm.DB, prescriptionID string, medicineInventoryDet []invoiceDto.MedInvoiceItemResponse) error
 	UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error
+	// MarkLabOrderPaidForInvoice sets lab_orders.is_payment=true when invoice is lab_order.
+	MarkLabOrderPaidForInvoice(tx *gorm.DB, invoiceID string) error
 	GetNotificationPatientByID(patientID string) (map[string]interface{}, error)
 	CreateNotification(ctx context.Context, notification notificationdto.CreateRequest) error
 }

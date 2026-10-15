@@ -112,6 +112,21 @@ func (mr *MockInvoiceRepoMockRecorder) GetInvoiceByID(log, invoiceID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInvoiceByID", reflect.TypeOf((*MockInvoiceRepo)(nil).GetInvoiceByID), log, invoiceID)
 }
 
+// CountByBillingID mocks base method.
+func (m *MockInvoiceRepo) CountByBillingID(log *zap.Logger, billingID string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByBillingID", log, billingID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByBillingID indicates an expected call of CountByBillingID.
+func (mr *MockInvoiceRepoMockRecorder) CountByBillingID(log, billingID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByBillingID", reflect.TypeOf((*MockInvoiceRepo)(nil).CountByBillingID), log, billingID)
+}
+
 // GetInvoiceByPrescriptionID mocks base method.
 func (m *MockInvoiceRepo) GetInvoiceByPrescriptionID(log *zap.Logger, query string, args ...any) (billing.InvoiceWithPayment, error) {
 	m.ctrl.T.Helper()

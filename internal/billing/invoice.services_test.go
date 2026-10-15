@@ -66,7 +66,7 @@ func (s stubAppointment) GetAppntmentByID(_ *zap.Logger, _ string) (appointments
 }
 
 func newInvoiceServ(repo billing.InvoiceRepo, pay billing.PaymentCheckout, patient billing.PatientLookup, appt billing.AppointmentLookup) *billing.InvoiceServ {
-	return billing.NewInvoiceServ(nil, repo, pay, nil, patient, appt)
+	return billing.NewInvoiceServ(nil, repo, pay, nil, patient, appt, nil)
 }
 
 func TestCreateInvoiceValidation(t *testing.T) {
@@ -92,6 +92,22 @@ func TestCreateInvoiceValidation(t *testing.T) {
 	_, err = svc.CreateInvoice(servicetest.NopLogger(), req)
 	if !errors.Is(err, wrapError.ErrInvalidRequest) {
 		t.Fatalf("expected missing billing_id, got %v", err)
+	}
+
+	req = servicetest.ValidCheckoutReq()
+	req.Financials.TotalAmount = 0
+	svc = newInvoiceServ(nil, stubPayment{idemErr: gorm.ErrRecordNotFound}, nil, nil)
+	_, err = svc.CreateInvoice(servicetest.NopLogger(), req)
+	if !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject zero total, got %v", err)
+	}
+
+	req = servicetest.ValidCheckoutReq()
+	req.Financials.TotalAmount = -10
+	svc = newInvoiceServ(nil, stubPayment{idemErr: gorm.ErrRecordNotFound}, nil, nil)
+	_, err = svc.CreateInvoice(servicetest.NopLogger(), req)
+	if !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject negative total, got %v", err)
 	}
 }
 
@@ -209,6 +225,35 @@ func TestServiceGetInvoiceByAppointmentID(t *testing.T) {
 	if got.ID != "inv-1" {
 		t.Fatalf("expected inv-1, got %q", got.ID)
 	}
+}
+
+func TestServiceCheckBillingExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := billingmocks.NewMockInvoiceRepo(ctrl)
+	svc := newInvoiceServ(repo, nil, nil, nil)
+
+	t.Run("missing billing id", func(t *testing.T) {
+		_, err := svc.CheckBillingExists(servicetest.NopLogger(), "")
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("count 0", func(t *testing.T) {
+		repo.EXPECT().CountByBillingID(gomock.Any(), "lo-1").Return(int64(0), nil)
+		got, err := svc.CheckBillingExists(servicetest.NopLogger(), "lo-1")
+		if err != nil || got != 0 {
+			t.Fatalf("got %d err=%v", got, err)
+		}
+	})
+
+	t.Run("count 1", func(t *testing.T) {
+		repo.EXPECT().CountByBillingID(gomock.Any(), "lo-1").Return(int64(1), nil)
+		got, err := svc.CheckBillingExists(servicetest.NopLogger(), "lo-1")
+		if err != nil || got != 1 {
+			t.Fatalf("got %d err=%v", got, err)
+		}
+	})
 }
 
 func TestServiceGetBillDetailsByPrescriptionID(t *testing.T) {

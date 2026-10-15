@@ -12,6 +12,7 @@ import (
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	jwtAuth "hospital-backend/internal/jwt"
+	"hospital-backend/internal/labService/labcontainer"
 	"hospital-backend/internal/medicine/medcontainer"
 	"hospital-backend/internal/modules"
 	notificationcontainer "hospital-backend/internal/notifications/notificationcontianer"
@@ -48,12 +49,13 @@ type Container struct {
 	NotificationContainer  *notificationcontainer.NotificationContainer
 	PaymentContainer       *paymentcontainer.PaymentContainer
 	BillingService         *billing.InvoiceServ
-	OrgBootstrap           *orgbootstrap.Service
+	LabContainer           *labcontainer.LabContainer
 }
 
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	bedmanagement := bedmanagement.NewBedContainer(db)
 	medicineContainer := medcontainer.MedicineContainer(db)
+	labContainer := labcontainer.NewLabContainer(db)
 	patientRepo := patient.NewPatientRepo(db)
 	employeeRepo := employee.NewEmployeeRepo(db)
 	jwtRepo := jwtAuth.NewRefreshTokenModel(db)
@@ -91,6 +93,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	fulfillment := newPaymentFulfillment(
 		billingItemServ,
 		billingRepo,
+		labContainer.LabOrderService,
 		medicineContainer.MedInventoryService,
 		medicineContainer.MedMvmtService,
 		prescriptionService,
@@ -99,9 +102,12 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		notificationContainer.Service,
 	)
 	paymentcontainer := paymentcontainer.NewContainer(db, *cfg, fulfillment, fulfillment, central.Subscriptions)
-	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService, appointmentSrv.Appointmentservice)
+	billingService := billing.NewInvoiceServ(db, billingRepo, paymentcontainer.Mod.Paymentservice, billingItemServ, patientService, appointmentSrv.Appointmentservice, labContainer.LabOrderService)
 	dashboardContainer := dashboard.NewDashboardContainer(appointmentSrv.Appointmentservice, billingService, employeeService, prescriptionService)
-	orgSetup := orgbootstrap.New(db, roleService, rolePermService, permService, departmentService, employeeService)
+	orgSetup := orgbootstrap.New(db, roleService, rolePermService, permService, departmentService, employeeService, central.Customers)
+	// Same process: provision hospital admin in-process (no hospital/internal/organisation HTTP loopback).
+	central.Organisations.Admin = orgSetup
+	central.Tenants.Admin = orgSetup
 	return &Container{
 		PatientService:         patientService,
 		EmployeeService:        employeeService,
@@ -123,6 +129,6 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		PrescriptionItems:      prescriptionItemServ,
 		PaymentContainer:       paymentcontainer,
 		BillingService:         billingService,
-		OrgBootstrap:           orgSetup,
+		LabContainer:           labContainer,
 	}
 }

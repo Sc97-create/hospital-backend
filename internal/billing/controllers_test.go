@@ -142,6 +142,22 @@ func TestGetInvoiceByPrescriptionID(t *testing.T) {
 	}
 }
 
+func TestCheckBillingExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockInvoiceServicer(ctrl)
+	billingCtrl := billing.NewBillingController(mock)
+	app := controllertest.NewApp(t, func(app *fiber.App) {
+		app.Get("/billing/checkByBillingID/:billingID", billingCtrl.CheckBillingExists)
+	})
+
+	mock.EXPECT().CheckBillingExists(gomock.Any(), "lo-1").Return(int64(1), nil)
+	resp, _ := controllertest.Do(t, app, controllertest.Request{
+		Method: http.MethodGet,
+		Path:   "/billing/checkByBillingID/lo-1",
+	})
+	controllertest.AssertStatus(t, resp, fiber.StatusOK)
+}
+
 func TestGetInvoiceByAppointmentID(t *testing.T) {
 	tests := []struct {
 		name       string

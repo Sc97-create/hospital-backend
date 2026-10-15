@@ -176,6 +176,20 @@ func (mr *MockIPaymentFulfillmentMockRecorder) UpdateInvoiceStatus(tx, invoiceID
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInvoiceStatus", reflect.TypeOf((*MockIPaymentFulfillment)(nil).UpdateInvoiceStatus), tx, invoiceID, status)
 }
 
+// MarkLabOrderPaidForInvoice mocks base method.
+func (m *MockIPaymentFulfillment) MarkLabOrderPaidForInvoice(tx *gorm.DB, invoiceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkLabOrderPaidForInvoice", tx, invoiceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkLabOrderPaidForInvoice indicates an expected call of MarkLabOrderPaidForInvoice.
+func (mr *MockIPaymentFulfillmentMockRecorder) MarkLabOrderPaidForInvoice(tx, invoiceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLabOrderPaidForInvoice", reflect.TypeOf((*MockIPaymentFulfillment)(nil).MarkLabOrderPaidForInvoice), tx, invoiceID)
+}
+
 // UpdateMedInventoryStock mocks base method.
 func (m *MockIPaymentFulfillment) UpdateMedInventoryStock(tx *gorm.DB, medicineInventoryID string, dispensedQty int64) error {
 	m.ctrl.T.Helper()

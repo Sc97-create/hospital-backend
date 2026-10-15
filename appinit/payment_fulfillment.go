@@ -4,6 +4,7 @@ import (
 	"context"
 	"hospital-backend/internal/billing"
 	invoiceDto "hospital-backend/internal/billing/dto"
+	labservice "hospital-backend/internal/labService/labTest"
 	"hospital-backend/internal/medicine"
 	notificationdto "hospital-backend/internal/notifications/dto"
 	notificationService "hospital-backend/internal/notifications/service"
@@ -19,6 +20,7 @@ import (
 type paymentFulfillment struct {
 	invoiceItems        *billing.InvoiceItemServ
 	invoiceRepo         billing.InvoiceRepo
+	labOrderService     *labservice.LabOrderService
 	medInventory        *medicine.SMedicineInventory
 	medMvmt             *medicine.SMedicineMvmt
 	prescription        *prescription.PrescriptionService
@@ -30,6 +32,7 @@ type paymentFulfillment struct {
 func newPaymentFulfillment(
 	invoiceItems *billing.InvoiceItemServ,
 	invoiceRepo billing.InvoiceRepo,
+	labOrderService *labservice.LabOrderService,
 	medInventory *medicine.SMedicineInventory,
 	medMvmt *medicine.SMedicineMvmt,
 	prescriptionSvc *prescription.PrescriptionService,
@@ -40,6 +43,7 @@ func newPaymentFulfillment(
 	return &paymentFulfillment{
 		invoiceItems:        invoiceItems,
 		invoiceRepo:         invoiceRepo,
+		labOrderService:     labOrderService,
 		medInventory:        medInventory,
 		medMvmt:             medMvmt,
 		prescription:        prescriptionSvc,
@@ -80,6 +84,21 @@ func (f *paymentFulfillment) ResolveAndUpdateParentPrescriptionStatus(tx *gorm.D
 func (f *paymentFulfillment) UpdateInvoiceStatus(tx *gorm.DB, invoiceID string, status string) error {
 	return f.invoiceRepo.UpdateInvoiceStatus(logger.Log, tx, invoiceID, status)
 }
+
+func (f *paymentFulfillment) MarkLabOrderPaidForInvoice(_ *gorm.DB, invoiceID string) error {
+	invoice, err := f.invoiceRepo.GetInvoiceByID(logger.Log, invoiceID)
+	if err != nil {
+		return err
+	}
+	if invoice.PaymentType != billing.PaymentTypeLabOrder {
+		return nil
+	}
+	if f.labOrderService == nil {
+		return nil
+	}
+	return f.labOrderService.MarkIsPayment(logger.Log, invoice.BillingID, true)
+}
+
 func (f *paymentFulfillment) GetNotificationPatientByID(patientID string) (map[string]interface{}, error) {
 	return f.patientService.GetNotificationPatientByID(logger.Log, patientID)
 }

@@ -75,6 +75,7 @@ const (
 	Prescription                           = "prescription"
 	Billing                                = "billing"
 	Dashboard                              = "dashboard"
+	Lab                                    = "lab"
 	DashboardTodayAppointmentLimit         = 5
 	DashboardTodayPrescriptionLimit        = 5
 	//CurrencyINR                       = "INR"
