@@ -222,7 +222,7 @@ func TestCreateRPModel_DoctorDashboardView(t *testing.T) {
 	}
 }
 
-func TestCreateRPModel_DoctorLabCreateViewNoUpdate(t *testing.T) {
+func TestCreateRPModel_DoctorLabOrderCreateViewNoUpdate(t *testing.T) {
 	svc := NewRolePermissionService(nil, nil)
 
 	roleArr := []roles.Role{{ID: "role-doctor", Name: roles.DefaultRoleDoctor}}
@@ -231,22 +231,74 @@ func TestCreateRPModel_DoctorLabCreateViewNoUpdate(t *testing.T) {
 		{ID: "p-view", Name: permissions.View},
 		{ID: "p-update", Name: permissions.Update},
 	}
-	modArr := []modules.Modules{{ID: "m-lab", Name: constants.Lab}}
+	modArr := []modules.Modules{
+		{ID: "m-lab-order", Name: constants.LabOrder},
+		{ID: "m-diag", Name: constants.DiagnosticCentre},
+	}
 
 	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
 
-	got := map[string]bool{}
+	labOrderPerms := map[string]bool{}
+	diagPerms := map[string]bool{}
 	for _, row := range rows {
-		if row.RoleID != "role-doctor" || row.ModuleID == nil || *row.ModuleID != "m-lab" || row.PermissionID == nil {
+		if row.RoleID != "role-doctor" || row.ModuleID == nil || row.PermissionID == nil {
 			continue
 		}
-		got[*row.PermissionID] = true
+		switch *row.ModuleID {
+		case "m-lab-order":
+			labOrderPerms[*row.PermissionID] = true
+		case "m-diag":
+			diagPerms[*row.PermissionID] = true
+		}
 	}
-	if !got["p-create"] || !got["p-view"] {
-		t.Fatalf("doctor missing lab create/view: %+v", got)
+	if !labOrderPerms["p-create"] || !labOrderPerms["p-view"] {
+		t.Fatalf("doctor missing lab_order create/view: %+v", labOrderPerms)
 	}
-	if got["p-update"] {
-		t.Fatal("doctor must not have lab update (status changes)")
+	if labOrderPerms["p-update"] {
+		t.Fatal("doctor must not have lab_order update")
+	}
+	if len(diagPerms) != 0 {
+		t.Fatalf("doctor must not have diagnostic_centre access: %+v", diagPerms)
+	}
+}
+
+func TestCreateRPModel_ReceptionistLabOrderViewOnly(t *testing.T) {
+	svc := NewRolePermissionService(nil, nil)
+
+	roleArr := []roles.Role{{ID: "role-receptionist", Name: roles.DefaultRoleReceptionist}}
+	permArr := []permissions.Permission{
+		{ID: "p-view", Name: permissions.View},
+		{ID: "p-create", Name: permissions.Create},
+		{ID: "p-update", Name: permissions.Update},
+	}
+	modArr := []modules.Modules{
+		{ID: "m-lab-order", Name: constants.LabOrder},
+		{ID: "m-diag", Name: constants.DiagnosticCentre},
+	}
+
+	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
+
+	labOrderPerms := map[string]bool{}
+	diagPerms := map[string]bool{}
+	for _, row := range rows {
+		if row.RoleID != "role-receptionist" || row.ModuleID == nil || row.PermissionID == nil {
+			continue
+		}
+		switch *row.ModuleID {
+		case "m-lab-order":
+			labOrderPerms[*row.PermissionID] = true
+		case "m-diag":
+			diagPerms[*row.PermissionID] = true
+		}
+	}
+	if !labOrderPerms["p-view"] {
+		t.Fatal("receptionist missing lab_order view")
+	}
+	if labOrderPerms["p-create"] || labOrderPerms["p-update"] {
+		t.Fatalf("receptionist must only view lab orders: %+v", labOrderPerms)
+	}
+	if len(diagPerms) != 0 {
+		t.Fatalf("receptionist must not have diagnostic_centre access: %+v", diagPerms)
 	}
 }
 
@@ -277,7 +329,7 @@ func TestCreateRPModel_LabTechnicianBillingCheckout(t *testing.T) {
 	}
 }
 
-func TestCreateRPModel_LabTechnicianLabViewUpdateNoCreate(t *testing.T) {
+func TestCreateRPModel_LabTechnicianLabOrderViewUpdateNoCreate(t *testing.T) {
 	svc := NewRolePermissionService(nil, nil)
 
 	roleArr := []roles.Role{{ID: "role-lab", Name: roles.DefaultRoleLabTechnician}}
@@ -286,21 +338,33 @@ func TestCreateRPModel_LabTechnicianLabViewUpdateNoCreate(t *testing.T) {
 		{ID: "p-create", Name: permissions.Create},
 		{ID: "p-update", Name: permissions.Update},
 	}
-	modArr := []modules.Modules{{ID: "m-lab", Name: constants.Lab}}
+	modArr := []modules.Modules{
+		{ID: "m-lab-order", Name: constants.LabOrder},
+		{ID: "m-diag", Name: constants.DiagnosticCentre},
+	}
 
 	rows := svc.createRPModel(roleArr, permArr, modArr, "org-1")
 
-	labPerms := make(map[string]bool)
+	labOrderPerms := map[string]bool{}
+	diagPerms := map[string]bool{}
 	for _, row := range rows {
-		if row.RoleID != "role-lab" || row.ModuleID == nil || *row.ModuleID != "m-lab" || row.PermissionID == nil {
+		if row.RoleID != "role-lab" || row.ModuleID == nil || row.PermissionID == nil {
 			continue
 		}
-		labPerms[*row.PermissionID] = true
+		switch *row.ModuleID {
+		case "m-lab-order":
+			labOrderPerms[*row.PermissionID] = true
+		case "m-diag":
+			diagPerms[*row.PermissionID] = true
+		}
 	}
-	if !labPerms["p-view"] || !labPerms["p-update"] {
-		t.Fatalf("lab technician missing lab view/update: %+v", labPerms)
+	if !labOrderPerms["p-view"] || !labOrderPerms["p-update"] {
+		t.Fatalf("lab technician missing lab_order view/update: %+v", labOrderPerms)
 	}
-	if labPerms["p-create"] {
-		t.Fatal("lab technician must not have lab create")
+	if labOrderPerms["p-create"] {
+		t.Fatal("lab technician must not have lab_order create")
+	}
+	if !diagPerms["p-view"] || !diagPerms["p-create"] || !diagPerms["p-update"] {
+		t.Fatalf("lab technician missing diagnostic_centre create/view/update: %+v", diagPerms)
 	}
 }

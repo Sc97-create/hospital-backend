@@ -5,12 +5,12 @@ Manual QA for lab-order create → pay → complete flow, plus RBAC.
 
 | API                     | Method  | Path                                                 | Permission                      |
 | ----------------------- | ------- | ---------------------------------------------------- | ------------------------------- |
-| Create lab order        | `POST`  | `/api/v1/lab-orders/create`                          | Lab create                      |
-| List lab orders         | `GET`   | `/api/v1/lab-orders/list`                            | Lab view                        |
-| Get lab order           | `GET`   | `/api/v1/lab-orders/getbyID/:id`                     | Lab view                        |
-| Update order status     | `PATCH` | `/api/v1/lab-orders/update/:id/status`               | Lab update                      |
-| Bulk update test status | `PATCH` | `/api/v1/lab-orders/bulkupdatestatus`                | Lab update                      |
-| Update one test status  | `PATCH` | `/api/v1/lab-orders/update/:id/tests/:testId/status` | Lab update                      |
+| Create lab order        | `POST`  | `/api/v1/lab-orders/create`                          | lab_order create                |
+| List lab orders         | `GET`   | `/api/v1/lab-orders/list`                            | lab_order view                  |
+| Get lab order           | `GET`   | `/api/v1/lab-orders/getbyID/:id`                     | lab_order view                  |
+| Update order status     | `PATCH` | `/api/v1/lab-orders/update/:id/status`               | lab_order update                |
+| Bulk update test status | `PATCH` | `/api/v1/lab-orders/bulkupdatestatus`                | lab_order update                |
+| Update one test status  | `PATCH` | `/api/v1/lab-orders/update/:id/tests/:testId/status` | lab_order update                |
 | Check billing exists    | `GET`   | `/api/v1/billing/checkByBillingID/:billingID`        | Public (any authenticated role) |
 | Checkout                | `POST`  | `/api/v1/billing/create`                             | Billing create                  |
 | Confirm payment         | `POST`  | `/api/v1/payment/confirm`                            | Billing update                  |
@@ -19,10 +19,12 @@ Manual QA for lab-order create → pay → complete flow, plus RBAC.
 **Roles**
 
 
-| Role           | Lab                       | Billing                |
-| -------------- | ------------------------- | ---------------------- |
-| Doctor         | create + view (no update) | —                      |
-| Lab Technician | view + update (no create) | view + create + update |
+| Role           | lab_order                 | diagnostic_centre        | Billing                |
+| -------------- | ------------------------- | ------------------------ | ---------------------- |
+| Doctor         | create + view (no update) | —                        | —                      |
+| Receptionist   | view                      | —                        | view + create + update |
+| Lab Technician | view + update (no create) | create + view + update   | view + create + update |
+| Hospital Admin | full CRUD                 | full CRUD                | full CRUD              |
 
 
 **Order status flow**

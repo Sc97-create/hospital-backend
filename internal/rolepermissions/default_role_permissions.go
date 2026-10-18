@@ -21,8 +21,8 @@ var defaultRolePermissionMatrix = map[string][]moduleActions{
 		{Module: constants.Employee, Actions: []string{permissions.View}},
 		{Module: constants.Medicine, Actions: []string{permissions.View}},
 		{Module: constants.Dashboard, Actions: []string{permissions.View}},
-		// create lab orders + view; no update (status / bulk status stays lab technician)
-		{Module: constants.Lab, Actions: []string{permissions.Create, permissions.View}},
+		// lab orders: create + view; status updates stay with lab technician
+		{Module: constants.LabOrder, Actions: []string{permissions.Create, permissions.View}},
 	},
 	roles.DefaultRolePharmacist: {
 		{Module: constants.Medicine, Actions: []string{permissions.View, permissions.Update, permissions.Create}},
@@ -35,6 +35,8 @@ var defaultRolePermissionMatrix = map[string][]moduleActions{
 		// view+create = checkout (POST /billing/create); update = payment confirm / retry link
 		{Module: constants.Billing, Actions: []string{permissions.View, permissions.Create, permissions.Update}},
 		{Module: constants.Dashboard, Actions: []string{permissions.View}},
+		// lab orders: view only (no create/update; no diagnostic_centre)
+		{Module: constants.LabOrder, Actions: []string{permissions.View}},
 	},
 	roles.DefaultRoleNurse: {
 		{Module: constants.Patient, Actions: []string{permissions.View}},
@@ -51,11 +53,14 @@ var defaultRolePermissionMatrix = map[string][]moduleActions{
 		{Module: constants.Prescription, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
 		{Module: constants.Billing, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
 		{Module: constants.Dashboard, Actions: []string{permissions.View}},
-		{Module: constants.Lab, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.LabOrder, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
+		{Module: constants.DiagnosticCentre, Actions: []string{permissions.Create, permissions.Update, permissions.View, permissions.Delete}},
 	},
 	roles.DefaultRoleLabTechnician: {
-		// view = list/get; update = status / bulkupdatestatus (no lab create)
-		{Module: constants.Lab, Actions: []string{permissions.Update, permissions.View}},
+		// lab orders: view + status/bulk update (no create)
+		{Module: constants.LabOrder, Actions: []string{permissions.Update, permissions.View}},
+		// diagnostic centres: manage (hospital admin + lab technician only)
+		{Module: constants.DiagnosticCentre, Actions: []string{permissions.Create, permissions.Update, permissions.View}},
 		{Module: constants.Patient, Actions: []string{permissions.View}},
 		{Module: constants.Dashboard, Actions: []string{permissions.View}},
 		// view+create = checkout (POST /billing/create); update = payment confirm / retry link
