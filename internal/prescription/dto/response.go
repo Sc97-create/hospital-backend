@@ -45,14 +45,14 @@ type FindPrescriptionByIDResponseData struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 type PrescriptionListItem struct {
-	ID             string    `json:"id"`
-	Code           string    `json:"code"`
-	PrescribedBy   string    `json:"prescribed_by"`
-	PatientID      string    `json:"patient_id"`
-	PatientName    string    `json:"patient_name"`
-	AppointmentID  string    `json:"appointment_id"`
-	CreatedAt      time.Time `json:"created_at"`
-	Status         string    `json:"status"`
+	ID            string    `json:"id"`
+	Code          string    `json:"code"`
+	PrescribedBy  string    `json:"prescribed_by"`
+	PatientID     string    `json:"patient_id"`
+	PatientName   string    `json:"patient_name"`
+	AppointmentID string    `json:"appointment_id"`
+	CreatedAt     time.Time `json:"created_at"`
+	Status        string    `json:"status"`
 }
 
 type TodayPrescriptionsSummary struct {

@@ -86,7 +86,6 @@ func (SController *SupplierController) CreateSupplier(c *fiber.Ctx) error {
 	supplierRequestPayload.GstNumber, _ = payload.Getstring("gst_number")
 
 	logger.Info("supplier create attempt",
-		zap.String("organisation_id", supplierRequestPayload.OrganisationID),
 		zap.String("user_id", supplierRequestPayload.UserID),
 		zap.String("payment_terms", supplierRequestPayload.PaymentTerms),
 	)
@@ -146,7 +145,6 @@ func (SController *SupplierController) GetSupplierByOrgID(c *fiber.Ctx) error {
 	req.Search, _ = payload.Getstring("search")
 
 	logger.Info("supplier list attempt",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Float64("limit", req.Limit),
 		zap.Float64("page_no", req.PageNo),
 		zap.Bool("has_search", strings.TrimSpace(req.Search) != ""),

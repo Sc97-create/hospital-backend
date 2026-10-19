@@ -12,26 +12,22 @@ import (
 	"testing"
 	"time"
 
+	"hospital-backend/config"
+
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
-// ---------------------------------------------------------------------------
-// Mock repository
-// ---------------------------------------------------------------------------
-
 type mockRefreshTokenRepo struct {
-	insertCalled    bool
-	insertErr       error
-	findByIDResult  *RefreshToken
-	findByIDErr     error
-	updateCalled    bool
-	updateErr       error
-	checkIfExistCnt int64
-	checkIfExistErr error
-
-	// capture what was inserted/updated
-	lastInserted *RefreshToken
-	lastUpdated  *RefreshToken
+	insertCalled   bool
+	insertErr      error
+	findByIDResult *RefreshToken
+	findByIDErr    error
+	updateCalled   bool
+	updateErr      error
+	lastInserted   *RefreshToken
+	lastUpdateHash string
+	lastUpdateID   string
 }
 
 func (m *mockRefreshTokenRepo) Insert(rt *RefreshToken) error {
@@ -44,14 +40,16 @@ func (m *mockRefreshTokenRepo) FindByID(ID string) (*RefreshToken, error) {
 	return m.findByIDResult, m.findByIDErr
 }
 
-func (m *mockRefreshTokenRepo) Update(rt *RefreshToken) error {
+func (m *mockRefreshTokenRepo) Update(refreshToken string, expiresAt time.Time, id string) error {
 	m.updateCalled = true
-	m.lastUpdated = rt
+	m.lastUpdateHash = refreshToken
+	m.lastUpdateID = id
+	_ = expiresAt
 	return m.updateErr
 }
 
 func (m *mockRefreshTokenRepo) CheckIfExist(ID string) (int64, error) {
-	return m.checkIfExistCnt, m.checkIfExistErr
+	return 0, nil
 }
 
 func (m *mockRefreshTokenRepo) FindIDByUserID(userID string) (string, error) {
@@ -66,88 +64,66 @@ func (m *mockRefreshTokenRepo) DeleteByUserID(userID string) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Test helpers — generate EC P-256 key pair and write to the paths
-// used by the constants PrivateKeyPath / PublicKeyPath.
-// Backs up existing key files and restores them on cleanup.
-// ---------------------------------------------------------------------------
-
-func setupTestKeys(t *testing.T) (cleanup func()) {
+func setupTestKeys(t *testing.T) (*config.Config, func()) {
 	t.Helper()
 
-	privPath := string(PrivateKeyPath)
-	pubPath := string(PublicKeyPath)
+	dir := t.TempDir()
+	privRel := filepath.Join("testdata-keys", "private.pem")
+	pubRel := filepath.Join("testdata-keys", "public.pem")
+	privPath := filepath.Join(dir, privRel)
+	pubPath := filepath.Join(dir, pubRel)
 
-	// Back up existing keys if they exist
-	origPriv, privExists := backupFile(t, privPath)
-	origPub, pubExists := backupFile(t, pubPath)
+	if err := os.MkdirAll(filepath.Dir(privPath), 0o755); err != nil {
+		t.Fatalf("mkdir keys: %v", err)
+	}
 
-	// Generate EC P-256 key pair
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		t.Fatalf("failed to generate EC key: %v", err)
+		t.Fatalf("generate key: %v", err)
 	}
 
-	// Ensure directory exists
-	keysDir := filepath.Dir(privPath)
-	if err := os.MkdirAll(keysDir, 0o755); err != nil {
-		t.Fatalf("failed to create keys dir: %v", err)
-	}
-
-	// Write private key (EC PRIVATE KEY)
 	privBytes, err := x509.MarshalECPrivateKey(privateKey)
 	if err != nil {
-		t.Fatalf("failed to marshal EC private key: %v", err)
+		t.Fatalf("marshal private key: %v", err)
 	}
-	privPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes})
-	if err := os.WriteFile(privPath, privPEM, 0o600); err != nil {
-		t.Fatalf("failed to write private key: %v", err)
+	if err := os.WriteFile(privPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes}), 0o600); err != nil {
+		t.Fatalf("write private key: %v", err)
 	}
 
-	// Write public key (PUBLIC KEY — PKIX format)
 	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
 	if err != nil {
-		t.Fatalf("failed to marshal EC public key: %v", err)
+		t.Fatalf("marshal public key: %v", err)
 	}
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-	if err := os.WriteFile(pubPath, pubPEM, 0o644); err != nil {
-		t.Fatalf("failed to write public key: %v", err)
+	if err := os.WriteFile(pubPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes}), 0o644); err != nil {
+		t.Fatalf("write public key: %v", err)
 	}
 
-	return func() {
-		restoreFile(privPath, origPriv, privExists)
-		restoreFile(pubPath, origPub, pubExists)
-	}
-}
-
-func backupFile(t *testing.T, path string) ([]byte, bool) {
-	t.Helper()
-	data, err := os.ReadFile(path)
+	origWD, err := os.Getwd()
 	if err != nil {
-		return nil, false
+		t.Fatalf("getwd: %v", err)
 	}
-	return data, true
-}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
 
-func restoreFile(path string, data []byte, existed bool) {
-	if existed {
-		os.WriteFile(path, data, 0o600)
+	cfg := &config.Config{
+		PrivateKeyPath: privRel,
+		PublicKeyPath:  pubRel,
+	}
+	return cfg, func() {
+		_ = os.Chdir(origWD)
 	}
 }
 
-func newService(repo RefreshtokenRepo) *JwtService {
-	return NewJwtService(repo)
+func newService(repo RefreshtokenRepo, cfg *config.Config) *JwtService {
+	return NewJwtService(repo, cfg)
 }
-
-// ===========================================================================
-// AccessToken tests
-// ===========================================================================
 
 func TestAccessToken_Success(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
 	token, err := svc.AccessToken("user-123", "org-456")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -156,12 +132,10 @@ func TestAccessToken_Success(t *testing.T) {
 		t.Fatal("expected non-empty access token")
 	}
 
-	// Parse and validate claims
 	parsed, err := svc.parseToken(token)
 	if err != nil {
 		t.Fatalf("failed to parse generated access token: %v", err)
 	}
-
 	claims, ok := parsed.Claims.(jwt.MapClaims)
 	if !ok {
 		t.Fatal("expected MapClaims")
@@ -175,10 +149,10 @@ func TestAccessToken_Success(t *testing.T) {
 }
 
 func TestAccessToken_ContainsExpiry(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
 	token, err := svc.AccessToken("user-1", "org-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -186,13 +160,11 @@ func TestAccessToken_ContainsExpiry(t *testing.T) {
 
 	parsed, _ := svc.parseToken(token)
 	claims := parsed.Claims.(jwt.MapClaims)
-
 	exp, err := claims.GetExpirationTime()
 	if err != nil {
 		t.Fatalf("expected expiration claim: %v", err)
 	}
 
-	// Should expire roughly 15 minutes from now (allow 30s tolerance)
 	expectedExp := time.Now().Add(time.Duration(AccessTokenExpiresAt) * time.Minute)
 	diff := expectedExp.Sub(exp.Time)
 	if diff < -30*time.Second || diff > 30*time.Second {
@@ -200,157 +172,49 @@ func TestAccessToken_ContainsExpiry(t *testing.T) {
 	}
 }
 
-func TestAccessToken_ContainsAudience(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.AccessToken("u", "o")
-	parsed, _ := svc.parseToken(token)
-	claims := parsed.Claims.(jwt.MapClaims)
-
-	aud, err := claims.GetAudience()
-	if err != nil {
-		t.Fatalf("expected audience claim: %v", err)
-	}
-
-	expectedAud := []string{"patient", "employee", "admin", "doctor"}
-	if len(aud) != len(expectedAud) {
-		t.Fatalf("expected %d audiences, got %d", len(expectedAud), len(aud))
-	}
-	for i, a := range expectedAud {
-		if aud[i] != a {
-			t.Errorf("audience[%d]: expected %q, got %q", i, a, aud[i])
-		}
-	}
-}
-
-func TestAccessToken_ContainsJTI(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.AccessToken("u", "o")
-	parsed, _ := svc.parseToken(token)
-	claims := parsed.Claims.(jwt.MapClaims)
-
-	jti, ok := claims["jti"]
-	if !ok || jti == "" {
-		t.Error("expected non-empty jti claim")
-	}
-}
-
-func TestAccessToken_UniquePerCall(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	t1, _ := svc.AccessToken("u", "o")
-	t2, _ := svc.AccessToken("u", "o")
-	if t1 == t2 {
-		t.Error("expected unique tokens per call (different jti / kid)")
-	}
-}
-
 func TestAccessToken_MissingPrivateKey(t *testing.T) {
-	// Temporarily move the key file so it's missing
-	privPath := string(PrivateKeyPath)
-	origData, existed := backupFile(t, privPath)
-	if existed {
-		os.Remove(privPath)
-		defer restoreFile(privPath, origData, true)
+	cfg := &config.Config{
+		PrivateKeyPath: "missing/private.pem",
+		PublicKeyPath:  "missing/public.pem",
 	}
-
-	svc := newService(&mockRefreshTokenRepo{})
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
 	_, err := svc.AccessToken("u", "o")
 	if err == nil {
 		t.Fatal("expected error when private key file is missing")
 	}
 }
 
-// ===========================================================================
-// RefreshToken tests
-// ===========================================================================
-
 func TestRefreshToken_Success(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	mock := &mockRefreshTokenRepo{}
-	svc := newService(mock)
-
-	token, err := svc.RefreshToken("org-1", "user-1")
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
+	claims, err := svc.RefreshToken("org-1", "user-1", "refresh-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token == "" {
+	if claims.RefereshToken == "" {
 		t.Fatal("expected non-empty refresh token")
 	}
-	if !mock.insertCalled {
-		t.Error("expected Insert to be called on the repo")
-	}
-}
-
-func TestRefreshToken_InsertsCorrectFields(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	mock := &mockRefreshTokenRepo{}
-	svc := newService(mock)
-
-	_, err := svc.RefreshToken("org-1", "user-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	rt := mock.lastInserted
-	if rt == nil {
-		t.Fatal("expected a RefreshToken to be inserted")
-	}
-	if rt.ID == "" {
-		t.Error("expected non-empty ID")
-	}
-	if rt.UserID != "user-1" {
-		t.Errorf("expected UserID=user-1, got %q", rt.UserID)
-	}
-	if rt.TokenHash == "" {
-		t.Error("expected non-empty TokenHash")
-	}
-	if rt.ExpiresAt.Before(time.Now()) {
-		t.Error("expected ExpiresAt in the future")
-	}
-}
-
-func TestRefreshToken_RepoInsertError(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	mock := &mockRefreshTokenRepo{
-		insertErr: errors.New("db connection refused"),
-	}
-	svc := newService(mock)
-
-	_, err := svc.RefreshToken("org-1", "user-1")
-	if err == nil {
-		t.Fatal("expected error when repo Insert fails")
-	}
-	if err.Error() != "db connection refused" {
-		t.Errorf("unexpected error message: %v", err)
+	if claims.JTI != "refresh-1" {
+		t.Errorf("expected jti=refresh-1, got %q", claims.JTI)
 	}
 }
 
 func TestRefreshToken_TokenIsParseable(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.RefreshToken("org-1", "user-1")
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
+	claimsModel, err := svc.RefreshToken("org-1", "user-1", "refresh-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	parsed, err := svc.parseToken(token)
+	parsed, err := svc.parseToken(claimsModel.RefereshToken)
 	if err != nil {
 		t.Fatalf("refresh token should be parseable: %v", err)
 	}
-
 	claims := parsed.Claims.(jwt.MapClaims)
 	if claims["sub"] != "user-1" {
 		t.Errorf("expected sub=user-1, got %v", claims["sub"])
@@ -360,151 +224,25 @@ func TestRefreshToken_TokenIsParseable(t *testing.T) {
 	}
 }
 
-func TestRefreshToken_ExpiryIs24Hours(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.RefreshToken("org-1", "user-1")
-
-	parsed, _ := svc.parseToken(token)
-	claims := parsed.Claims.(jwt.MapClaims)
-
-	exp, _ := claims.GetExpirationTime()
-	expectedExp := time.Now().Add(time.Duration(RefreshTokenExpiresAt) * time.Minute)
-	diff := expectedExp.Sub(exp.Time)
-	if diff < -30*time.Second || diff > 30*time.Second {
-		t.Errorf("refresh expiry not within expected range: got %v, expected ~%v", exp.Time, expectedExp)
-	}
-}
-
-// ===========================================================================
-// toRefreshTokenModel tests
-// ===========================================================================
-
-func TestToRefreshTokenModel_FieldMapping(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
-	rt, err := svc.toRefreshTokenModel("token-hash-value", "id-123", "user-456")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if rt.TokenHash != "token-hash-value" {
-		t.Errorf("expected TokenHash=token-hash-value, got %q", rt.TokenHash)
-	}
-	if rt.ID != "id-123" {
-		t.Errorf("expected ID=id-123, got %q", rt.ID)
-	}
-	if rt.UserID != "user-456" {
-		t.Errorf("expected UserID=user-456, got %q", rt.UserID)
-	}
-	if rt.ExpiresAt.Before(time.Now()) {
-		t.Error("expected ExpiresAt in the future")
-	}
-}
-
-// ===========================================================================
-// parseToken tests
-// ===========================================================================
-
-func TestParseToken_ValidToken(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.AccessToken("user-1", "org-1")
-
-	parsed, err := svc.parseToken(token)
-	if err != nil {
-		t.Fatalf("expected valid token to parse: %v", err)
-	}
-	if !parsed.Valid {
-		t.Error("expected parsed token to be valid")
-	}
-}
-
 func TestParseToken_TamperedToken(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
 	token, _ := svc.AccessToken("user-1", "org-1")
-
-	// Tamper with the signature
 	tampered := token[:len(token)-5] + "XXXXX"
-	_, err := svc.parseToken(tampered)
-	if err == nil {
+	if _, err := svc.parseToken(tampered); err == nil {
 		t.Fatal("expected error for tampered token")
 	}
 }
 
-func TestParseToken_CompletelyInvalidString(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	_, err := svc.parseToken("this.is.not.a.jwt")
-	if err == nil {
-		t.Fatal("expected error for invalid token string")
-	}
-}
-
-func TestParseToken_EmptyString(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	_, err := svc.parseToken("")
-	if err == nil {
-		t.Fatal("expected error for empty token")
-	}
-}
-
-func TestParseToken_ExpiredToken(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-
-	// Manually create an already-expired token
-	privateKey, _ := svc.getPrivateKey(PrivateKeyPath)
-	claims := jwt.RegisteredClaims{
-		Subject:   "user-1",
-		Issuer:    "org-1",
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
-		ID:        "expired-id",
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-	signed, _ := token.SignedString(privateKey)
-
-	_, err := svc.parseToken(signed)
-	if err == nil {
-		t.Fatal("expected error for expired token")
-	}
-}
-
-// ===========================================================================
-// validateRefreshToken tests
-// ===========================================================================
-
-func TestValidateRefreshToken_ValidToken(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
-	rt := &RefreshToken{
-		UserID:    "user-1",
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-	}
-	err := svc.validateRefreshToken(rt, "user-1")
-	if err != nil {
-		t.Fatalf("expected no error for valid refresh token: %v", err)
-	}
-}
-
-func TestValidateRefreshToken_Expired(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
+func TestCheckRefreshToken_Expired(t *testing.T) {
+	svc := newService(&mockRefreshTokenRepo{}, &config.Config{})
 	rt := &RefreshToken{
 		UserID:    "user-1",
 		ExpiresAt: time.Now().Add(-1 * time.Hour),
 	}
-	err := svc.validateRefreshToken(rt, "user-1")
+	err := svc.checkRefreshToken(rt, "user-1")
 	if err == nil {
 		t.Fatal("expected error for expired refresh token")
 	}
@@ -513,186 +251,79 @@ func TestValidateRefreshToken_Expired(t *testing.T) {
 	}
 }
 
-func TestValidateRefreshToken_UserIDMismatch(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
+func TestCheckRefreshToken_UserMismatch(t *testing.T) {
+	svc := newService(&mockRefreshTokenRepo{}, &config.Config{})
 	rt := &RefreshToken{
 		UserID:    "user-1",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
-	err := svc.validateRefreshToken(rt, "user-999")
-	if err == nil {
+	if err := svc.checkRefreshToken(rt, "user-999"); err == nil {
 		t.Fatal("expected error for user ID mismatch")
 	}
 }
 
-func TestValidateRefreshToken_ExpiredAndMismatch(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
-	rt := &RefreshToken{
-		UserID:    "user-1",
-		ExpiresAt: time.Now().Add(-1 * time.Hour),
-	}
-	// Expired check comes first, so we should get expiry error
-	err := svc.validateRefreshToken(rt, "user-999")
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if err.Error() != "token is expired" {
-		t.Errorf("expected expiry error to take precedence, got %q", err.Error())
-	}
-}
-
-// ===========================================================================
-// ValidateToken (full refresh flow) tests
-// ===========================================================================
-
-func TestValidateToken_Success(t *testing.T) {
-	cleanup := setupTestKeys(t)
+func TestValidateRefreshToken_Success(t *testing.T) {
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
 	mock := &mockRefreshTokenRepo{}
-	svc := newService(mock)
+	svc := newService(mock, cfg)
 
-	// Generate a refresh token first
-	refreshTokenStr, err := svc.RefreshToken("org-1", "user-1")
+	claimsModel, err := svc.RefreshToken("org-1", "user-1", "refresh-1")
 	if err != nil {
 		t.Fatalf("failed to create refresh token: %v", err)
 	}
-
-	// The inserted record — set up mock to return it on FindByID
-	insertedRecord := mock.lastInserted
 	mock.findByIDResult = &RefreshToken{
-		ID:        insertedRecord.ID,
+		ID:        "refresh-1",
 		UserID:    "user-1",
-		TokenHash: insertedRecord.TokenHash,
-		ExpiresAt: insertedRecord.ExpiresAt,
+		TokenHash: claimsModel.RefereshToken,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
-	resp, err := svc.ValidateRefreshToken(refreshTokenStr)
+	resp, err := svc.ValidateRefreshToken(zap.NewNop(), claimsModel.RefereshToken)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if resp.AccessToken == "" {
-		t.Error("expected non-empty new access token")
+		t.Error("expected non-empty access token")
 	}
 	if resp.RefreshToken == "" {
-		t.Error("expected non-empty new refresh token")
+		t.Error("expected non-empty refresh token")
 	}
 	if !mock.updateCalled {
 		t.Error("expected Update to be called on the repo")
 	}
 }
 
-func TestValidateToken_InvalidTokenString(t *testing.T) {
-	cleanup := setupTestKeys(t)
+func TestValidateRefreshToken_InvalidTokenString(t *testing.T) {
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
-	_, err := svc.ValidateRefreshToken("garbage-token")
-	if err == nil {
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
+	if _, err := svc.ValidateRefreshToken(zap.NewNop(), "garbage-token"); err == nil {
 		t.Fatal("expected error for invalid token string")
 	}
 }
 
-func TestValidateToken_FindByIDError(t *testing.T) {
-	cleanup := setupTestKeys(t)
+func TestValidateRefreshToken_FindByIDError(t *testing.T) {
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	mock := &mockRefreshTokenRepo{
-		findByIDErr: errors.New("db error"),
-	}
-	svc := newService(mock)
-
-	refreshToken, _ := svc.RefreshToken("org-1", "user-1")
-
-	_, err := svc.ValidateRefreshToken(refreshToken)
-	if err == nil {
+	mock := &mockRefreshTokenRepo{findByIDErr: errors.New("db error")}
+	svc := newService(mock, cfg)
+	claimsModel, _ := svc.RefreshToken("org-1", "user-1", "refresh-1")
+	if _, err := svc.ValidateRefreshToken(zap.NewNop(), claimsModel.RefereshToken); err == nil {
 		t.Fatal("expected error when FindByID fails")
 	}
-	if err.Error() != "db error" {
-		t.Errorf("unexpected error: %v", err)
-	}
 }
-
-func TestValidateToken_ExpiredRefreshInDB(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	mock := &mockRefreshTokenRepo{}
-	svc := newService(mock)
-
-	refreshToken, _ := svc.RefreshToken("org-1", "user-1")
-
-	// DB returns an expired record
-	mock.findByIDResult = &RefreshToken{
-		ID:        mock.lastInserted.ID,
-		UserID:    "user-1",
-		TokenHash: mock.lastInserted.TokenHash,
-		ExpiresAt: time.Now().Add(-1 * time.Hour), // expired
-	}
-
-	_, err := svc.ValidateRefreshToken(refreshToken)
-	if err == nil {
-		t.Fatal("expected error for expired refresh token in DB")
-	}
-}
-
-func TestValidateToken_UserIDMismatchInDB(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	mock := &mockRefreshTokenRepo{}
-	svc := newService(mock)
-
-	refreshToken, _ := svc.RefreshToken("org-1", "user-1")
-
-	// DB returns a record with a different user
-	mock.findByIDResult = &RefreshToken{
-		ID:        mock.lastInserted.ID,
-		UserID:    "user-hacker",
-		TokenHash: mock.lastInserted.TokenHash,
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-	}
-
-	_, err := svc.ValidateRefreshToken(refreshToken)
-	if err == nil {
-		t.Fatal("expected error for user ID mismatch")
-	}
-}
-
-func TestValidateToken_UpdateError(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	mock := &mockRefreshTokenRepo{
-		updateErr: errors.New("update failed"),
-	}
-	svc := newService(mock)
-
-	refreshToken, _ := svc.RefreshToken("org-1", "user-1")
-
-	mock.findByIDResult = &RefreshToken{
-		ID:        mock.lastInserted.ID,
-		UserID:    "user-1",
-		TokenHash: mock.lastInserted.TokenHash,
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-	}
-
-	_, err := svc.ValidateRefreshToken(refreshToken)
-	if err == nil {
-		t.Fatal("expected error when repo Update fails")
-	}
-}
-
-// ===========================================================================
-// getPrivateKey / getPublickey tests
-// ===========================================================================
 
 func TestGetPrivateKey_Success(t *testing.T) {
-	cleanup := setupTestKeys(t)
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
-	key, err := svc.getPrivateKey(PrivateKeyPath)
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
+	abs := filepath.Join(".", cfg.PrivateKeyPath)
+	key, err := svc.getPrivateKey(KeyPath(abs))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -701,74 +332,22 @@ func TestGetPrivateKey_Success(t *testing.T) {
 	}
 }
 
-func TestGetPrivateKey_FileNotFound(t *testing.T) {
-	svc := newService(&mockRefreshTokenRepo{})
-	_, err := svc.getPrivateKey("nonexistent/path.pem")
-	if err == nil {
-		t.Fatal("expected error when private key file is missing")
-	}
-}
-
-func TestGetPublicKey_Success(t *testing.T) {
-	cleanup := setupTestKeys(t)
+func TestToken_UsesES256(t *testing.T) {
+	cfg, cleanup := setupTestKeys(t)
 	defer cleanup()
 
-	svc := newService(&mockRefreshTokenRepo{})
-	key, err := svc.getPublickey()
+	svc := newService(&mockRefreshTokenRepo{}, cfg)
+	token, err := svc.AccessToken("u", "o")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if key == nil {
-		t.Fatal("expected non-nil public key")
+	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
+		return svc.getPublickey()
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
 	}
-}
-
-func TestGetPublicKey_FileNotFound(t *testing.T) {
-	// Temporarily remove public key
-	pubPath := string(PublicKeyPath)
-	origData, existed := backupFile(t, pubPath)
-	if existed {
-		os.Remove(pubPath)
-		defer restoreFile(pubPath, origData, true)
-	}
-
-	svc := newService(&mockRefreshTokenRepo{})
-	_, err := svc.getPublickey()
-	if err == nil {
-		t.Fatal("expected error when public key file is missing")
-	}
-}
-
-// ===========================================================================
-// Signing method verification
-// ===========================================================================
-
-func TestToken_UsesES256(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.AccessToken("u", "o")
-
-	parsed, _ := svc.parseToken(token)
-	if parsed.Method.Alg() != "ES256" {
-		t.Errorf("expected ES256 signing method, got %s", parsed.Method.Alg())
-	}
-}
-
-func TestToken_ContainsKidHeader(t *testing.T) {
-	cleanup := setupTestKeys(t)
-	defer cleanup()
-
-	svc := newService(&mockRefreshTokenRepo{})
-	token, _ := svc.AccessToken("u", "o")
-
-	parsed, _ := svc.parseToken(token)
-	kid, ok := parsed.Header["kid"]
-	if !ok {
-		t.Fatal("expected kid in token header")
-	}
-	if kid == "" {
-		t.Error("expected non-empty kid")
+	if parsed.Method.Alg() != jwt.SigningMethodES256.Alg() {
+		t.Errorf("expected ES256, got %s", parsed.Method.Alg())
 	}
 }

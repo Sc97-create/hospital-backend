@@ -8,10 +8,10 @@ import (
 )
 
 type LabContainer struct {
-	DB                       *gorm.DB
-	LabOrderService          *labservice.LabOrderService
-	LabTestTemplateService   *labservice.LabTestTemplateService
-	DiagnosticCentreService  *diagnosticcentre.DiagnosticCentreService
+	DB                      *gorm.DB
+	LabOrderService         *labservice.LabOrderService
+	LabTestTemplateService  *labservice.LabTestTemplateService
+	DiagnosticCentreService *diagnosticcentre.DiagnosticCentreService
 }
 
 func NewLabContainer(db *gorm.DB) *LabContainer {

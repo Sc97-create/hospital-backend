@@ -275,7 +275,6 @@ func (IService *InvoiceServ) logCheckoutSuccess(log *zap.Logger, invoice Invoice
 		zap.String("payment_type", string(invoice.PaymentType)),
 		zap.String("billing_id", invoice.BillingID),
 		zap.String("patient_id", invoice.PatientID),
-		zap.String("organisation_id", invoice.OrganisationID),
 		zap.String("payment_mode", reqPayload.PaymentMode),
 		zap.Int("item_count", len(reqPayload.DispensedItems)),
 		zap.Bool("has_payment_url", hasPaymentURL),
@@ -905,7 +904,6 @@ func (IService *InvoiceServ) GetTodayCompletedInvoiceSummary(log *zap.Logger, or
 	rows, err := IService.InvRepo.GetTodayCompletedInvoiceSummary(log, query, organisationID)
 	if err != nil {
 		log.Error("dashboard invoice summary failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -913,7 +911,6 @@ func (IService *InvoiceServ) GetTodayCompletedInvoiceSummary(log *zap.Logger, or
 	}
 	summary := buildTodayInvoiceCollectionSummary(rows)
 	log.Info("dashboard invoice summary success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("total_invoices", summary.TotalInvoices),
 		zap.Float64("total_amount", summary.TotalAmount),
 	)

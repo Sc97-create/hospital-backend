@@ -26,14 +26,12 @@ func (s *OrganisationScheduleService) Create(log *zap.Logger, reqModel dto.OrgSc
 	err := s.repo.Create(log, &orgSchedModel)
 	if err != nil {
 		log.Error("organisation schedule create failed",
-			zap.String("organisation_id", reqModel.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return wrapError.ErrOrgScheduleCreateFailed
 	}
 	log.Info("organisation schedule create success",
-		zap.String("organisation_id", reqModel.OrganisationID),
 		zap.String("schedule_id", orgSchedModel.ID),
 		zap.Int("slot_duration", orgSchedModel.SlotDuration),
 		zap.Int("week_off_count", len(reqModel.WeekDays)),
@@ -49,20 +47,18 @@ func (s *OrganisationScheduleService) GetScheduleByOrganisationID(log *zap.Logge
 		return dto.GetResponse{}, wrapError.ErrInvalidRequest
 	}
 
-	log.Debug("organisation schedule get by org", zap.String("organisation_id", organisationID))
+	log.Debug("organisation schedule get by org")
 
 	query := `select id,start_time,end_time,slot_duration,break_start_time,break_end_time from organisation_schedules where organisation_id=$1`
 	OrganisationSchedule, err := s.repo.GetByOrganisationID(log, query, organisationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("organisation schedule get failed",
-				zap.String("organisation_id", organisationID),
 				zap.String("reason", "not_found"),
 			)
 			return dto.GetResponse{}, wrapError.ErrOrgScheduleNotFound
 		}
 		log.Error("organisation schedule get failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -71,7 +67,6 @@ func (s *OrganisationScheduleService) GetScheduleByOrganisationID(log *zap.Logge
 
 	response := s.toResponseModel(OrganisationSchedule)
 	log.Debug("organisation schedule get success",
-		zap.String("organisation_id", organisationID),
 		zap.String("schedule_id", response.ID),
 		zap.Int("slot_duration", response.Slotduration),
 	)

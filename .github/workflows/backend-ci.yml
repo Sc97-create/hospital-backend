@@ -1,0 +1,139 @@
+name: Go CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests and Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "Files need gofmt:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run all tests
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Display coverage
+        run: go tool cover -func=coverage.out
+
+      - name: Build all packages
+        run: go build ./...
+
+  lint:
+    name: Lint and Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+
+  configuration:
+    name: Configuration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check module files
+        run: |
+          go mod tidy -diff
+          go mod verify
+
+  security:
+    name: CodeQL Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: go
+          build-mode: autobuild
+          queries: security-extended
+
+      - name: Analyze code
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:go"
+
+  ci-passed:
+    name: CI Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - tests
+      - lint
+      - configuration
+      - security
+    steps:
+      - name: Verify all required jobs
+        env:
+          TESTS: ${{ needs.tests.result }}
+          LINT: ${{ needs.lint.result }}
+          CONFIG: ${{ needs.configuration.result }}
+          SECURITY: ${{ needs.security.result }}
+        run: |
+          if [ "$TESTS" != "success" ] ||
+             [ "$LINT" != "success" ] ||
+             [ "$CONFIG" != "success" ] ||
+             [ "$SECURITY" != "success" ]; then
+            echo "CI failed. Check the individual jobs above."
+            exit 1
+          fi
+          echo "All CI checks passed."

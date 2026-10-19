@@ -98,7 +98,6 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 		zap.String("payment_type", checkoutReq.PaymentType),
 		zap.String("billing_id", checkoutReq.BillingID),
 		zap.String("patient_id", checkoutReq.PatientID),
-		zap.String("organisation_id", checkoutReq.OrganisationID),
 		zap.String("cashier_id", checkoutReq.CashierID),
 		zap.String("payment_mode", checkoutReq.PaymentMode),
 		zap.Int("item_count", len(checkoutReq.DispensedItems)),

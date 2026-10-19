@@ -340,14 +340,12 @@ func (s *SubscriptionService) CheckEndByOrganisation(log *zap.Logger, organisati
 	if err != nil {
 		if errors.Is(err, ErrSubscriptionNotFound) {
 			log.Warn("subscription end check failed",
-				zap.String("organisation_id", organisationID),
 				zap.String("tenant_id", tenantID),
 				zap.String("reason", "subscription_not_found"),
 			)
 			return dto.CheckEndResult{}, wrapError.ErrSubscriptionNotFound
 		}
 		log.Error("subscription end check failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "lookup"),
 			zap.Error(err),
 		)
@@ -356,7 +354,6 @@ func (s *SubscriptionService) CheckEndByOrganisation(log *zap.Logger, organisati
 
 	result := periodEndResult(organisationID, sub, time.Now())
 	log.Info("subscription end check success",
-		zap.String("organisation_id", organisationID),
 		zap.String("subscription_id", sub.ID),
 		zap.Bool("ended", result.Ended),
 		zap.String("message", result.Message),
@@ -376,13 +373,11 @@ func (s *SubscriptionService) tenantIDByOrganisation(log *zap.Logger, organisati
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("subscription end check failed",
-				zap.String("organisation_id", organisationID),
 				zap.String("reason", "organisation_not_found"),
 			)
 			return "", wrapError.ErrOrganisationNotFound
 		}
 		log.Error("subscription end check failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "organisation_lookup"),
 			zap.Error(err),
 		)

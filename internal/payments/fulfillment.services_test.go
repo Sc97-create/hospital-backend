@@ -7,8 +7,8 @@ import (
 	"time"
 
 	invoiceDto "hospital-backend/internal/billing/dto"
-	"hospital-backend/internal/payments"
 	notificationdto "hospital-backend/internal/notifications/dto"
+	"hospital-backend/internal/payments"
 	"hospital-backend/internal/testutil/servicetest"
 	"hospital-backend/pkg/constants"
 	"hospital-backend/pkg/types"
@@ -29,9 +29,9 @@ type stubFulfillmentDeps struct {
 	patientInfo map[string]interface{}
 	patientErr  error
 
-	notificationReq     notificationdto.CreateRequest
-	notificationErr     error
-	notificationCalled  bool
+	notificationReq    notificationdto.CreateRequest
+	notificationErr    error
+	notificationCalled bool
 }
 
 func (s *stubFulfillmentDeps) GetMedicineInventoryDetByInvoiceID(_ string) ([]invoiceDto.MedInvoiceItemResponse, error) {

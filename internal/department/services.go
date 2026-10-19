@@ -23,7 +23,6 @@ func (DeptService *DepartmentService) FindMany(log *zap.Logger, organisationID s
 	departments, err := DeptService.DepRepo.FindMany(log, organisationID, limit, skip)
 	if err != nil {
 		log.Error("department list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_list"),
 			zap.Error(err),
 		)
@@ -32,7 +31,6 @@ func (DeptService *DepartmentService) FindMany(log *zap.Logger, organisationID s
 	total, err := DeptService.DepRepo.Count(log, organisationID)
 	if err != nil {
 		log.Error("department list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -47,14 +45,12 @@ func (DeptService *DepartmentService) InsertMany(log *zap.Logger, tx *gorm.DB, o
 	err := DeptService.DepRepo.BatchInsert(log, tx, deptArray)
 	if err != nil {
 		log.Error("department seed failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_insert"),
 			zap.Error(err),
 		)
 		return err
 	}
 	log.Info("department seed success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("count", len(deptArray)),
 	)
 	return nil
@@ -79,7 +75,6 @@ func (DeptService *DepartmentService) FindDeptByName(log *zap.Logger, organisati
 	dept, err := DeptService.DepRepo.FindDeptByName(log, organisationID, name)
 	if err != nil {
 		log.Error("department lookup failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)

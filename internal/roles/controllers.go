@@ -37,7 +37,6 @@ func (r *RoleController) FindMany(c *fiber.Ctx) error {
 		payload.Page = 1
 	}
 	logger.Info("role list attempt",
-		zap.String("organisation_id", payload.OrganisationID),
 		zap.Int("limit", payload.Limit),
 		zap.Int("page", payload.Page),
 	)

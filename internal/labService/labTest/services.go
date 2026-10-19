@@ -45,14 +45,12 @@ func (s *LabOrderService) Create(log *zap.Logger, req dto.CreateLabOrderRequest)
 	}
 	if err := s.repo.Create(log, &row); err != nil {
 		log.Error("lab order create failed",
-			zap.String("organisation_id", row.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return "", wrapError.ErrLabOrderCreateFailed
 	}
 	log.Info("lab order create success",
-		zap.String("organisation_id", row.OrganisationID),
 		zap.String("lab_order_id", row.ID),
 	)
 	return row.ID, nil
@@ -94,7 +92,6 @@ func (s *LabOrderService) List(log *zap.Logger, req dto.ListLabOrdersRequest) ([
 	rows, err := s.repo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("lab order list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -105,7 +102,6 @@ func (s *LabOrderService) List(log *zap.Logger, req dto.ListLabOrdersRequest) ([
 	total, err := s.repo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("lab order list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -117,7 +113,6 @@ func (s *LabOrderService) List(log *zap.Logger, req dto.ListLabOrdersRequest) ([
 		out = append(out, s.toListItem(row))
 	}
 	log.Info("lab order list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("result_count", len(out)),
 		zap.Int64("count", total),
 	)

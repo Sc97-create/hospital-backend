@@ -3,8 +3,8 @@ package plans
 import (
 	"errors"
 
-	dto "hospital-backend/central/plans/dto"
 	"hospital-backend/central/middleware"
+	dto "hospital-backend/central/plans/dto"
 	wrapError "hospital-backend/shared/error"
 
 	"github.com/gofiber/fiber/v2"

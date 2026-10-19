@@ -57,7 +57,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 			reason = "appointment_not_found"
 			log.Warn("prescription create failed",
 				zap.String("appointment_id", requestdto.AppointmentID),
-				zap.String("organisation_id", requestdto.OrganisationID),
 				zap.String("reason", reason),
 				zap.Error(err),
 			)
@@ -65,7 +64,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 		}
 		log.Error("prescription create failed",
 			zap.String("appointment_id", requestdto.AppointmentID),
-			zap.String("organisation_id", requestdto.OrganisationID),
 			zap.String("reason", reason),
 			zap.Error(err),
 		)
@@ -80,7 +78,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 	if err != nil {
 		tx.Rollback()
 		log.Error("prescription create failed",
-			zap.String("organisation_id", requestdto.OrganisationID),
 			zap.String("appointment_id", requestdto.AppointmentID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
@@ -94,7 +91,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 		if errors.Is(err, wrapError.ErrMedicineAlreadyPresent) {
 			log.Warn("prescription create failed",
 				zap.String("prescription_id", prescription.ID),
-				zap.String("organisation_id", requestdto.OrganisationID),
 				zap.String("reason", "duplicate_medicine"),
 				zap.Error(err),
 			)
@@ -102,7 +98,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 		}
 		log.Error("prescription create failed",
 			zap.String("prescription_id", prescription.ID),
-			zap.String("organisation_id", requestdto.OrganisationID),
 			zap.String("reason", "db_add_items"),
 			zap.Error(err),
 		)
@@ -112,7 +107,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 	if err = tx.Commit().Error; err != nil {
 		log.Error("prescription create failed",
 			zap.String("prescription_id", prescription.ID),
-			zap.String("organisation_id", requestdto.OrganisationID),
 			zap.String("reason", "db_commit"),
 			zap.Error(err),
 		)
@@ -122,7 +116,6 @@ func (p *PrescriptionService) CreatePrescription(log *zap.Logger, requestdto dto
 	log.Info("prescription create success",
 		zap.String("prescription_id", prescription.ID),
 		zap.String("prescription_code", prescription.Code),
-		zap.String("organisation_id", prescription.OrganisationID),
 		zap.String("patient_id", prescription.PatientID),
 		zap.String("appointment_id", prescription.AppointmentID),
 		zap.String("prescribed_by", prescription.PrescribedBy),
@@ -264,7 +257,6 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, req dto.FindManyRequest)
 		parsedStatus, statusErr := p.parseFilterStatus(req.Status)
 		if statusErr != nil {
 			log.Warn("prescription list failed",
-				zap.String("organisation_id", req.OrganisationID),
 				zap.String("status", req.Status),
 				zap.String("reason", "invalid_status"),
 			)
@@ -277,7 +269,6 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, req dto.FindManyRequest)
 	prescription, err = p.prescriptionRepo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("prescription list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -291,7 +282,6 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, req dto.FindManyRequest)
 	totalInt, err = p.prescriptionRepo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("prescription list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -299,7 +289,6 @@ func (p *PrescriptionService) FindMany(log *zap.Logger, req dto.FindManyRequest)
 	}
 
 	log.Info("prescription list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("count", len(prescription)),
 		zap.Int64("total", totalInt),
 		zap.Bool("has_search", req.Search != ""),
@@ -385,7 +374,6 @@ func (p *PrescriptionService) GetTodayPrescriptions(log *zap.Logger, organisatio
 	prescriptions, err := p.prescriptionRepo.FindMany(log, listQuery, organisationID, constants.DashboardTodayPrescriptionLimit)
 	if err != nil {
 		log.Error("dashboard today prescriptions failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -404,14 +392,12 @@ func (p *PrescriptionService) GetTodayPrescriptions(log *zap.Logger, organisatio
 	total, err := p.prescriptionRepo.Count(log, countQuery, organisationID)
 	if err != nil {
 		log.Error("dashboard today prescriptions failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
 		return dto.TodayPrescriptionsSummary{}, wrapError.ErrPrescriptionsFetchFailed
 	}
 	log.Info("dashboard today prescriptions success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("count", len(prescriptions)),
 		zap.Int64("total", total),
 	)
@@ -426,7 +412,6 @@ func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset in
 	parsedStatus, err := p.parseFilterStatus(status)
 	if err != nil {
 		log.Warn("prescription status list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("status", status),
 			zap.String("reason", "invalid_status"),
 			zap.Error(err),
@@ -438,7 +423,6 @@ func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset in
 	prescriptions, err := p.prescriptionRepo.FindByStatus(log, organisationID, parsedStatus, limit, skip)
 	if err != nil {
 		log.Error("prescription status list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("status", parsedStatus),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
@@ -452,7 +436,6 @@ func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset in
 	total, err := p.prescriptionRepo.CountByStatus(log, organisationID, parsedStatus)
 	if err != nil {
 		log.Error("prescription status list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("status", parsedStatus),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
@@ -461,7 +444,6 @@ func (p *PrescriptionService) FindByStatus(log *zap.Logger, limit int, offset in
 	}
 
 	log.Info("prescription status list success",
-		zap.String("organisation_id", organisationID),
 		zap.String("status", parsedStatus),
 		zap.Int("count", len(prescriptions)),
 		zap.Int64("total", total),
@@ -677,7 +659,6 @@ OFFSET $4`
 	if err != nil {
 		log.Error("prescription appointment list failed",
 			zap.String("appointment_id", reqmodel.AppointmentID),
-			zap.String("organisation_id", reqmodel.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -688,7 +669,6 @@ OFFSET $4`
 	if err != nil {
 		log.Error("prescription appointment list failed",
 			zap.String("appointment_id", reqmodel.AppointmentID),
-			zap.String("organisation_id", reqmodel.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -701,7 +681,6 @@ OFFSET $4`
 	response.Message = "fetched data successfully"
 	log.Info("prescription appointment list success",
 		zap.String("appointment_id", reqmodel.AppointmentID),
-		zap.String("organisation_id", reqmodel.OrganisationID),
 		zap.Int("count", len(presResponse)),
 		zap.Int("total", response.Total),
 	)

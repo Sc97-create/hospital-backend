@@ -53,7 +53,6 @@ func (e *EmployeeController) Add(c *fiber.Ctx) (err error) {
 		return wrapError.Wrap(err, c, 409)
 	}
 	logger.Info("employee create attempt",
-		zap.String("organisation_id", userReq.OrganisationID),
 		zap.String("role_id", userReq.RoleID),
 		zap.String("department_id", userReq.DepartmentID),
 	)
@@ -250,7 +249,7 @@ func (e *EmployeeController) FindMany(c *fiber.Ctx) (err error) {
 		logger.Warn("employee list request invalid", zap.Error(err))
 		return wrapError.Wrap(err, c, 409)
 	}
-	logger.Info("employee list attempt", zap.String("organisation_id", payload.OrganisationID))
+	logger.Info("employee list attempt")
 	employees, total, err := e.EmployeeService.FindMany(logger, payload)
 	if err != nil {
 		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeesFetchFailed), c, 409)
@@ -302,7 +301,7 @@ func (e *EmployeeController) CreateAdmin(c *fiber.Ctx) (err error) {
 	if err != nil {
 		return wrapError.Wrap(err, c, 409)
 	}
-	logger.Info("employee admin create attempt", zap.String("organisation_id", AdminReq.OrganisationID))
+	logger.Info("employee admin create attempt")
 	userID, err := e.EmployeeService.CreateAdminProf(logger, AdminReq)
 	if err != nil {
 		return wrapError.Wrap(safeEmployeeError(err, wrapError.ErrEmployeeCreateFailed), c, 409)
@@ -343,7 +342,7 @@ func (e *EmployeeController) FindDoctors(c *fiber.Ctx) (err error) {
 		logger.Warn("doctor list request invalid", zap.String("reason", "missing_organisation_id"))
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, 409)
 	}
-	logger.Info("doctor list attempt", zap.String("organisation_id", organisationID))
+	logger.Info("doctor list attempt")
 
 	users, err := e.EmployeeService.FindDoctors(logger, name, organisationID)
 	if err != nil {

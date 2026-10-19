@@ -28,14 +28,12 @@ func (SService *SupplierService) CretateSupplier(log *zap.Logger, supplier dto.S
 	err := SService.SupplierRepo.CretateSupplier(log, &supplierData)
 	if err != nil {
 		log.Error("supplier create failed",
-			zap.String("organisation_id", supplier.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return "", wrapError.ErrSupplierCreateFailed
 	}
 	log.Info("supplier create success",
-		zap.String("organisation_id", supplier.OrganisationID),
 		zap.String("supplier_id", supplierData.ID),
 		zap.String("supplier_code", supplierData.SupplierCode),
 		zap.String("payment_terms", string(supplierData.PaymentTerms)),
@@ -74,7 +72,6 @@ func (SService *SupplierService) GetSupplierByOrgID(log *zap.Logger, req dto.Sup
 	suppliers, err := SService.SupplierRepo.GetSupplierByOrgID(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("supplier list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -85,7 +82,6 @@ func (SService *SupplierService) GetSupplierByOrgID(log *zap.Logger, req dto.Sup
 	total, err := SService.SupplierRepo.CountSupplierByOrgID(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("supplier list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -93,7 +89,6 @@ func (SService *SupplierService) GetSupplierByOrgID(log *zap.Logger, req dto.Sup
 	}
 
 	log.Info("supplier list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("result_count", len(suppliers)),
 		zap.Int64("total", total),
 		zap.Int("limit", req.DBLimit),
@@ -108,7 +103,6 @@ func (SService *SupplierService) GetTotalCount(log *zap.Logger, organisationID s
 	total, err := SService.SupplierRepo.CountSupplierByOrgID(log, query, organisationID)
 	if err != nil {
 		log.Error("supplier count failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)

@@ -89,7 +89,6 @@ func (s *OrganisationService) addOrganisation(log *zap.Logger, tx *gorm.DB, payl
 	}
 
 	log.Info("organisation add success",
-		zap.String("organisation_id", org.ID),
 		zap.String("tenant_id", org.TenantID),
 		zap.String("organisation_type", org.OrganisationType),
 		zap.Bool("is_primary", org.IsPrimary),
@@ -103,7 +102,6 @@ func (s *OrganisationService) provisionHospitalAdmin(log *zap.Logger, tx *gorm.D
 	}
 	if err := s.Admin.ProvisionHospitalAdmin(log, org.TenantID, org.ID); err != nil {
 		log.Error("organisation add failed",
-			zap.String("organisation_id", org.ID),
 			zap.String("tenant_id", org.TenantID),
 			zap.String("reason", "hospital_admin"),
 			zap.Error(err),
@@ -126,13 +124,11 @@ func (s *OrganisationService) GetOrgByID(log *zap.Logger, organisationID string)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("organisation get by id failed",
-				zap.String("organisation_id", organisationID),
 				zap.String("reason", "not_found"),
 			)
 			return Organisation{}, wrapError.ErrOrganisationNotFound
 		}
 		log.Error("organisation get by id failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -217,7 +213,7 @@ func (s *OrganisationService) UpdateAddress(log *zap.Logger, payload dto.Organis
 		return mapOrgUpdateErr(log, payload.OrganisationID, err)
 	}
 
-	log.Info("organisation address update success", zap.String("organisation_id", payload.OrganisationID))
+	log.Info("organisation address update success")
 	return nil
 }
 
@@ -250,7 +246,6 @@ func (s *OrganisationService) Update(log *zap.Logger, organisationID string, pay
 	}
 
 	log.Info("organisation update success",
-		zap.String("organisation_id", organisationID),
 		zap.String("organisation_type", payload.OrganisationType),
 	)
 	return nil
@@ -377,13 +372,11 @@ func mergeAddress(existing Address, payload dto.OrganisationPayload) Address {
 func mapOrgUpdateErr(log *zap.Logger, organisationID string, err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Warn("organisation update failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "not_found"),
 		)
 		return wrapError.ErrOrganisationNotFound
 	}
 	log.Error("organisation update failed",
-		zap.String("organisation_id", organisationID),
 		zap.String("reason", "db_update"),
 		zap.Error(err),
 	)

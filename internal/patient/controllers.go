@@ -50,7 +50,6 @@ func (p *PatientController) AddGeneralInfoHandler(c *fiber.Ctx) (err error) {
 	}
 
 	logger.Info("patient create attempt",
-		zap.String("organisation_id", payloadModel.OrganisationID),
 		zap.String("created_by", payloadModel.UserID),
 	)
 
@@ -182,7 +181,6 @@ func (p *PatientController) Find(c *fiber.Ctx) (err error) {
 	req.Search, _ = payload.Getstring("search")
 
 	logger.Info("patient list attempt",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Float64("limit", req.Limit),
 		zap.Float64("page_no", req.PageNo),
 		zap.Bool("has_search", req.Search != ""),
@@ -199,7 +197,6 @@ func (p *PatientController) Find(c *fiber.Ctx) (err error) {
 	response.Code = 200
 	if err = c.Status(fiber.StatusOK).JSON(&response); err != nil {
 		logger.Error("patient list response failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.Error(err),
 		)
 		return errwrap.Wrap(err, c, fiber.StatusInternalServerError)

@@ -117,7 +117,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 	if err != nil {
 		log.Error("login failed",
 			zap.String("user_id", user.ID),
-			zap.String("organisation_id", user.OrganisationID),
 			zap.String("reason", "access_token"),
 			zap.Error(err),
 		)
@@ -128,7 +127,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 	if err != nil {
 		log.Error("login failed",
 			zap.String("user_id", user.ID),
-			zap.String("organisation_id", user.OrganisationID),
 			zap.String("reason", "refresh_token"),
 			zap.Error(err),
 		)
@@ -143,7 +141,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 		if err != nil {
 			log.Error("login failed",
 				zap.String("user_id", user.ID),
-				zap.String("organisation_id", user.OrganisationID),
 				zap.String("reason", "refresh_token"),
 				zap.Error(err),
 			)
@@ -154,7 +151,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 		if err != nil {
 			log.Error("login failed",
 				zap.String("user_id", user.ID),
-				zap.String("organisation_id", user.OrganisationID),
 				zap.String("reason", "refresh_token"),
 				zap.Error(err),
 			)
@@ -164,7 +160,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 		if err != nil {
 			log.Error("login failed",
 				zap.String("user_id", user.ID),
-				zap.String("organisation_id", user.OrganisationID),
 				zap.String("reason", "refresh_token"),
 				zap.Error(err),
 			)
@@ -185,7 +180,6 @@ func (a *UserService) Login(log *zap.Logger, L dto.LoginUser) (dto.LoginResponse
 
 	log.Info("login success",
 		zap.String("user_id", user.ID),
-		zap.String("organisation_id", user.OrganisationID),
 		zap.String("role_id", user.RoleID),
 		zap.String("refresh_action", refreshAction),
 	)
@@ -476,7 +470,6 @@ func (a *UserService) RequestPasswordReset(log *zap.Logger, emailID string) erro
 
 	log.Info("password reset link sent",
 		zap.String("user_id", user.ID),
-		zap.String("organisation_id", user.OrganisationID),
 	)
 	return nil
 }

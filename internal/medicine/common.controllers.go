@@ -80,7 +80,6 @@ func (MedCo *MedicineController) SearchMedicine(c *fiber.Ctx) (err error) {
 	}
 
 	logger.Info("medicine search attempt",
-		zap.String("organisation_id", organisationID),
 		zap.Int("name_len", len(name)),
 	)
 
@@ -135,7 +134,6 @@ func (MedCo *MedicineController) AddMedicine(c *fiber.Ctx) (err error) {
 	}
 
 	logger.Info("medicine purchase attempt",
-		zap.String("organisation_id", reqPayload.OrganisationID),
 		zap.String("supplier_id", reqPayload.SupplierID),
 		zap.String("user_id", reqPayload.UserID),
 		zap.String("invoice_no", reqPayload.InvoiceNo),

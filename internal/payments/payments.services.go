@@ -404,7 +404,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 	if paymentMode != constants.PaymentCash && paymentMode != constants.PaymentQR {
 		log.Warn("payment confirm failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("payment_mode", paymentMode),
 			zap.String("reason", "unsupported_payment_mode"),
 		)
@@ -416,14 +415,12 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 		if errors.Is(err, wrapError.ErrPaymentNotFound) {
 			log.Warn("payment confirm failed",
 				zap.String("invoice_id", invoiceID),
-				zap.String("organisation_id", organisationID),
 				zap.String("reason", "not_found"),
 			)
 			return wrapError.ErrPaymentNotFound
 		}
 		log.Error("payment confirm failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "payment_lookup"),
 			zap.Error(err),
 		)
@@ -432,7 +429,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 	if payment.Source != constants.PaymentCash && payment.Source != constants.PaymentQR {
 		log.Warn("payment confirm failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("payment_mode", paymentMode),
 			zap.String("source", payment.Source),
 			zap.String("reason", "source_mismatch"),
@@ -450,7 +446,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 			tx.Rollback()
 			log.Error("payment confirm failed",
 				zap.String("invoice_id", invoiceID),
-				zap.String("organisation_id", organisationID),
 				zap.String("payment_id", payment.ID),
 				zap.String("payment_mode", paymentMode),
 				zap.String("source", payment.Source),
@@ -461,7 +456,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 		}
 		log.Info("payment source updated on confirm",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("payment_id", payment.ID),
 			zap.String("from_source", payment.Source),
 			zap.String("to_source", paymentMode),
@@ -474,7 +468,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 		tx.Rollback()
 		log.Error("payment confirm failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "fulfillment_failed"),
 			zap.Error(err),
 		)
@@ -483,7 +476,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 	if err = tx.Commit().Error; err != nil {
 		log.Error("payment confirm failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_commit"),
 			zap.Error(err),
 		)
@@ -496,7 +488,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 	if notifyErr != nil {
 		log.Error("payment notification failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("organisation_id", organisationID),
 			zap.String("payment_id", payment.ID),
 			zap.String("reason", "notification"),
 			zap.Error(notifyErr),
@@ -504,7 +495,6 @@ func (p *PaymentsService) ConfirmManualPayment(log *zap.Logger, invoiceID, organ
 	}
 	log.Info("payment confirm success",
 		zap.String("invoice_id", invoiceID),
-		zap.String("organisation_id", organisationID),
 		zap.String("payment_id", payment.ID),
 		zap.String("payment_mode", paymentMode),
 		zap.Bool("notification_enqueued", notificationEnqueued),

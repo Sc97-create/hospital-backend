@@ -30,7 +30,7 @@ func (d *DashboardController) GetAppointmentsGroupedByStatus(c *fiber.Ctx) error
 		return errWrap.Wrap(errWrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("dashboard status counts attempt", zap.String("organisation_id", organisationID))
+	logger.Info("dashboard status counts attempt")
 
 	grouped, err := d.service.GetAppointmentsGroupedByStatus(logger, organisationID)
 	if err != nil {
@@ -52,7 +52,7 @@ func (d *DashboardController) GetTodayLatestAppointments(c *fiber.Ctx) error {
 		return errWrap.Wrap(errWrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("dashboard today appointments attempt", zap.String("organisation_id", organisationID))
+	logger.Info("dashboard today appointments attempt")
 
 	appointments, err := d.service.GetTodayLatestAppointments(logger, organisationID)
 	if err != nil {
@@ -74,7 +74,7 @@ func (d *DashboardController) GetTodayCompletedInvoiceSummary(c *fiber.Ctx) erro
 		return errWrap.Wrap(errWrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("dashboard invoice summary attempt", zap.String("organisation_id", organisationID))
+	logger.Info("dashboard invoice summary attempt")
 
 	summary, err := d.service.GetTodayCompletedInvoiceSummary(logger, organisationID)
 	if err != nil {
@@ -96,7 +96,7 @@ func (d *DashboardController) GetEmployeeStatusCounts(c *fiber.Ctx) error {
 		return errWrap.Wrap(errWrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("dashboard employee status counts attempt", zap.String("organisation_id", organisationID))
+	logger.Info("dashboard employee status counts attempt")
 
 	counts, err := d.service.GetEmployeeStatusCounts(logger, organisationID)
 	if err != nil {
@@ -118,7 +118,7 @@ func (d *DashboardController) GetTodayPrescriptions(c *fiber.Ctx) error {
 		return errWrap.Wrap(errWrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("dashboard today prescriptions attempt", zap.String("organisation_id", organisationID))
+	logger.Info("dashboard today prescriptions attempt")
 
 	summary, err := d.service.GetTodayPrescriptions(logger, organisationID)
 	if err != nil {

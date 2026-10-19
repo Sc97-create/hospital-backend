@@ -43,9 +43,7 @@ func NormalizeMobile(value string) (string, bool) {
 	value = strings.TrimSpace(value)
 	value = strings.ReplaceAll(value, " ", "")
 	value = strings.ReplaceAll(value, "-", "")
-	if strings.HasPrefix(value, "+") {
-		value = value[1:]
-	}
+	value = strings.TrimPrefix(value, "+")
 	if len(value) < 10 || len(value) > 15 {
 		return "", false
 	}

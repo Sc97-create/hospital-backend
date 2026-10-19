@@ -62,7 +62,6 @@ func (EService *EmployeeService) CreateEmployeeInvite(log *zap.Logger, payload d
 	user.EmployeeCode = code
 	if err = EService.EmpRepo.Create(log, &user); err != nil {
 		log.Error("employee create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
@@ -70,7 +69,6 @@ func (EService *EmployeeService) CreateEmployeeInvite(log *zap.Logger, payload d
 	}
 	log.Info("employee create success",
 		zap.String("user_id", user.ID),
-		zap.String("organisation_id", payload.OrganisationID),
 		zap.String("role_id", payload.RoleID),
 	)
 	EService.enqueueEmployeeCreated(log, user)
@@ -115,7 +113,6 @@ func (Eservice *EmployeeService) FindMany(log *zap.Logger, req dto.FindManyReque
 	users, err := Eservice.EmpRepo.ReadMany(log, limitInt, skip, req.OrganisationID, req.Search)
 	if err != nil {
 		log.Error("employee list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_list"),
 			zap.Error(err),
 		)
@@ -124,7 +121,6 @@ func (Eservice *EmployeeService) FindMany(log *zap.Logger, req dto.FindManyReque
 	total, err = Eservice.EmpRepo.Count(log, req.OrganisationID, req.Search)
 	if err != nil {
 		log.Error("employee list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -142,7 +138,6 @@ func (Eservice *EmployeeService) GetEmployeeStatusCounts(log *zap.Logger, organi
 	row, err := Eservice.EmpRepo.CountByActiveStatus(log, organisationID)
 	if err != nil {
 		log.Error("employee status counts failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -229,7 +224,6 @@ func (Eservice *EmployeeService) CreateAdminProf(log *zap.Logger, payload dto.Em
 	passwordHash, err := Eservice.hashPassword(payload.Password)
 	if err != nil {
 		log.Error("employee admin create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "hash_password"),
 		)
 		return "", wrapError.ErrEmployeeCreateFailed
@@ -237,7 +231,6 @@ func (Eservice *EmployeeService) CreateAdminProf(log *zap.Logger, payload dto.Em
 	role, err := Eservice.RoleServices.FindRoleByNames(log, payload.OrganisationID, roles.DefaultRoleAdmin)
 	if err != nil {
 		log.Error("employee admin create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "role_lookup"),
 			zap.Error(err),
 		)
@@ -246,7 +239,6 @@ func (Eservice *EmployeeService) CreateAdminProf(log *zap.Logger, payload dto.Em
 	department, err := Eservice.DeptServices.FindDeptByName(log, payload.OrganisationID, department.DefaultDeptAdmin)
 	if err != nil {
 		log.Error("employee admin create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "department_lookup"),
 			zap.Error(err),
 		)
@@ -264,7 +256,6 @@ func (Eservice *EmployeeService) CreateAdminProf(log *zap.Logger, payload dto.Em
 	err = Eservice.EmpRepo.Create(log, &user)
 	if err != nil {
 		log.Error("employee admin create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
@@ -272,7 +263,6 @@ func (Eservice *EmployeeService) CreateAdminProf(log *zap.Logger, payload dto.Em
 	}
 	log.Info("employee admin create success",
 		zap.String("user_id", user.ID),
-		zap.String("organisation_id", payload.OrganisationID),
 	)
 	return user.ID, nil
 }
@@ -344,7 +334,6 @@ func (Eservice *EmployeeService) FindDoctors(log *zap.Logger, search string, org
 	users, err := Eservice.EmpRepo.ReadDoctors(log, query, args...)
 	if err != nil {
 		log.Error("doctor list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -423,7 +412,6 @@ func (Eservice *EmployeeService) createEmployeeCode(log *zap.Logger, organisatio
 		parsed, ok := utils.ParseDate(dateOfJoining)
 		if !ok {
 			log.Warn("employee code failed",
-				zap.String("organisation_id", organisationID),
 				zap.String("reason", "invalid_joining_date"),
 			)
 			return "", wrapError.ErrInvalidRequest
@@ -434,7 +422,6 @@ func (Eservice *EmployeeService) createEmployeeCode(log *zap.Logger, organisatio
 	count, err := Eservice.EmpRepo.CountByCodePrefix(log, organisationID, prefix)
 	if err != nil {
 		log.Error("employee code failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -459,7 +446,6 @@ func (Eservice *EmployeeService) enqueueEmployeeCreated(log *zap.Logger, user Us
 	if err != nil {
 		log.Error("employee notification failed",
 			zap.String("user_id", user.ID),
-			zap.String("organisation_id", user.OrganisationID),
 			zap.String("reason", "org_lookup"),
 			zap.Error(err),
 		)
@@ -484,7 +470,6 @@ func (Eservice *EmployeeService) enqueueEmployeeCreated(log *zap.Logger, user Us
 	if err != nil {
 		log.Error("employee notification failed",
 			zap.String("user_id", user.ID),
-			zap.String("organisation_id", user.OrganisationID),
 			zap.String("reason", "enqueue"),
 			zap.Error(err),
 		)

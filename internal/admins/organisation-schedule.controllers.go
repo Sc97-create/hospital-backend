@@ -76,7 +76,6 @@ func (O *IOrgSchedController) Create(c *fiber.Ctx) error {
 	orgSched.IsClosed, _ = payload.GetBool("is_closed")
 
 	logger.Info("organisation schedule create attempt",
-		zap.String("organisation_id", orgSched.OrganisationID),
 		zap.Int("slot_duration", int(orgSched.SlotDuration)),
 		zap.Int("week_off_count", len(orgSched.WeekDays)),
 		zap.Bool("is_closed", orgSched.IsClosed),

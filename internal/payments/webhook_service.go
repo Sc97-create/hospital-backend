@@ -17,14 +17,14 @@ import (
 )
 
 type IWebhookService struct {
-	db                     *gorm.DB
-	WebhookRepository      IWebhookRepository
-	PaymentsService        PaymentInvoiceLookup
-	PaymentAttempts        PaymentAttemptServicer
-	PaymentFactory         providers.IPaymentFactory
-	Fulfillment            IPaymentFulfillment
-	FulfillmentSvc         FulfillmentServicer
-	TenantEntitlement      TenantEntitlementActivator
+	db                *gorm.DB
+	WebhookRepository IWebhookRepository
+	PaymentsService   PaymentInvoiceLookup
+	PaymentAttempts   PaymentAttemptServicer
+	PaymentFactory    providers.IPaymentFactory
+	Fulfillment       IPaymentFulfillment
+	FulfillmentSvc    FulfillmentServicer
+	TenantEntitlement TenantEntitlementActivator
 }
 
 // TenantEntitlementActivator is the common hook used after a webhook signature is verified
