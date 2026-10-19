@@ -52,7 +52,6 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 			reason = "org_not_found"
 		}
 		log.Warn("patient create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", reason),
 			zap.Error(err),
 		)
@@ -67,7 +66,6 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 			field = ve.Field
 		}
 		log.Warn("patient create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "validation"),
 			zap.String("field", field),
 			zap.Error(err),
@@ -78,7 +76,6 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	patientModel, err := p.ToPatientModel(age, weight, payload)
 	if err != nil {
 		log.Error("patient create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "model_build"),
 			zap.Error(err),
 		)
@@ -89,14 +86,12 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	if err != nil {
 		if isUniqueViolation(err) {
 			log.Error("patient create failed",
-				zap.String("organisation_id", payload.OrganisationID),
 				zap.String("reason", "duplicate"),
 				zap.Error(err),
 			)
 			return "", wrapError.ErrPatientAlreadyExists
 		}
 		log.Error("patient create failed",
-			zap.String("organisation_id", payload.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
@@ -107,7 +102,6 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	if err != nil {
 		log.Error("patient create failed",
 			zap.String("patient_id", patientModel.ID),
-			zap.String("organisation_id", org.ID),
 			zap.String("reason", "notification_payload"),
 			zap.Error(err),
 		)
@@ -125,7 +119,6 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	log.Info("patient create success",
 		zap.String("patient_id", patientModel.ID),
 		zap.String("uhid", patientModel.UHID),
-		zap.String("organisation_id", org.ID),
 		zap.String("created_by", payload.UserID),
 		zap.Bool("notification_enqueued", true),
 	)
@@ -170,7 +163,6 @@ func (p *PatientService) FindMany(log *zap.Logger, req dto.PatientListReq) (pati
 	patients, err := p.PRepo.ReadMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("patient list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -181,7 +173,6 @@ func (p *PatientService) FindMany(log *zap.Logger, req dto.PatientListReq) (pati
 	total, err = p.PRepo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("patient list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -190,7 +181,6 @@ func (p *PatientService) FindMany(log *zap.Logger, req dto.PatientListReq) (pati
 
 	patientResp = p.arraymaptopatientResponse(patients)
 	log.Info("patient list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("count", len(patientResp)),
 		zap.Int64("total", total),
 		zap.Bool("has_search", req.Search != ""),
@@ -304,7 +294,6 @@ func (p *PatientService) FindOne(log *zap.Logger, id string) (pat dto.PatientRes
 	pat = p.maptopatientResponse(patient)
 	log.Info("patient get success",
 		zap.String("patient_id", patient.ID),
-		zap.String("organisation_id", patient.OrganisationID),
 		zap.String("uhid", patient.UHID),
 	)
 	return
@@ -403,13 +392,8 @@ func (p *PatientService) GetNotificationPatientByID(log *zap.Logger, patientID s
 		return nil, wrapError.ErrPatientNotFound
 	}
 
-	orgID := ""
-	if v, ok := patient["organisation_id"]; ok {
-		orgID = fmt.Sprint(v)
-	}
 	log.Debug("patient notification lookup success",
 		zap.String("patient_id", patientID),
-		zap.String("organisation_id", orgID),
 	)
 	return patient, nil
 }

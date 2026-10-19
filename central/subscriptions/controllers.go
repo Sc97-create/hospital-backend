@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	dto "hospital-backend/central/subscriptions/dto"
 	"hospital-backend/central/middleware"
+	dto "hospital-backend/central/subscriptions/dto"
 	wrapError "hospital-backend/shared/error"
 	"hospital-backend/shared/params"
 
@@ -99,7 +99,7 @@ func (sc *SubscriptionController) CheckEnd(c *fiber.Ctx) error {
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
-	logger.Info("subscription end check attempt", zap.String("organisation_id", organisationID))
+	logger.Info("subscription end check attempt")
 	result, err := sc.Service.CheckEndByOrganisation(logger, organisationID)
 	if err != nil {
 		return wrapCheckEndError(c, err)

@@ -23,7 +23,6 @@ func (RoleSer *RoleServices) FindMany(log *zap.Logger, organisationID string, li
 	roles, err := RoleSer.RoleRepo.FindMany(log, organisationID, limit, offset)
 	if err != nil {
 		log.Error("role list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_list"),
 			zap.Error(err),
 		)
@@ -32,7 +31,6 @@ func (RoleSer *RoleServices) FindMany(log *zap.Logger, organisationID string, li
 	total, err := RoleSer.RoleRepo.Count(log, organisationID)
 	if err != nil {
 		log.Error("role list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -61,7 +59,6 @@ func (RoleSer *RoleServices) FindRoleByOrgID(log *zap.Logger, organisationID str
 	roles, err := RoleSer.RoleRepo.FindRoleByOrgID(log, organisationID)
 	if err != nil {
 		log.Error("role lookup failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -76,14 +73,12 @@ func (RoleSer *RoleServices) InsertMany(log *zap.Logger, tx *gorm.DB, organisati
 	err := RoleSer.RoleRepo.InsertMany(log, tx, role)
 	if err != nil {
 		log.Error("role seed failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_insert"),
 			zap.Error(err),
 		)
 		return nil, err
 	}
 	log.Info("role seed success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("count", len(role)),
 	)
 	return role, nil
@@ -107,7 +102,6 @@ func (RoleSer *RoleServices) FindRoleByNames(log *zap.Logger, organisationID str
 	role, err := RoleSer.RoleRepo.FindRoleByNames(log, organisationID, name)
 	if err != nil {
 		log.Error("role lookup failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)

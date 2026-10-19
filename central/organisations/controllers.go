@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	dto "hospital-backend/central/organisations/dto"
 	"hospital-backend/central/middleware"
+	dto "hospital-backend/central/organisations/dto"
 	wrapError "hospital-backend/shared/error"
 	"hospital-backend/shared/params"
 
@@ -83,7 +83,6 @@ func (OC *OrganisationController) UpdateAddress(c *fiber.Ctx) error {
 	}
 
 	logger.Info("organisation address update attempt",
-		zap.String("organisation_id", payload.OrganisationID),
 		zap.String("country_id", payload.CountryID),
 	)
 
@@ -132,7 +131,6 @@ func (OC *OrganisationController) Update(c *fiber.Ctx) error {
 	}
 
 	logger.Info("organisation update attempt",
-		zap.String("organisation_id", payload.OrganisationID),
 		zap.String("organisation_type", payload.OrganisationType),
 	)
 

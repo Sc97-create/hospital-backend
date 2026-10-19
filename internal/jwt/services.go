@@ -162,7 +162,6 @@ func (j *JwtService) ValidateRefreshToken(log *zap.Logger, token string) (TokenR
 
 	log.Info("refresh success",
 		zap.String("user_id", userID),
-		zap.String("organisation_id", organisationID),
 		zap.String("jti", refreshID),
 	)
 	return tokenResponse, nil

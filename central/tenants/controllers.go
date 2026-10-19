@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	dto "hospital-backend/central/tenants/dto"
 	"hospital-backend/central/middleware"
+	dto "hospital-backend/central/tenants/dto"
 	wrapError "hospital-backend/shared/error"
 	"hospital-backend/shared/params"
 
@@ -92,7 +92,6 @@ func (tc *TenantController) Update(c *fiber.Ctx) error {
 	}
 
 	logger.Info("tenant update attempt",
-		zap.String("organisation_id", payload.OrganisationID),
 		zap.String("facility_name", payload.FacilityName),
 	)
 

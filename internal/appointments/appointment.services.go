@@ -53,7 +53,6 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 			err = wrapError.ErrOrgScheduleNotFound
 		}
 		log.Warn("appointment create failed",
-			zap.String("organisation_id", requestPayload.OrganisationID),
 			zap.String("reason", "org_schedule_not_found"),
 			zap.Error(err),
 		)
@@ -68,7 +67,6 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 			field = ve.Field
 		}
 		log.Warn("appointment create failed",
-			zap.String("organisation_id", requestPayload.OrganisationID),
 			zap.String("patient_id", requestPayload.PatientID),
 			zap.String("doctor_id", requestPayload.DoctorID),
 			zap.String("reason", "validation"),
@@ -83,7 +81,6 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 	if err != nil {
 		if isSlotTaken(err) {
 			log.Warn("appointment create failed",
-				zap.String("organisation_id", requestPayload.OrganisationID),
 				zap.String("patient_id", requestPayload.PatientID),
 				zap.String("doctor_id", requestPayload.DoctorID),
 				zap.String("reason", "slot_taken"),
@@ -91,7 +88,6 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 			return dto.NewApptmntResp{}, wrapError.ErrAppointmentSlotTaken
 		}
 		log.Error("appointment create failed",
-			zap.String("organisation_id", requestPayload.OrganisationID),
 			zap.String("patient_id", requestPayload.PatientID),
 			zap.String("doctor_id", requestPayload.DoctorID),
 			zap.String("reason", "db_create"),
@@ -109,14 +105,12 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 		// Appointment already saved — keep success for client; log for ops.
 		log.Error("appointment create notification payload failed",
 			zap.String("appointment_id", appointmentModel.ID),
-			zap.String("organisation_id", requestPayload.OrganisationID),
 			zap.String("reason", "notification_payload"),
 			zap.Error(err),
 		)
 		log.Info("appointment create success",
 			zap.String("appointment_id", appointmentModel.ID),
 			zap.String("appointment_code", appointmentModel.AppointmentCode),
-			zap.String("organisation_id", appointmentModel.OrganisationID),
 			zap.String("patient_id", appointmentModel.PatientID),
 			zap.String("doctor_id", appointmentModel.DoctorID),
 			zap.String("created_by", appointmentModel.CreatedBy),
@@ -138,7 +132,6 @@ func (s *AppointmentService) CreateApptmnt(log *zap.Logger, requestPayload dto.N
 	log.Info("appointment create success",
 		zap.String("appointment_id", appointmentModel.ID),
 		zap.String("appointment_code", appointmentModel.AppointmentCode),
-		zap.String("organisation_id", appointmentModel.OrganisationID),
 		zap.String("patient_id", appointmentModel.PatientID),
 		zap.String("doctor_id", appointmentModel.DoctorID),
 		zap.String("created_by", appointmentModel.CreatedBy),
@@ -279,7 +272,6 @@ func (s *AppointmentService) GetSlots(log *zap.Logger, doctorID string, organisa
 	if err != nil {
 		log.Error("appointment slots failed",
 			zap.String("doctor_id", doctorID),
-			zap.String("organisation_id", organisationID),
 			zap.String("date", date),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
@@ -293,7 +285,6 @@ func (s *AppointmentService) GetSlots(log *zap.Logger, doctorID string, organisa
 			err = wrapError.ErrOrgScheduleNotFound
 		}
 		log.Warn("appointment slots failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "org_schedule_not_found"),
 			zap.Error(err),
 		)
@@ -303,7 +294,6 @@ func (s *AppointmentService) GetSlots(log *zap.Logger, doctorID string, organisa
 	slots, err := s.checkIfSlotAvailable(appointments, orgSchedules, date)
 	if err != nil {
 		log.Error("appointment slots failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("date", date),
 			zap.String("reason", "slot_processing"),
 			zap.Error(err),
@@ -325,7 +315,6 @@ func (s *AppointmentService) GetSlots(log *zap.Logger, doctorID string, organisa
 
 	log.Info("appointment slots success",
 		zap.String("doctor_id", doctorID),
-		zap.String("organisation_id", organisationID),
 		zap.String("date", date),
 		zap.Int("slot_count", len(slots)),
 		zap.Int("available_count", available),
@@ -432,7 +421,6 @@ func (s *AppointmentService) GetAppointmentsGroupedByStatus(log *zap.Logger, org
 	data, err := s.Repository.FindManyByOrganisationID(log, query, organisationID)
 	if err != nil {
 		log.Error("appointment status counts failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -441,7 +429,6 @@ func (s *AppointmentService) GetAppointmentsGroupedByStatus(log *zap.Logger, org
 
 	counts := s.countAppointmentsByStatus(data)
 	log.Info("appointment status counts success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("scheduled", counts.Scheduled),
 		zap.Int("in_consult", counts.InConsult),
 		zap.Int("completed", counts.Completed),
@@ -477,7 +464,6 @@ func (s *AppointmentService) GetTodayLatestAppointments(log *zap.Logger, organis
 	data, err := s.Repository.FindManyByOrganisationID(log, query, organisationID, constants.DashboardTodayAppointmentLimit)
 	if err != nil {
 		log.Error("dashboard today appointments failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -485,7 +471,6 @@ func (s *AppointmentService) GetTodayLatestAppointments(log *zap.Logger, organis
 	}
 	response := s.toAppointmentList(data)
 	log.Info("dashboard today appointments success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("count", len(response)),
 	)
 	return response, nil
@@ -541,7 +526,6 @@ func (s *AppointmentService) GetAppointmentsByOrgID(log *zap.Logger, reqModel dt
 	data, err := s.Repository.FindManyByOrganisationID(log, query, args...)
 	if err != nil {
 		log.Error("appointment list failed",
-			zap.String("organisation_id", reqModel.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -551,7 +535,6 @@ func (s *AppointmentService) GetAppointmentsByOrgID(log *zap.Logger, reqModel dt
 	total, err := s.Repository.GetTotalAppointmentsByOrgID(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("appointment list failed",
-			zap.String("organisation_id", reqModel.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -559,7 +542,6 @@ func (s *AppointmentService) GetAppointmentsByOrgID(log *zap.Logger, reqModel dt
 	}
 	response := s.toAppointmentList(data)
 	log.Info("appointment list success",
-		zap.String("organisation_id", reqModel.OrganisationID),
 		zap.Int("count", len(response)),
 		zap.Int("total", total),
 	)
@@ -746,7 +728,6 @@ WHERE a.organisation_id = $1 and a.id = $2`
 	dbResp, err := s.Repository.GetAppointmentsPreview(log, query, organisationID, appointmentID)
 	if err != nil {
 		log.Error("appointment preview failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("appointment_id", appointmentID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
@@ -755,7 +736,6 @@ WHERE a.organisation_id = $1 and a.id = $2`
 	}
 	if dbResp == nil {
 		log.Warn("appointment preview failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("appointment_id", appointmentID),
 			zap.String("reason", "not_found"),
 		)
@@ -765,7 +745,6 @@ WHERE a.organisation_id = $1 and a.id = $2`
 	code, _ := dbResp["appointment_code"].(string)
 	if id == "" && code == "" {
 		log.Warn("appointment preview failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("appointment_id", appointmentID),
 			zap.String("reason", "not_found"),
 		)
@@ -774,7 +753,6 @@ WHERE a.organisation_id = $1 and a.id = $2`
 
 	appointmentDetails := s.toAppointmentPreview(dbResp)
 	log.Info("appointment preview success",
-		zap.String("organisation_id", organisationID),
 		zap.String("appointment_id", appointmentDetails.AppointmentID),
 		zap.String("appointment_code", appointmentDetails.AppointmentCode),
 		zap.String("status", appointmentDetails.Status),
@@ -830,7 +808,6 @@ func (s *AppointmentService) GetAppntmentByID(log *zap.Logger, appointmentID str
 
 	log.Debug("appointment get by id success",
 		zap.String("appointment_id", appointments.ID),
-		zap.String("organisation_id", appointments.OrganisationID),
 		zap.String("patient_id", appointments.PatientID),
 		zap.String("status", string(appointments.Status)),
 	)
@@ -894,7 +871,6 @@ func (s *AppointmentService) GetAppointmentByPatientID(log *zap.Logger, reqModel
 	if err != nil {
 		log.Error("appointment patient list failed",
 			zap.String("patient_id", reqModel.PatientID),
-			zap.String("organisation_id", reqModel.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -904,7 +880,6 @@ func (s *AppointmentService) GetAppointmentByPatientID(log *zap.Logger, reqModel
 	if err != nil {
 		log.Error("appointment patient list failed",
 			zap.String("patient_id", reqModel.PatientID),
-			zap.String("organisation_id", reqModel.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -918,7 +893,6 @@ func (s *AppointmentService) GetAppointmentByPatientID(log *zap.Logger, reqModel
 	response.Message = "fetched successfully"
 	log.Info("appointment patient list success",
 		zap.String("patient_id", reqModel.PatientID),
-		zap.String("organisation_id", reqModel.OrganisationID),
 		zap.Int("count", len(patAppointments)),
 		zap.Int("total", response.Total),
 	)

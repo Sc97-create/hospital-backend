@@ -45,7 +45,6 @@ func (s *LabTestTemplateService) ListDefaults(log *zap.Logger, organisationID st
 	rows, err := s.repo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("lab test defaults list failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -58,7 +57,6 @@ func (s *LabTestTemplateService) ListDefaults(log *zap.Logger, organisationID st
 	}
 
 	log.Info("lab test defaults list success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("defaults_count", len(defaults)),
 		zap.Int("templates_count", len(templates)),
 	)
@@ -97,14 +95,12 @@ func (s *LabTestTemplateService) Create(log *zap.Logger, req dto.CreateLabTestTe
 	}
 	if err := s.repo.Create(log, &row); err != nil {
 		log.Error("lab test template create failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return "", wrapError.ErrLabTestTemplateCreateFailed
 	}
 	log.Info("lab test template create success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.String("lab_test_template_id", row.ID),
 		zap.Int("tests_count", len(row.Tests)),
 	)
@@ -145,7 +141,6 @@ func (s *LabTestTemplateService) List(log *zap.Logger, req dto.ListLabTestTempla
 	rows, err := s.repo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("lab test template list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -156,7 +151,6 @@ func (s *LabTestTemplateService) List(log *zap.Logger, req dto.ListLabTestTempla
 	total, err := s.repo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("lab test template list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -168,7 +162,6 @@ func (s *LabTestTemplateService) List(log *zap.Logger, req dto.ListLabTestTempla
 		out = append(out, s.toTemplateRowResponse(row))
 	}
 	log.Info("lab test template list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("result_count", len(out)),
 		zap.Int64("count", total),
 	)

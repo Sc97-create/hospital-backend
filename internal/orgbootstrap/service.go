@@ -106,7 +106,7 @@ func (s *Service) AddRoles(log *zap.Logger, organisationID string) ([]RoleResult
 	}
 	existing, err := s.Roles.FindRoleByOrgID(log, organisationID)
 	if err != nil {
-		log.Error("organisation roles failed", zap.String("organisation_id", organisationID), zap.String("reason", "lookup"), zap.Error(err))
+		log.Error("organisation roles failed", zap.String("reason", "lookup"), zap.Error(err))
 		return nil, wrapError.ErrOrganisationSetupFailed
 	}
 	if len(existing) > 0 {
@@ -114,10 +114,10 @@ func (s *Service) AddRoles(log *zap.Logger, organisationID string) ([]RoleResult
 	}
 	created, err := s.Roles.InsertMany(log, s.DB, organisationID)
 	if err != nil {
-		log.Error("organisation roles failed", zap.String("organisation_id", organisationID), zap.String("reason", "insert"), zap.Error(err))
+		log.Error("organisation roles failed", zap.String("reason", "insert"), zap.Error(err))
 		return nil, wrapError.ErrOrganisationSetupFailed
 	}
-	log.Info("organisation roles success", zap.String("organisation_id", organisationID), zap.Int("count", len(created)))
+	log.Info("organisation roles success", zap.Int("count", len(created)))
 	return mapRoles(created), nil
 }
 
@@ -129,11 +129,11 @@ func (s *Service) AddRolePermissions(log *zap.Logger, organisationID string) err
 	}
 	rolesForOrg, err := s.Roles.FindRoleByOrgID(log, organisationID)
 	if err != nil {
-		log.Error("organisation role permissions failed", zap.String("organisation_id", organisationID), zap.String("reason", "roles"), zap.Error(err))
+		log.Error("organisation role permissions failed", zap.String("reason", "roles"), zap.Error(err))
 		return wrapError.ErrOrganisationSetupFailed
 	}
 	if len(rolesForOrg) == 0 {
-		log.Warn("organisation role permissions failed", zap.String("organisation_id", organisationID), zap.String("reason", "roles_missing"))
+		log.Warn("organisation role permissions failed", zap.String("reason", "roles_missing"))
 		return wrapError.ErrInvalidRequest
 	}
 	count, err := s.countRolePermissions(organisationID)
@@ -141,23 +141,23 @@ func (s *Service) AddRolePermissions(log *zap.Logger, organisationID string) err
 		return err
 	}
 	if count > 0 {
-		log.Info("organisation role permissions skipped", zap.String("organisation_id", organisationID), zap.String("reason", "already_present"))
+		log.Info("organisation role permissions skipped", zap.String("reason", "already_present"))
 		return nil
 	}
 	moduleRows, permissionRows, err := s.Catalog.FindMany(log)
 	if err != nil {
-		log.Error("organisation role permissions failed", zap.String("organisation_id", organisationID), zap.String("reason", "catalog"), zap.Error(err))
+		log.Error("organisation role permissions failed", zap.String("reason", "catalog"), zap.Error(err))
 		return wrapError.ErrOrganisationSetupFailed
 	}
 	if len(moduleRows) == 0 || len(permissionRows) == 0 {
-		log.Warn("organisation role permissions failed", zap.String("organisation_id", organisationID), zap.String("reason", "catalog_empty"))
+		log.Warn("organisation role permissions failed", zap.String("reason", "catalog_empty"))
 		return wrapError.ErrOrganisationSetupFailed
 	}
 	if err := s.RolePerms.InsertMany(log, s.DB, rolesForOrg, permissionRows, moduleRows, organisationID); err != nil {
-		log.Error("organisation role permissions failed", zap.String("organisation_id", organisationID), zap.String("reason", "insert"), zap.Error(err))
+		log.Error("organisation role permissions failed", zap.String("reason", "insert"), zap.Error(err))
 		return wrapError.ErrOrganisationSetupFailed
 	}
-	log.Info("organisation role permissions success", zap.String("organisation_id", organisationID))
+	log.Info("organisation role permissions success")
 	return nil
 }
 
@@ -183,7 +183,7 @@ func (s *Service) AddFirstUser(log *zap.Logger, req FirstUserRequest) (FirstUser
 	}
 	role, err := s.Roles.FindRoleByNames(log, req.OrganisationID, roles.DefaultRoleHospitalAdmin)
 	if err != nil || strings.TrimSpace(role.ID) == "" {
-		log.Error("organisation first user failed", zap.String("organisation_id", req.OrganisationID), zap.String("reason", "hospital_admin_role"), zap.Error(err))
+		log.Error("organisation first user failed", zap.String("reason", "hospital_admin_role"), zap.Error(err))
 		return FirstUserResult{}, wrapError.ErrOrganisationSetupFailed
 	}
 	deptID, err := s.ensureAdminDepartment(log, req.OrganisationID)
@@ -203,11 +203,10 @@ func (s *Service) AddFirstUser(log *zap.Logger, req FirstUserRequest) (FirstUser
 		DateOfJoining:  req.DateOfJoining,
 	})
 	if err != nil {
-		log.Error("organisation first user failed", zap.String("organisation_id", req.OrganisationID), zap.String("reason", "create_user"), zap.Error(err))
+		log.Error("organisation first user failed", zap.String("reason", "create_user"), zap.Error(err))
 		return FirstUserResult{}, wrapError.ErrOrganisationSetupFailed
 	}
 	log.Info("organisation first user success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.String("user_id", userID),
 		zap.String("role_id", role.ID),
 	)
@@ -224,19 +223,19 @@ func (s *Service) AddFirstUser(log *zap.Logger, req FirstUserRequest) (FirstUser
 func (s *Service) ensureAdminDepartment(log *zap.Logger, organisationID string) (string, error) {
 	dept, err := s.Depts.FindDeptByName(log, organisationID, department.DefaultDeptAdmin)
 	if err != nil {
-		log.Error("organisation first user failed", zap.String("organisation_id", organisationID), zap.String("reason", "department_lookup"), zap.Error(err))
+		log.Error("organisation first user failed", zap.String("reason", "department_lookup"), zap.Error(err))
 		return "", wrapError.ErrOrganisationSetupFailed
 	}
 	if strings.TrimSpace(dept.ID) != "" {
 		return dept.ID, nil
 	}
 	if err := s.Depts.InsertMany(log, s.DB, organisationID); err != nil {
-		log.Error("organisation first user failed", zap.String("organisation_id", organisationID), zap.String("reason", "department_seed"), zap.Error(err))
+		log.Error("organisation first user failed", zap.String("reason", "department_seed"), zap.Error(err))
 		return "", wrapError.ErrOrganisationSetupFailed
 	}
 	dept, err = s.Depts.FindDeptByName(log, organisationID, department.DefaultDeptAdmin)
 	if err != nil || strings.TrimSpace(dept.ID) == "" {
-		log.Error("organisation first user failed", zap.String("organisation_id", organisationID), zap.String("reason", "department_missing"), zap.Error(err))
+		log.Error("organisation first user failed", zap.String("reason", "department_missing"), zap.Error(err))
 		return "", wrapError.ErrOrganisationSetupFailed
 	}
 	return dept.ID, nil
@@ -253,7 +252,6 @@ func (s *Service) ProvisionHospitalAdmin(log *zap.Logger, tenantID, organisation
 	if err != nil {
 		log.Error("hospital admin provision failed",
 			zap.String("tenant_id", tenantID),
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "customer_lookup"),
 			zap.Error(err),
 		)
@@ -263,7 +261,6 @@ func (s *Service) ProvisionHospitalAdmin(log *zap.Logger, tenantID, organisation
 	if _, err = s.AddFirstUser(log, req); err != nil {
 		log.Error("hospital admin provision failed",
 			zap.String("tenant_id", tenantID),
-			zap.String("organisation_id", organisationID),
 			zap.String("customer_id", customer.ID),
 			zap.String("reason", "first_user"),
 			zap.Error(err),
@@ -272,7 +269,6 @@ func (s *Service) ProvisionHospitalAdmin(log *zap.Logger, tenantID, organisation
 	}
 	log.Info("hospital admin provision success",
 		zap.String("tenant_id", tenantID),
-		zap.String("organisation_id", organisationID),
 		zap.String("customer_id", customer.ID),
 	)
 	return nil

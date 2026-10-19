@@ -92,7 +92,6 @@ func (controller *IPayment) UpdatePaymentManually(c *fiber.Ctx) error {
 
 	logger.Info("payment confirm attempt",
 		zap.String("invoice_id", invoiceID),
-		zap.String("organisation_id", organisationID),
 		zap.String("payment_mode", paymentMode),
 	)
 

@@ -57,14 +57,12 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 		if errors.Is(err, wrapError.ErrSupplierNotFound) {
 			log.Warn("medicine purchase failed",
 				zap.String("supplier_id", MedicinePayload.SupplierID),
-				zap.String("organisation_id", MedicinePayload.OrganisationID),
 				zap.String("reason", "supplier_not_found"),
 			)
 			return wrapError.ErrSupplierNotFound
 		}
 		log.Error("medicine purchase failed",
 			zap.String("supplier_id", MedicinePayload.SupplierID),
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("reason", "supplier_lookup"),
 			zap.Error(err),
 		)
@@ -76,7 +74,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	if err != nil {
 		tx.Rollback()
 		log.Error("medicine purchase failed",
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("supplier_id", MedicinePayload.SupplierID),
 			zap.String("reason", "purchase_entry"),
 			zap.Error(err),
@@ -87,7 +84,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	if err != nil {
 		tx.Rollback()
 		log.Error("medicine purchase failed",
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("reason", "medicines_create"),
 			zap.Error(err),
 		)
@@ -97,7 +93,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	if err != nil {
 		tx.Rollback()
 		log.Error("medicine purchase failed",
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("purchase_entry_id", purchaseEntry.ID),
 			zap.String("reason", "inventory_create"),
 			zap.Error(err),
@@ -108,7 +103,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	if err != nil {
 		tx.Rollback()
 		log.Error("medicine purchase failed",
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("reason", "stock_mvmt"),
 			zap.Error(err),
 		)
@@ -116,7 +110,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	}
 	if err = tx.Commit().Error; err != nil {
 		log.Error("medicine purchase failed",
-			zap.String("organisation_id", MedicinePayload.OrganisationID),
 			zap.String("reason", "db_commit"),
 			zap.Error(err),
 		)
@@ -124,7 +117,6 @@ func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload
 	}
 
 	log.Info("medicine purchase success",
-		zap.String("organisation_id", MedicinePayload.OrganisationID),
 		zap.String("supplier_id", MedicinePayload.SupplierID),
 		zap.String("purchase_entry_id", purchaseEntry.ID),
 		zap.String("invoice_no", MedicinePayload.InvoiceNo),
@@ -262,14 +254,12 @@ func (Mservice *MedicineService) SearchMedicine(log *zap.Logger, name string, or
 	results, err := Mservice.Mrepo.SearchMedicine(log, name, pattern, organisationID)
 	if err != nil {
 		log.Error("medicine search failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
 		return nil, wrapError.ErrMedicineSearchFailed
 	}
 	log.Info("medicine search success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("result_count", len(results)),
 	)
 	return results, nil

@@ -84,7 +84,6 @@ func (PresC *PrescriptionController) CreatePrescription(c *fiber.Ctx) error {
 	requestmap.MedicineArray = PresC.toMedicineArray(medicines)
 
 	logger.Info("prescription create attempt",
-		zap.String("organisation_id", requestmap.OrganisationID),
 		zap.String("appointment_id", requestmap.AppointmentID),
 		zap.String("prescribed_by", requestmap.PrescribedBy),
 		zap.Int("item_count", len(requestmap.MedicineArray)),
@@ -148,7 +147,6 @@ func (PresC *PrescriptionController) FindMany(c *fiber.Ctx) error {
 	requestmap.Status, _ = payload.Getstring("status")
 
 	logger.Info("prescription list attempt",
-		zap.String("organisation_id", requestmap.OrganisationID),
 		zap.Float64("limit", requestmap.Limit),
 		zap.Float64("page_no", requestmap.PageNo),
 		zap.Bool("has_search", requestmap.Search != ""),
@@ -184,7 +182,6 @@ func (PresC *PrescriptionController) FindByStatus(c *fiber.Ctx) error {
 	}
 
 	logger.Info("prescription status list attempt",
-		zap.String("organisation_id", requestmap.OrganisationID),
 		zap.String("status", requestmap.Status),
 		zap.Int("limit", requestmap.Limit),
 		zap.Int("offset", requestmap.Offset),
@@ -418,7 +415,6 @@ func (PresC *PrescriptionController) GetPrescriptionByAppointmentID(c *fiber.Ctx
 
 	logger.Info("prescription appointment list attempt",
 		zap.String("appointment_id", reqmodel.AppointmentID),
-		zap.String("organisation_id", reqmodel.OrganisationID),
 		zap.Float64("limit", reqmodel.Limit),
 		zap.Float64("page_no", reqmodel.Pageno),
 	)

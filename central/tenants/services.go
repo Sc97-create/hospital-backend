@@ -82,7 +82,6 @@ func (s *TenantService) provisionHospitalAdmin(log *zap.Logger, result dto.Creat
 	if err := s.Admin.ProvisionHospitalAdmin(log, result.TenantID, result.OrganisationID); err != nil {
 		log.Error("tenant create failed",
 			zap.String("tenant_id", result.TenantID),
-			zap.String("organisation_id", result.OrganisationID),
 			zap.String("reason", "hospital_admin"),
 			zap.Error(err),
 		)
@@ -121,7 +120,6 @@ func (s *TenantService) createTenantInTx(log *zap.Logger, tx *gorm.DB, customerI
 
 	log.Info("tenant create success",
 		zap.String("tenant_id", tenant.ID),
-		zap.String("organisation_id", orgID),
 		zap.String("customer_id", customerID),
 	)
 	return dto.CreateTenantResult{TenantID: tenant.ID, OrganisationID: orgID}, nil
@@ -174,7 +172,6 @@ func (s *TenantService) GetTenantByID(log *zap.Logger, tenantID string) (dto.Ten
 
 	log.Info("tenant get success",
 		zap.String("tenant_id", tenant.ID),
-		zap.String("organisation_id", org.ID),
 	)
 	return dto.TenantDetailResult{
 		Tenant:       toTenantView(tenant),
@@ -245,7 +242,6 @@ func (s *TenantService) reloadTenantDetail(log *zap.Logger, tenantID, organisati
 	}
 	log.Info("tenant update success",
 		zap.String("tenant_id", tenant.ID),
-		zap.String("organisation_id", updatedOrg.ID),
 	)
 	return dto.TenantDetailResult{
 		Tenant:       toTenantView(tenant),

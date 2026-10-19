@@ -113,7 +113,6 @@ func (s *RolePermissionService) InsertMany(log *zap.Logger, tx *gorm.DB, roleArr
 	err := s.repo.BatchCreate(log, tx, rolePermissions)
 	if err != nil {
 		log.Error("role permission seed failed",
-			zap.String("organisation_id", organisationID),
 			zap.String("reason", "db_insert"),
 			zap.Int("count", len(rolePermissions)),
 			zap.Error(err),
@@ -121,7 +120,6 @@ func (s *RolePermissionService) InsertMany(log *zap.Logger, tx *gorm.DB, roleArr
 		return err
 	}
 	log.Info("role permission seed success",
-		zap.String("organisation_id", organisationID),
 		zap.Int("count", len(rolePermissions)),
 	)
 	return nil

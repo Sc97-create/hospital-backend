@@ -30,7 +30,6 @@ func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest
 	if err != nil {
 		log.Error("notification create failed",
 			zap.String("notification_type", data.NotificationType),
-			zap.String("organisation_id", notificationdata.OrganisationID),
 			zap.String("reason", "render"),
 			zap.Error(err),
 		)
@@ -58,7 +57,6 @@ func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest
 	if err = s.repo.Create(ctx, notification); err != nil {
 		log.Error("notification create failed",
 			zap.String("notification_id", notification.ID),
-			zap.String("organisation_id", notification.OrganisationID),
 			zap.String("notification_type", data.NotificationType),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
@@ -67,7 +65,6 @@ func (s *Notificationservice) Create(ctx context.Context, data dto.CreateRequest
 	}
 	log.Info("notification enqueued",
 		zap.String("notification_id", notification.ID),
-		zap.String("organisation_id", notification.OrganisationID),
 		zap.String("notification_type", data.NotificationType),
 	)
 	return nil

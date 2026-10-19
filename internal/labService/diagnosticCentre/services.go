@@ -46,14 +46,12 @@ func (s *DiagnosticCentreService) Create(log *zap.Logger, req dto.CreateDiagnost
 	}
 	if err := s.repo.Create(log, &row); err != nil {
 		log.Error("diagnostic centre create failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return "", wrapError.ErrDiagnosticCentreCreateFailed
 	}
 	log.Info("diagnostic centre create success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.String("diagnostic_centre_id", row.ID),
 	)
 	return row.ID, nil
@@ -76,7 +74,6 @@ func (s *DiagnosticCentreService) List(log *zap.Logger, req dto.ListDiagnosticCe
 	rows, err := s.repo.FindMany(log, listQuery, listArgs...)
 	if err != nil {
 		log.Error("diagnostic centre list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -87,7 +84,6 @@ func (s *DiagnosticCentreService) List(log *zap.Logger, req dto.ListDiagnosticCe
 	total, err := s.repo.Count(log, countQuery, countArgs...)
 	if err != nil {
 		log.Error("diagnostic centre list failed",
-			zap.String("organisation_id", req.OrganisationID),
 			zap.String("reason", "db_count"),
 			zap.Error(err),
 		)
@@ -99,7 +95,6 @@ func (s *DiagnosticCentreService) List(log *zap.Logger, req dto.ListDiagnosticCe
 		out = append(out, s.toResponse(row))
 	}
 	log.Info("diagnostic centre list success",
-		zap.String("organisation_id", req.OrganisationID),
 		zap.Int("result_count", len(out)),
 		zap.Int64("total", total),
 	)

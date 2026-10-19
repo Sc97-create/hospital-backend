@@ -58,7 +58,6 @@ func (A *AppointmentController) CreateAppointment(c *fiber.Ctx) error {
 	}
 
 	logger.Info("appointment create attempt",
-		zap.String("organisation_id", requestModel.OrganisationID),
 		zap.String("patient_id", requestModel.PatientID),
 		zap.String("doctor_id", requestModel.DoctorID),
 		zap.String("created_by", requestModel.UserID),
@@ -147,7 +146,6 @@ func (A *AppointmentController) GetSlots(c *fiber.Ctx) error {
 
 	logger.Info("appointment slots attempt",
 		zap.String("doctor_id", doctorID),
-		zap.String("organisation_id", organisationID),
 		zap.String("date", date),
 	)
 
@@ -198,7 +196,6 @@ func (A *AppointmentController) FindManyByOrganisationID(c *fiber.Ctx) (err erro
 	}
 
 	logger.Info("appointment list attempt",
-		zap.String("organisation_id", reqModel.OrganisationID),
 		zap.Float64("limit", reqModel.Limit),
 		zap.Float64("page_no", reqModel.PageNo),
 		zap.String("doctor_id", reqModel.DoctorID),
@@ -235,7 +232,6 @@ func (A *AppointmentController) FindAppointmentsPreview(c *fiber.Ctx) (err error
 	}
 
 	logger.Info("appointment preview attempt",
-		zap.String("organisation_id", organisationID),
 		zap.String("appointment_id", appointmentID),
 	)
 
@@ -326,7 +322,6 @@ func (A *AppointmentController) GetAppointmentByPatientID(c *fiber.Ctx) (err err
 
 	logger.Info("appointment patient list attempt",
 		zap.String("patient_id", requestModel.PatientID),
-		zap.String("organisation_id", requestModel.OrganisationID),
 		zap.Float64("limit", requestModel.Limit),
 		zap.Float64("page_no", requestModel.Pageno),
 		zap.String("status", requestModel.Status),
