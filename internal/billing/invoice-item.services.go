@@ -95,7 +95,7 @@ func (IItemServ *InvoiceItemServ) GetMedicineInventoryDetByInvoiceID(log *zap.Lo
     ii.medicine_id,
     inv.cashier_id,
     inv.organisation_id,
-    inv.prescription_id,
+    inv.billing_id                              AS prescription_id,
     mi.current_stock_units                      AS current_stock_unit,
     ii.dispensed_qty,
     (mi.current_stock_units - ii.dispensed_qty) AS current_stock_unit_after_dispense,

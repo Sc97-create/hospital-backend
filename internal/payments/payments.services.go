@@ -136,16 +136,18 @@ func (p *PaymentsService) CreateLinkPayment(log *zap.Logger, paymentReq dto.Crea
 		)
 		return
 	}
-	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
-	if err != nil {
-		tx.Rollback()
-		log.Error("payment link create failed",
-			zap.String("invoice_id", paymentReq.InvoiceID),
-			zap.String("prescription_id", paymentReq.PrescriptionID),
-			zap.String("reason", "prescription_status"),
-			zap.Error(err),
-		)
-		return
+	if paymentReq.PrescriptionID != "" {
+		err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
+		if err != nil {
+			tx.Rollback()
+			log.Error("payment link create failed",
+				zap.String("invoice_id", paymentReq.InvoiceID),
+				zap.String("prescription_id", paymentReq.PrescriptionID),
+				zap.String("reason", "prescription_status"),
+				zap.Error(err),
+			)
+			return
+		}
 	}
 	tx.Commit()
 	log.Info("payment link create success",
@@ -168,12 +170,12 @@ func (p *PaymentsService) RetryLinkPayment(log *zap.Logger, paymentReq dto.Creat
 		)
 		return dto.CreatePaymentResponse{}, err
 	}
-	if paymentReq.InvoiceID == "" || paymentReq.PrescriptionID == "" {
+	if paymentReq.InvoiceID == "" {
 		log.Warn("payment link retry failed",
 			zap.String("invoice_id", paymentReq.InvoiceID),
 			zap.String("reason", "missing_ids"),
 		)
-		return dto.CreatePaymentResponse{}, fmt.Errorf("invoice_id and prescription_id are required")
+		return dto.CreatePaymentResponse{}, fmt.Errorf("invoice_id is required")
 	}
 
 	if existingAttempt, findErr := p.PaymentAttempt.FindByClientIdempotencyKey(log, paymentReq.IdempotencyKey); findErr == nil {
@@ -270,16 +272,18 @@ func (p *PaymentsService) RetryLinkPayment(log *zap.Logger, paymentReq dto.Creat
 		)
 		return dto.CreatePaymentResponse{}, err
 	}
-	err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
-	if err != nil {
-		tx.Rollback()
-		log.Error("payment link retry failed",
-			zap.String("invoice_id", paymentReq.InvoiceID),
-			zap.String("prescription_id", paymentReq.PrescriptionID),
-			zap.String("reason", "prescription_status"),
-			zap.Error(err),
-		)
-		return dto.CreatePaymentResponse{}, err
+	if paymentReq.PrescriptionID != "" {
+		err = p.PrescriptionStatus.UpdateExtPrescriptionStatus(tx, paymentReq.PrescriptionID, constants.StatusPaymentPending)
+		if err != nil {
+			tx.Rollback()
+			log.Error("payment link retry failed",
+				zap.String("invoice_id", paymentReq.InvoiceID),
+				zap.String("prescription_id", paymentReq.PrescriptionID),
+				zap.String("reason", "prescription_status"),
+				zap.Error(err),
+			)
+			return dto.CreatePaymentResponse{}, err
+		}
 	}
 	if err = tx.Commit().Error; err != nil {
 		log.Error("payment link retry failed",

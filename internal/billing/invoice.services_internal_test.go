@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"hospital-backend/internal/billing/dto"
+	patientdto "hospital-backend/internal/patient/dto"
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/zap"
@@ -15,11 +16,38 @@ func TestValidatePaymentTypeInputs(t *testing.T) {
 	log := zap.NewNop()
 
 	if err := svc.validatePaymentTypeInputs(log, PaymentTypePrescription, dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrInvalidRequest) {
-		t.Fatalf("expected missing prescription_id error, got %v", err)
+		t.Fatalf("expected missing billing_id error, got %v", err)
 	}
 
 	if err := svc.validatePaymentTypeInputs(log, PaymentType("bad"), dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrInvalidPaymentType) {
 		t.Fatalf("expected invalid payment type, got %v", err)
+	}
+
+	if err := svc.validatePaymentTypeInputs(log, PaymentTypeLabOrder, dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected missing billing_id for lab_order, got %v", err)
+	}
+}
+
+func TestValidateFinancials(t *testing.T) {
+	log := zap.NewNop()
+
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{TotalAmount: 0}}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject zero total, got %v", err)
+	}
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{TotalAmount: -1}}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject negative total, got %v", err)
+	}
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{SubtotalAmount: -1, TotalAmount: 10}}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject negative subtotal, got %v", err)
+	}
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{TaxAmount: -1, TotalAmount: 10}}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject negative tax, got %v", err)
+	}
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{DiscountAmount: -5, TotalAmount: 10}}); !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("expected reject negative discount, got %v", err)
+	}
+	if err := validateFinancials(log, dto.CheckoutReq{Financials: dto.Financial{SubtotalAmount: 100, TaxAmount: 0, DiscountAmount: 0, TotalAmount: 100}}); err != nil {
+		t.Fatalf("expected valid financials, got %v", err)
 	}
 }
 
@@ -36,6 +64,9 @@ func TestMapInvoiceCreateErr(t *testing.T) {
 	if err := svc.mapInvoiceCreateErr(log, errors.New("unique violation"), PaymentTypeConsultation, dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrAppointmentAlreadyBilled) {
 		t.Fatalf("expected appointment already billed, got %v", err)
 	}
+	if err := svc.mapInvoiceCreateErr(log, errors.New("unique violation"), PaymentTypeLabOrder, dto.CheckoutReq{}); !errors.Is(err, wrapError.ErrLabOrderAlreadyBilled) {
+		t.Fatalf("expected lab order already billed, got %v", err)
+	}
 }
 
 func TestToInvoiceModel(t *testing.T) {
@@ -44,7 +75,7 @@ func TestToInvoiceModel(t *testing.T) {
 		PatientID:      "pat-1",
 		CashierID:      "cash-1",
 		OrganisationID: "org-1",
-		PrescriptionID: "rx-1",
+		BillingID:      "rx-1",
 		Financials: dto.Financial{
 			SubtotalAmount: 100,
 			TaxAmount:      10,
@@ -59,14 +90,49 @@ func TestToInvoiceModel(t *testing.T) {
 	if inv.PaymentType != PaymentTypePrescription || inv.Status != StatusUnpaid {
 		t.Fatalf("unexpected invoice fields: %+v", inv)
 	}
-	if inv.PrescriptionID == nil || *inv.PrescriptionID != "rx-1" {
-		t.Fatal("expected prescription id pointer")
+	if inv.BillingID != "rx-1" {
+		t.Fatal("expected billing id for prescription")
 	}
 
-	req.AppointmentID = "appt-1"
+	req.BillingID = "appt-1"
 	inv = svc.toInvoiceModel(req, PaymentTypeConsultation)
-	if inv.AppointmentID == nil || *inv.AppointmentID != "appt-1" {
-		t.Fatal("expected appointment id pointer for consultation")
+	if inv.BillingID != "appt-1" || inv.PaymentType != PaymentTypeConsultation {
+		t.Fatal("expected billing id for consultation")
+	}
+}
+
+func TestToPaymentlinkModelBillingID(t *testing.T) {
+	svc := &InvoiceServ{}
+	patient := patientdto.PatientResponse{
+		PatientID:    "pat-1",
+		PatientName:  "Ada",
+		PatientEmail: "ada@example.com",
+		PatientPhone: "999",
+	}
+	req := dto.CheckoutReq{
+		BillingID:      "rx-billing-1",
+		CashierID:      "cash-1",
+		PaymentMode:    "upi",
+		IdempotencyKey: "idem-rx",
+		Financials:     dto.Financial{TotalAmount: 150.4},
+	}
+
+	cmd := svc.toPaymentlinkModel(req, patient, "inv-1", "INV-1", PaymentTypePrescription)
+	if cmd.InvoiceID != "inv-1" {
+		t.Fatalf("expected invoice_id inv-1, got %q", cmd.InvoiceID)
+	}
+	if cmd.PrescriptionID != "rx-billing-1" {
+		t.Fatalf("prescription payment must carry billing_id as prescription_id, got %q", cmd.PrescriptionID)
+	}
+
+	req.BillingID = "appt-billing-1"
+	req.IdempotencyKey = "idem-appt"
+	cmd = svc.toPaymentlinkModel(req, patient, "inv-2", "INV-2", PaymentTypeConsultation)
+	if cmd.PrescriptionID != "" {
+		t.Fatalf("consultation payment must not set prescription_id from billing_id, got %q", cmd.PrescriptionID)
+	}
+	if cmd.InvoiceID != "inv-2" {
+		t.Fatalf("expected invoice_id inv-2, got %q", cmd.InvoiceID)
 	}
 }
 
@@ -83,6 +149,9 @@ func TestResolvePaymentType(t *testing.T) {
 	}
 	if resolvePaymentType("consultation") != PaymentTypeConsultation {
 		t.Fatal("expected consultation type")
+	}
+	if resolvePaymentType("lab_order") != PaymentTypeLabOrder {
+		t.Fatal("expected lab_order type")
 	}
 }
 

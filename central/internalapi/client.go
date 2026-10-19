@@ -22,7 +22,6 @@ type Client struct {
 	BasicAuthID     string
 	BasicAuthSecret string
 	HTTPClient      *http.Client
-	Customers       customerLookup
 }
 
 func New(baseURL, basicAuthID, basicAuthSecret string) *Client {

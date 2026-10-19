@@ -16,6 +16,7 @@ type InvoiceServicer interface {
 	CreateInvoice(log *zap.Logger, reqPayload dto.CheckoutReq) (dto.InvoiceResponse, error)
 	GetInvoiceByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.InvoiceByPrescriptionResponse, error)
 	GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error)
+	CheckBillingExists(log *zap.Logger, billingID string) (int64, error)
 	GetBillDetailsByPrescriptionID(log *zap.Logger, prescriptionID string) (dto.BillDetailsByPrescriptionResponse, error)
 	RetryPaymentLink(log *zap.Logger, invoiceID, idempotencyKey string) (dto.InvoiceResponse, error)
 }
@@ -28,6 +29,7 @@ type BillingHandler interface {
 	Checkout(c *fiber.Ctx) error
 	GetInvoiceByPrescriptionID(c *fiber.Ctx) error
 	GetInvoiceByAppointmentID(c *fiber.Ctx) error
+	CheckBillingExists(c *fiber.Ctx) error
 	GetBillDetailsByPrescriptionID(c *fiber.Ctx) error
 	RetryPaymentLink(c *fiber.Ctx) error
 }
@@ -47,10 +49,10 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 
 	var checkoutReq dto.CheckoutReq
 	// Optional: empty payment_type defaults to "prescription" in the service (back-compat).
-	// supplier_id is only meaningful for a prescription checkout, and appointment_id only for consultation.
+	// supplier_id is only meaningful for a prescription checkout.
 	checkoutReq.PaymentType, _ = payload.Getstring("payment_type")
 	checkoutReq.SupplierID, _ = payload.Getstring("supplier_id")
-	checkoutReq.AppointmentID, _ = payload.Getstring("appointment_id")
+	checkoutReq.BillingID, _ = payload.Getstring("billing_id")
 
 	checkoutReq.PatientID, err = payload.Getstring("patient_id")
 	if err != nil {
@@ -88,14 +90,13 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 	if err = IB.parsePrescriptionFields(payload, &checkoutReq); err != nil {
-		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "prescription_id/dispense_items"))
+		logger.Warn("invoice checkout request invalid", zap.Error(err), zap.String("field", "billing_id/dispense_items"))
 		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
 	logger.Info("invoice checkout attempt",
 		zap.String("payment_type", checkoutReq.PaymentType),
-		zap.String("prescription_id", checkoutReq.PrescriptionID),
-		zap.String("appointment_id", checkoutReq.AppointmentID),
+		zap.String("billing_id", checkoutReq.BillingID),
 		zap.String("patient_id", checkoutReq.PatientID),
 		zap.String("organisation_id", checkoutReq.OrganisationID),
 		zap.String("cashier_id", checkoutReq.CashierID),
@@ -114,10 +115,12 @@ func (IB *Ibilling) Checkout(c *fiber.Ctx) error {
 func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, wrapErrors.ErrInvoiceAlreadyExists),
-		errors.Is(err, wrapErrors.ErrAppointmentAlreadyBilled):
+		errors.Is(err, wrapErrors.ErrAppointmentAlreadyBilled),
+		errors.Is(err, wrapErrors.ErrLabOrderAlreadyBilled):
 		return wrapErrors.Wrap(err, c, fiber.StatusConflict)
 	case errors.Is(err, wrapErrors.ErrPatientNotFound),
-		errors.Is(err, wrapErrors.ErrAppointmentNotFound):
+		errors.Is(err, wrapErrors.ErrAppointmentNotFound),
+		errors.Is(err, wrapErrors.ErrLabOrderNotFound):
 		return wrapErrors.Wrap(err, c, fiber.StatusNotFound)
 	case errors.Is(err, wrapErrors.ErrMedicineNotInPrescription),
 		errors.Is(err, wrapErrors.ErrQtyExceedsRemaining),
@@ -125,6 +128,7 @@ func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 		errors.Is(err, wrapErrors.ErrUnsupportedPaymentMode),
 		errors.Is(err, wrapErrors.ErrInvalidPaymentType),
 		errors.Is(err, wrapErrors.ErrAppointmentMismatch),
+		errors.Is(err, wrapErrors.ErrLabOrderMismatch),
 		errors.Is(err, wrapErrors.ErrInvalidRequest):
 		return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
 	default:
@@ -132,16 +136,19 @@ func (IB *Ibilling) wrapCheckoutError(c *fiber.Ctx, err error) error {
 	}
 }
 
-// parsePrescriptionFields parses prescription_id + dispense_items — required only for a
-// prescription checkout. Consultation checkouts (payment_type=consultation) have neither.
+// parsePrescriptionFields requires billing_id + dispense_items for prescription checkout.
+// Consultation / lab_order checkouts only need billing_id (already read above; service validates).
 func (IB *Ibilling) parsePrescriptionFields(payload *params.Payload, checkoutReq *dto.CheckoutReq) error {
-	if checkoutReq.PaymentType == string(PaymentTypeConsultation) {
+	if checkoutReq.PaymentType == string(PaymentTypeConsultation) ||
+		checkoutReq.PaymentType == string(PaymentTypeLabOrder) {
 		return nil
 	}
 	var err error
-	checkoutReq.PrescriptionID, err = payload.Getstring("prescription_id")
-	if err != nil {
-		return err
+	if strings.TrimSpace(checkoutReq.BillingID) == "" {
+		checkoutReq.BillingID, err = payload.Getstring("billing_id")
+		if err != nil {
+			return err
+		}
 	}
 	items, err := payload.GetChildren("dispense_items")
 	if err != nil {
@@ -208,6 +215,28 @@ func (IB *Ibilling) wrapBillDetailsError(c *fiber.Ctx, err error) error {
 	default:
 		return wrapErrors.Wrap(err, c, fiber.StatusInternalServerError)
 	}
+}
+
+// CheckBillingExists returns count 1 if an invoice exists for billing_id, otherwise 0.
+func (IB *Ibilling) CheckBillingExists(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	billingID := strings.TrimSpace(c.Params("billingID"))
+	if billingID == "" {
+		logger.Warn("billing exists check request invalid", zap.String("reason", "missing_billing_id"))
+		return wrapErrors.Wrap(wrapErrors.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	count, err := IB.BillingServ.CheckBillingExists(logger, billingID)
+	if err != nil {
+		if errors.Is(err, wrapErrors.ErrInvalidRequest) {
+			return wrapErrors.Wrap(err, c, fiber.StatusBadRequest)
+		}
+		return wrapErrors.Wrap(wrapErrors.ErrInvoiceFetchFailed, c, fiber.StatusInternalServerError)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"code":  200,
+		"count": count,
+	})
 }
 
 // GetInvoiceByAppointmentID is the consultation-invoice lookup — consultation invoices have

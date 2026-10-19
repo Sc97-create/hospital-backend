@@ -15,4 +15,5 @@ type PaymentType string
 const (
 	PaymentTypeConsultation PaymentType = "consultation"
 	PaymentTypePrescription PaymentType = "prescription"
+	PaymentTypeLabOrder     PaymentType = "lab_order"
 )

@@ -20,7 +20,7 @@ const (
 
 type OrganisationSchedule struct {
 	ID             string         `gorm:"primaryKey;type:uuid;not null" json:"id"`
-	OrganisationID string         `json:"organisation_id"`
+	OrganisationID string         `json:"organisation_id" gorm:"type:uuid;not null;index"`
 	DayOfWeek      pq.StringArray `json:"day_of_week" gorm:"type:text[]"`
 	StartTime      string         `json:"start_time"`
 	EndTime        string         `json:"end_time"`

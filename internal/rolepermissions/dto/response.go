@@ -1,7 +1,5 @@
 package dto
 
-import "github.com/lib/pq"
-
 type ModulePermissionFlags struct {
 	Create bool `json:"create"`
 	Update bool `json:"update"`
@@ -20,7 +18,8 @@ type RoleAccess struct {
 }
 
 // ModulePermissionRow is the flat scan target for FindModulePermissionsByRoleID raw SQL.
+// permission_names is produced as JSON (json_agg) so GORM/pgx can scan it reliably.
 type ModulePermissionRow struct {
-	ModuleName      string         `gorm:"column:module_name"`
-	PermissionNames pq.StringArray `gorm:"column:permission_names"`
+	ModuleName      string   `gorm:"column:module_name"`
+	PermissionNames []string `gorm:"column:permission_names;serializer:json"`
 }

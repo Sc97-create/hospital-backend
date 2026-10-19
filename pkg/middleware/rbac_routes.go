@@ -26,10 +26,8 @@ var PublicRoutes = map[string]struct{}{
 	"/api/v1/payment/webhook":                                         {},
 	"/api/v1/hospital/internal/payment/createOrder":                   {},
 	"/api/v1/hospital/internal/jwt/accessToken":                       {},
-	"/api/v1/hospital/internal/organisation/addRoles":                 {},
-	"/api/v1/hospital/internal/organisation/addRolePermissions":       {},
-	"/api/v1/hospital/internal/organisation/addFirstUser":             {},
 	"/api/v1/central/internal/subscription/checkEnd/:organisation_id": {},
+	"/api/v1/billing/checkByBillingID/:billingID":                     {},
 }
 
 var CreateRoutes = map[string]string{
@@ -40,6 +38,11 @@ var CreateRoutes = map[string]string{
 	"/api/v1/billing/create":          constants.Billing,
 	"/api/v1/medicine/addMedicine":    constants.Medicine,
 	"/api/v1/supplier/createSupplier": constants.Medicine,
+	"/api/v1/lab-orders/create":         constants.LabOrder,
+	"/api/v1/lab-test-templates/create": constants.LabOrder,
+	"/api/v1/diagnostic-centres":        constants.DiagnosticCentre,
+	"/api/v1/diagnostic-centres/":       constants.DiagnosticCentre,
+	"/api/v1/diagnostic-centres/create": constants.DiagnosticCentre,
 }
 
 var UpdateRoutes = map[string]string{
@@ -50,6 +53,11 @@ var UpdateRoutes = map[string]string{
 	"/api/v1/appointment/updateStatus":                       constants.Appointment,
 	"/api/v1/payment/confirm":                                constants.Billing,
 	"/api/v1/billing/invoices/:invoiceID/retry-payment-link": constants.Billing,
+	"/api/v1/lab-orders/update/:id/status":               constants.LabOrder,
+	"/api/v1/lab-orders/bulkupdatestatus":                constants.LabOrder,
+	"/api/v1/lab-orders/update/:id/tests/:testId/status": constants.LabOrder,
+	"/api/v1/diagnostic-centres/getbyID/:id":             constants.DiagnosticCentre,
+	"/api/v1/diagnostic-centres/getByStatus/:id/status":  constants.DiagnosticCentre,
 }
 
 var ViewRoutes = map[string]string{
@@ -71,6 +79,12 @@ var ViewRoutes = map[string]string{
 	"/api/v1/supplier/getSupplierByID":                               constants.Medicine,
 	"/api/v1/supplier/getSupplierByOrgID":                            constants.Medicine,
 	"/api/v1/supplier/getTotalCount":                                 constants.Medicine,
+	"/api/v1/lab-orders/list":                    constants.LabOrder,
+	"/api/v1/lab-orders/getbyID/:id":             constants.LabOrder,
+	"/api/v1/lab-test-templates/defaults":        constants.LabOrder,
+	"/api/v1/lab-test-templates/list":            constants.LabOrder,
+	"/api/v1/lab-test-templates/getbyID/:id":     constants.LabOrder,
+	"/api/v1/diagnostic-centres/list":            constants.DiagnosticCentre,
 	"/api/v1/appointment/getTimeSlots":                               constants.Appointment,
 	"/api/v1/appointment/getappointmentbyOrgID":                      constants.Appointment,
 	"/api/v1/appointment/getAppointmentsPreview":                     constants.Appointment,

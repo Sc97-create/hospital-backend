@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hospital-backend/internal/appointments"
 	"hospital-backend/internal/billing/dto"
+	labDto "hospital-backend/internal/labService/labTest/dto"
 	patientDto "hospital-backend/internal/patient/dto"
 	"hospital-backend/internal/payments"
 	paymentDto "hospital-backend/internal/payments/dto"
@@ -28,6 +29,11 @@ type AppointmentLookup interface {
 	GetAppntmentByID(log *zap.Logger, appointmentID string) (appointments.Appointment, error)
 }
 
+type LabOrderLookup interface {
+	GetByID(log *zap.Logger, id string) (labDto.LabOrderResponse, error)
+	MarkIsPayment(log *zap.Logger, orderID string, isPayment bool) error
+}
+
 type PaymentCheckout interface {
 	GetPaymentByIdempotencyKey(log *zap.Logger, key string) (payments.Payments, error)
 	GetPaymentURLByPaymentID(log *zap.Logger, paymentID string) (string, error)
@@ -43,10 +49,11 @@ type InvoiceServ struct {
 	InoviceItemS *InvoiceItemServ
 	PatientServ  PatientLookup
 	AppointmentS AppointmentLookup
+	LabOrderS    LabOrderLookup
 }
 
-func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS PaymentCheckout, items *InvoiceItemServ, patientServ PatientLookup, appointmentServ AppointmentLookup) *InvoiceServ {
-	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ, AppointmentS: appointmentServ}
+func NewInvoiceServ(db *gorm.DB, IRepo InvoiceRepo, PaymentS PaymentCheckout, items *InvoiceItemServ, patientServ PatientLookup, appointmentServ AppointmentLookup, labOrderServ LabOrderLookup) *InvoiceServ {
+	return &InvoiceServ{db: db, InvRepo: IRepo, PaymentServ: PaymentS, InoviceItemS: items, PatientServ: patientServ, AppointmentS: appointmentServ, LabOrderS: labOrderServ}
 }
 
 // CreateInvoice is the single checkout entry point for both prescription and consultation
@@ -58,7 +65,7 @@ func (IService *InvoiceServ) CreateInvoice(log *zap.Logger, reqPayload dto.Check
 
 	if strings.TrimSpace(reqPayload.IdempotencyKey) == "" {
 		log.Warn("invoice checkout failed",
-			zap.String("prescription_id", reqPayload.PrescriptionID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("reason", "missing_idempotency_key"),
 		)
 		return dto.InvoiceResponse{}, wrapError.ErrInvalidRequest
@@ -69,6 +76,9 @@ func (IService *InvoiceServ) CreateInvoice(log *zap.Logger, reqPayload dto.Check
 	}
 
 	paymentType := resolvePaymentType(reqPayload.PaymentType)
+	if err := validateFinancials(log, reqPayload); err != nil {
+		return dto.InvoiceResponse{}, err
+	}
 	if err := IService.validatePaymentTypeInputs(log, paymentType, reqPayload); err != nil {
 		return dto.InvoiceResponse{}, err
 	}
@@ -80,7 +90,7 @@ func (IService *InvoiceServ) CreateInvoice(log *zap.Logger, reqPayload dto.Check
 	}
 	if err := tx.Commit().Error; err != nil {
 		log.Error("invoice checkout failed",
-			zap.String("prescription_id", reqPayload.PrescriptionID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("invoice_id", invoice.ID),
 			zap.String("reason", "db_commit"),
 			zap.Error(err),
@@ -99,8 +109,28 @@ func (IService *InvoiceServ) CreateInvoice(log *zap.Logger, reqPayload dto.Check
 		return dto.InvoiceResponse{}, err
 	}
 
+	IService.markLabOrderPaidOnCheckout(log, paymentType, reqPayload)
 	IService.logCheckoutSuccess(log, invoice, reqPayload, paymentResponse.PaymentURL != "")
 	return dto.InvoiceResponse{InvoiceID: invoice.ID, PaymentURL: paymentResponse.PaymentURL}, nil
+}
+
+// markLabOrderPaidOnCheckout sets is_payment=true for lab_order checkouts once payment
+// collection is completed at the counter (cash/qr). Link payments are marked on confirm/webhook.
+func (IService *InvoiceServ) markLabOrderPaidOnCheckout(log *zap.Logger, paymentType PaymentType, reqPayload dto.CheckoutReq) {
+	if paymentType != PaymentTypeLabOrder || IService.LabOrderS == nil {
+		return
+	}
+	mode := strings.TrimSpace(reqPayload.PaymentMode)
+	if mode != constants.PaymentCash && mode != constants.PaymentQR {
+		return
+	}
+	if err := IService.LabOrderS.MarkIsPayment(log, reqPayload.BillingID, true); err != nil {
+		log.Error("lab order payment flag update failed after checkout",
+			zap.String("lab_order_id", reqPayload.BillingID),
+			zap.String("payment_mode", mode),
+			zap.Error(err),
+		)
+	}
 }
 
 // replayIfIdempotent short-circuits CreateInvoice when the same Idempotency-Key was already
@@ -121,7 +151,7 @@ func (IService *InvoiceServ) replayIfIdempotent(log *zap.Logger, reqPayload dto.
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		log.Error("invoice checkout failed",
-			zap.String("prescription_id", reqPayload.PrescriptionID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("reason", "idempotency_lookup"),
 			zap.Error(err),
 		)
@@ -142,7 +172,7 @@ func (IService *InvoiceServ) persistInvoiceAndItems(log *zap.Logger, tx *gorm.DB
 	if paymentType != PaymentTypePrescription {
 		return nil
 	}
-	err := IService.InoviceItemS.addInvoiceItems(log, tx, reqPayload.PrescriptionID, invoice.ID, reqPayload.DispensedItems)
+	err := IService.InoviceItemS.addInvoiceItems(log, tx, reqPayload.BillingID, invoice.ID, reqPayload.DispensedItems)
 	if err == nil {
 		return nil
 	}
@@ -153,7 +183,7 @@ func (IService *InvoiceServ) persistInvoiceAndItems(log *zap.Logger, tx *gorm.DB
 		return err
 	}
 	log.Error("invoice checkout failed",
-		zap.String("prescription_id", reqPayload.PrescriptionID),
+		zap.String("billing_id", reqPayload.BillingID),
 		zap.String("invoice_id", invoice.ID),
 		zap.String("reason", "db_add_items"),
 		zap.Error(err),
@@ -164,20 +194,22 @@ func (IService *InvoiceServ) persistInvoiceAndItems(log *zap.Logger, tx *gorm.DB
 func (IService *InvoiceServ) mapInvoiceCreateErr(log *zap.Logger, err error, paymentType PaymentType, reqPayload dto.CheckoutReq) error {
 	if !isUniqueViolation(err) {
 		log.Error("invoice checkout failed",
-			zap.String("prescription_id", reqPayload.PrescriptionID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("reason", "db_create"),
 			zap.Error(err),
 		)
 		return wrapError.ErrInvoiceCreateFailed
 	}
 	log.Warn("invoice checkout failed",
-		zap.String("prescription_id", reqPayload.PrescriptionID),
-		zap.String("appointment_id", reqPayload.AppointmentID),
+		zap.String("billing_id", reqPayload.BillingID),
 		zap.String("payment_type", string(paymentType)),
 		zap.String("reason", "invoice_already_exists"),
 	)
 	if paymentType == PaymentTypeConsultation {
 		return wrapError.ErrAppointmentAlreadyBilled
+	}
+	if paymentType == PaymentTypeLabOrder {
+		return wrapError.ErrLabOrderAlreadyBilled
 	}
 	return wrapError.ErrInvoiceAlreadyExists
 }
@@ -226,7 +258,7 @@ func (IService *InvoiceServ) createPaymentForMode(log *zap.Logger, invoiceID str
 	if err != nil {
 		log.Error("invoice checkout failed",
 			zap.String("invoice_id", invoiceID),
-			zap.String("prescription_id", reqPayload.PrescriptionID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("payment_mode", reqPayload.PaymentMode),
 			zap.String("reason", "payment_create"),
 			zap.Error(err),
@@ -241,8 +273,7 @@ func (IService *InvoiceServ) logCheckoutSuccess(log *zap.Logger, invoice Invoice
 		zap.String("invoice_id", invoice.ID),
 		zap.String("invoice_code", invoice.InvoiceCode),
 		zap.String("payment_type", string(invoice.PaymentType)),
-		zap.String("prescription_id", derefString(invoice.PrescriptionID)),
-		zap.String("appointment_id", derefString(invoice.AppointmentID)),
+		zap.String("billing_id", invoice.BillingID),
 		zap.String("patient_id", invoice.PatientID),
 		zap.String("organisation_id", invoice.OrganisationID),
 		zap.String("payment_mode", reqPayload.PaymentMode),
@@ -262,16 +293,40 @@ func resolvePaymentType(raw string) PaymentType {
 	return PaymentType(trimmed)
 }
 
-// validatePaymentTypeInputs enforces the payment_type ↔ required-field rule: prescription
-// invoices need prescription_id, consultation invoices need a real, unbilled appointment
-// that belongs to this patient/org. See docs/payment-type-invoice-design.md §2.2.
+// validateFinancials rejects negative amounts and a non-positive total.
+func validateFinancials(log *zap.Logger, reqPayload dto.CheckoutReq) error {
+	f := reqPayload.Financials
+	if f.SubtotalAmount < 0 || f.TaxAmount < 0 || f.DiscountAmount < 0 {
+		log.Warn("invoice checkout failed",
+			zap.String("billing_id", reqPayload.BillingID),
+			zap.String("reason", "negative_financial_amount"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+	if f.TotalAmount <= 0 {
+		log.Warn("invoice checkout failed",
+			zap.String("billing_id", reqPayload.BillingID),
+			zap.Float64("total_amount", f.TotalAmount),
+			zap.String("reason", "non_positive_total_amount"),
+		)
+		return wrapError.ErrInvalidRequest
+	}
+	return nil
+}
+
+// validatePaymentTypeInputs enforces the payment_type ↔ billing_id rule: prescription
+// invoices need billing_id (prescription id), consultation invoices need billing_id
+// (appointment id) for a real, unbilled appointment that belongs to this patient/org,
+// lab_order invoices need billing_id (lab order id) for a real, unbilled lab order.
 func (IService *InvoiceServ) validatePaymentTypeInputs(log *zap.Logger, paymentType PaymentType, reqPayload dto.CheckoutReq) error {
 	switch paymentType {
 	case PaymentTypeConsultation:
 		return IService.validateConsultationAppointment(log, reqPayload)
+	case PaymentTypeLabOrder:
+		return IService.validateLabOrder(log, reqPayload)
 	case PaymentTypePrescription:
-		if strings.TrimSpace(reqPayload.PrescriptionID) == "" {
-			log.Warn("invoice checkout failed", zap.String("reason", "missing_prescription_id"))
+		if strings.TrimSpace(reqPayload.BillingID) == "" {
+			log.Warn("invoice checkout failed", zap.String("reason", "missing_billing_id"))
 			return wrapError.ErrInvalidRequest
 		}
 		return nil
@@ -287,29 +342,66 @@ func (IService *InvoiceServ) validatePaymentTypeInputs(log *zap.Logger, paymentT
 // validateConsultationAppointment checks the appointment exists, belongs to this
 // patient/org, and hasn't already been billed — before any invoice row is written.
 func (IService *InvoiceServ) validateConsultationAppointment(log *zap.Logger, reqPayload dto.CheckoutReq) error {
-	if strings.TrimSpace(reqPayload.AppointmentID) == "" {
-		log.Warn("invoice checkout failed", zap.String("reason", "missing_appointment_id"))
+	if strings.TrimSpace(reqPayload.BillingID) == "" {
+		log.Warn("invoice checkout failed", zap.String("reason", "missing_billing_id"))
 		return wrapError.ErrInvalidRequest
 	}
-	appointment, err := IService.AppointmentS.GetAppntmentByID(log, reqPayload.AppointmentID)
+	appointment, err := IService.AppointmentS.GetAppntmentByID(log, reqPayload.BillingID)
 	if err != nil {
 		return err
 	}
 	if appointment.OrganisationID != reqPayload.OrganisationID || appointment.PatientID != reqPayload.PatientID {
 		log.Warn("invoice checkout failed",
-			zap.String("appointment_id", reqPayload.AppointmentID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("reason", "appointment_mismatch"),
 		)
 		return wrapError.ErrAppointmentMismatch
 	}
 
-	_, err = IService.GetInvoiceByAppointmentID(log, reqPayload.AppointmentID)
+	_, err = IService.GetInvoiceByAppointmentID(log, reqPayload.BillingID)
 	if err == nil {
 		log.Warn("invoice checkout failed",
-			zap.String("appointment_id", reqPayload.AppointmentID),
+			zap.String("billing_id", reqPayload.BillingID),
 			zap.String("reason", "appointment_already_billed"),
 		)
 		return wrapError.ErrAppointmentAlreadyBilled
+	}
+	if !errors.Is(err, wrapError.ErrInvoiceNotFound) {
+		return err
+	}
+	return nil
+}
+
+// validateLabOrder checks the lab order exists, belongs to this patient/org, and
+// hasn't already been billed — before any invoice row is written.
+func (IService *InvoiceServ) validateLabOrder(log *zap.Logger, reqPayload dto.CheckoutReq) error {
+	if strings.TrimSpace(reqPayload.BillingID) == "" {
+		log.Warn("invoice checkout failed", zap.String("reason", "missing_billing_id"))
+		return wrapError.ErrInvalidRequest
+	}
+	if IService.LabOrderS == nil {
+		log.Error("invoice checkout failed", zap.String("reason", "lab_order_lookup_unconfigured"))
+		return wrapError.ErrInvoiceCreateFailed
+	}
+	order, err := IService.LabOrderS.GetByID(log, reqPayload.BillingID)
+	if err != nil {
+		return err
+	}
+	if order.OrganisationID != reqPayload.OrganisationID || order.Patient.PatientID != reqPayload.PatientID {
+		log.Warn("invoice checkout failed",
+			zap.String("billing_id", reqPayload.BillingID),
+			zap.String("reason", "lab_order_mismatch"),
+		)
+		return wrapError.ErrLabOrderMismatch
+	}
+
+	_, err = IService.GetInvoiceByLabOrderID(log, reqPayload.BillingID)
+	if err == nil {
+		log.Warn("invoice checkout failed",
+			zap.String("billing_id", reqPayload.BillingID),
+			zap.String("reason", "lab_order_already_billed"),
+		)
+		return wrapError.ErrLabOrderAlreadyBilled
 	}
 	if !errors.Is(err, wrapError.ErrInvoiceNotFound) {
 		return err
@@ -322,6 +414,7 @@ func (IService *InvoiceServ) toInvoiceModel(payload dto.CheckoutReq, paymentType
 	invoice.ID = uuid.New().String()
 	invoice.InvoiceCode = IService.createCode()
 	invoice.PaymentType = paymentType
+	invoice.BillingID = payload.BillingID
 	invoice.CashierID = payload.CashierID
 	invoice.CreatedAt = time.Now()
 	invoice.OrganisationID = payload.OrganisationID
@@ -331,22 +424,7 @@ func (IService *InvoiceServ) toInvoiceModel(payload dto.CheckoutReq, paymentType
 	invoice.DiscountAmount = payload.Financials.DiscountAmount
 	invoice.TaxAmount = payload.Financials.TaxAmount
 	invoice.PatientID = payload.PatientID
-	if paymentType == PaymentTypeConsultation {
-		invoice.AppointmentID = nonEmptyPtr(payload.AppointmentID)
-		return invoice
-	}
-	invoice.PrescriptionID = nonEmptyPtr(payload.PrescriptionID)
 	return invoice
-}
-
-// nonEmptyPtr turns a blank string into a real nil so nullable uuid columns store
-// SQL NULL instead of ” — required so multiple rows can share a blank FK without
-// tripping a uniqueIndex (see docs/payment-type-invoice-design.md §2.1).
-func nonEmptyPtr(v string) *string {
-	if strings.TrimSpace(v) == "" {
-		return nil
-	}
-	return &v
 }
 
 func derefString(v *string) string {
@@ -380,17 +458,23 @@ func (IService *InvoiceServ) toPaymentlinkModel(payload dto.CheckoutReq, patient
 	paymentdto.ReferenceID = invoiceCode
 	paymentdto.InvoiceID = invoiceID
 	paymentdto.Currency = constants.IndCurrnecy
-	paymentdto.PrescriptionID = payload.PrescriptionID
+	if paymentType == PaymentTypePrescription {
+		paymentdto.PrescriptionID = payload.BillingID
+	}
 	paymentdto.IdempotencyKey = payload.IdempotencyKey
 	return paymentdto
 }
 
 // paymentDescription is patient-facing copy shown alongside the SMS/email payment link.
 func paymentDescription(paymentType PaymentType) string {
-	if paymentType == PaymentTypeConsultation {
+	switch paymentType {
+	case PaymentTypeConsultation:
 		return "please pay the consultation fee"
+	case PaymentTypeLabOrder:
+		return "please pay the lab order fee"
+	default:
+		return "please pay the amount to get prescribed medicine"
 	}
-	return "please pay the amount to get prescribed medicine"
 }
 
 func (IService *InvoiceServ) createCode() string {
@@ -412,19 +496,22 @@ func (IService *InvoiceServ) GetInvoiceByPrescriptionID(log *zap.Logger, prescri
 			payments.source AS payment_mode
 		FROM invoices
 		LEFT JOIN payments ON payments.invoice_id = invoices.id
-		WHERE invoices.prescription_id = ?
+		WHERE invoices.billing_id = ?
+			AND invoices.payment_type = ?
 	`
-	invoice, err := IService.InvRepo.GetInvoiceByPrescriptionID(log, query, prescriptionID)
+	invoice, err := IService.InvRepo.GetInvoiceByPrescriptionID(log, query, prescriptionID, string(PaymentTypePrescription))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("invoice get failed",
-				zap.String("prescription_id", prescriptionID),
+				zap.String("billing_id", prescriptionID),
+				zap.String("payment_type", string(PaymentTypePrescription)),
 				zap.String("reason", "not_found"),
 			)
 			return dto.InvoiceByPrescriptionResponse{}, wrapError.ErrInvoiceNotFound
 		}
 		log.Error("invoice get failed",
-			zap.String("prescription_id", prescriptionID),
+			zap.String("billing_id", prescriptionID),
+			zap.String("payment_type", string(PaymentTypePrescription)),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -434,18 +521,50 @@ func (IService *InvoiceServ) GetInvoiceByPrescriptionID(log *zap.Logger, prescri
 	resp := toInvoiceDetailResponse(invoice)
 	log.Info("invoice get success",
 		zap.String("invoice_id", resp.ID),
-		zap.String("prescription_id", prescriptionID),
+		zap.String("billing_id", prescriptionID),
+		zap.String("payment_type", string(PaymentTypePrescription)),
 		zap.String("status", resp.Status),
 		zap.String("payment_mode", resp.PaymentMode),
 	)
 	return resp, nil
 }
 
-// GetInvoiceByAppointmentID is the consultation-invoice equivalent of GetInvoiceByPrescriptionID —
-// consultation invoices have no prescription_id, so they can only be looked up this way.
+// GetInvoiceByAppointmentID looks up a consultation invoice by appointment id (billing_id).
 func (IService *InvoiceServ) GetInvoiceByAppointmentID(log *zap.Logger, appointmentID string) (dto.InvoiceByPrescriptionResponse, error) {
+	return IService.getInvoiceByBillingID(log, appointmentID, PaymentTypeConsultation)
+}
+
+// GetInvoiceByLabOrderID looks up a lab-order invoice by lab order id (billing_id).
+func (IService *InvoiceServ) GetInvoiceByLabOrderID(log *zap.Logger, labOrderID string) (dto.InvoiceByPrescriptionResponse, error) {
+	return IService.getInvoiceByBillingID(log, labOrderID, PaymentTypeLabOrder)
+}
+
+// CheckBillingExists returns 1 if an invoice exists for billing_id, otherwise 0.
+func (IService *InvoiceServ) CheckBillingExists(log *zap.Logger, billingID string) (int64, error) {
 	log = ensureLog(log)
-	if strings.TrimSpace(appointmentID) == "" {
+	billingID = strings.TrimSpace(billingID)
+	if billingID == "" {
+		return 0, wrapError.ErrInvalidRequest
+	}
+	count, err := IService.InvRepo.CountByBillingID(log, billingID)
+	if err != nil {
+		log.Error("billing exists check failed",
+			zap.String("billing_id", billingID),
+			zap.String("reason", "db_count"),
+			zap.Error(err),
+		)
+		return 0, wrapError.ErrInvoiceFetchFailed
+	}
+	log.Info("billing exists check success",
+		zap.String("billing_id", billingID),
+		zap.Int64("count", count),
+	)
+	return count, nil
+}
+
+func (IService *InvoiceServ) getInvoiceByBillingID(log *zap.Logger, billingID string, paymentType PaymentType) (dto.InvoiceByPrescriptionResponse, error) {
+	log = ensureLog(log)
+	if strings.TrimSpace(billingID) == "" {
 		return dto.InvoiceByPrescriptionResponse{}, wrapError.ErrInvalidRequest
 	}
 	query := `
@@ -454,19 +573,22 @@ func (IService *InvoiceServ) GetInvoiceByAppointmentID(log *zap.Logger, appointm
 			payments.source AS payment_mode
 		FROM invoices
 		LEFT JOIN payments ON payments.invoice_id = invoices.id
-		WHERE invoices.appointment_id = ?
+		WHERE invoices.billing_id = ?
+			AND invoices.payment_type = ?
 	`
-	invoice, err := IService.InvRepo.GetInvoiceByAppointmentID(log, query, appointmentID)
+	invoice, err := IService.InvRepo.GetInvoiceByAppointmentID(log, query, billingID, string(paymentType))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("invoice get failed",
-				zap.String("appointment_id", appointmentID),
+				zap.String("billing_id", billingID),
+				zap.String("payment_type", string(paymentType)),
 				zap.String("reason", "not_found"),
 			)
 			return dto.InvoiceByPrescriptionResponse{}, wrapError.ErrInvoiceNotFound
 		}
 		log.Error("invoice get failed",
-			zap.String("appointment_id", appointmentID),
+			zap.String("billing_id", billingID),
+			zap.String("payment_type", string(paymentType)),
 			zap.String("reason", "db_read"),
 			zap.Error(err),
 		)
@@ -476,7 +598,8 @@ func (IService *InvoiceServ) GetInvoiceByAppointmentID(log *zap.Logger, appointm
 	resp := toInvoiceDetailResponse(invoice)
 	log.Info("invoice get success",
 		zap.String("invoice_id", resp.ID),
-		zap.String("appointment_id", appointmentID),
+		zap.String("billing_id", billingID),
+		zap.String("payment_type", string(paymentType)),
 		zap.String("status", resp.Status),
 		zap.String("payment_mode", resp.PaymentMode),
 	)
@@ -531,10 +654,10 @@ LEFT JOIN patients pt
 LEFT JOIN appointments a
 	ON a.id = p.appointment_id
 LEFT JOIN invoices pi
-	ON pi.prescription_id = p.id
+	ON pi.billing_id = p.id
 	AND pi.payment_type = 'prescription'
 LEFT JOIN invoices ci
-	ON ci.appointment_id = p.appointment_id
+	ON ci.billing_id = p.appointment_id
 	AND ci.payment_type = 'consultation'
 LEFT JOIN LATERAL (
 	SELECT source
@@ -735,7 +858,7 @@ func (IService *InvoiceServ) RetryPaymentLink(log *zap.Logger, invoiceID, idempo
 		ExpiresAt:      time.Now().Add(20 * time.Minute),
 		SendEmail:      true,
 		SendSMS:        true,
-		PrescriptionID: derefString(invoice.PrescriptionID),
+		PrescriptionID: prescriptionBillingID(invoice),
 		IdempotencyKey: idempotencyKey,
 		Customer: paymentDto.CustomerInfo{
 			Name:   patientInfo.PatientName,
@@ -822,8 +945,7 @@ func toInvoiceDetailResponse(row InvoiceWithPayment) dto.InvoiceByPrescriptionRe
 		ID:             row.ID,
 		InvoiceCode:    row.InvoiceCode,
 		PaymentType:    string(row.PaymentType),
-		PrescriptionID: derefString(row.PrescriptionID),
-		AppointmentID:  derefString(row.AppointmentID),
+		BillingID:      row.BillingID,
 		PatientID:      row.PatientID,
 		Status:         row.Status,
 		CashierID:      row.CashierID,
@@ -836,6 +958,13 @@ func toInvoiceDetailResponse(row InvoiceWithPayment) dto.InvoiceByPrescriptionRe
 		CreatedAt:      row.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      row.UpdatedAt.Format(time.RFC3339),
 	}
+}
+
+func prescriptionBillingID(invoice Invoice) string {
+	if invoice.PaymentType != PaymentTypePrescription {
+		return ""
+	}
+	return invoice.BillingID
 }
 
 func isUniqueViolation(err error) bool {

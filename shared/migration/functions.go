@@ -14,6 +14,7 @@ import (
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
+	labmigrate "hospital-backend/internal/labService/migrate"
 	"hospital-backend/internal/medicine/medmigration"
 	"hospital-backend/internal/modules"
 	"hospital-backend/internal/notifications"
@@ -28,16 +29,7 @@ import (
 )
 
 func Migrate() (err error) {
-	err = database.PostgreClient.AutoMigrate(&customers.Customer{})
-	if err != nil {
-		log.Fatalf("%v", err)
-		return
-	}
-	err = database.PostgreClient.AutoMigrate(&customers.SignupCode{})
-	if err != nil {
-		log.Fatalf("%v", err)
-		return
-	}
+	// Parents first: tenants → plans → subscriptions → customers → orgs.
 	err = database.PostgreClient.AutoMigrate(&tenants.Tenant{})
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -53,11 +45,54 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 		return
 	}
+	err = database.PostgreClient.AutoMigrate(&customers.Customer{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&customers.SignupCode{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
 	err = database.PostgreClient.AutoMigrate(&organisations.Organisation{})
 	if err != nil {
 		log.Fatalf("%v", err)
 		return
 	}
+
+	// Departments/roles before users so user FKs can be applied later.
+	err = database.PostgreClient.AutoMigrate(&department.Department{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&roles.Role{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&permissions.Permission{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&modules.Modules{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&rolepermissions.RolePermission{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = rolepermissions.RelaxNullableColumns(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+
 	err = database.PostgreClient.AutoMigrate(&employee.User{})
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -71,79 +106,86 @@ func Migrate() (err error) {
 	err = database.PostgreClient.AutoMigrate(&patient.Patient{})
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = database.PostgreClient.AutoMigrate(&department.Department{})
+
+	// Schedules before appointments (appointments.schedule_id FK).
+	err = database.PostgreClient.AutoMigrate(&admins.OrganisationSchedule{})
 	if err != nil {
 		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&roles.Role{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&permissions.Permission{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&rolepermissions.RolePermission{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = rolepermissions.RelaxNullableColumns(database.PostgreClient.GormDriver)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&prescription.Prescription{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&prescription.PrescriptionItems{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = database.PostgreClient.AutoMigrate(&modules.Modules{})
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = bedmanagement.Migrate(database.PostgreClient)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	err = medmigration.Automigrate(database.PostgreClient)
-	if err != nil {
-		log.Fatalf("%v", err)
+		return
 	}
 	err = appointments.AutoMigrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = database.PostgreClient.AutoMigrate(&admins.OrganisationSchedule{})
+
+	err = database.PostgreClient.AutoMigrate(&prescription.Prescription{})
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = database.PostgreClient.AutoMigrate(&notifications.Notification{})
+	err = database.PostgreClient.AutoMigrate(&prescription.PrescriptionItems{})
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = notifications.RelaxRecipientConstraints(database.PostgreClient.GormDriver)
+
+	err = bedmanagement.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = database.PostgreClient.AutoMigrate(&notifications.NotificationAttempts{})
+	err = medmigration.Automigrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
 	err = database.PostgreClient.AutoMigrate(&types.MedicineStockMovements{})
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
+	}
+
+	err = database.PostgreClient.AutoMigrate(&notifications.Notification{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = notifications.RelaxRecipientConstraints(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+	err = database.PostgreClient.AutoMigrate(&notifications.NotificationAttempts{})
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
+
+	// Billing before payments (payments.invoice_id FK).
+	err = billing.Migrate(database.PostgreClient)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
 	}
 	err = payments.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
 	}
-	err = billing.Migrate(database.PostgreClient)
+
+	err = labmigrate.Migrate(database.PostgreClient)
 	if err != nil {
 		log.Fatalf("%v", err)
+		return
+	}
+
+	err = ensureSharedForeignKeys(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
 	}
 	return
-
 }

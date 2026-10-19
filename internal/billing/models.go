@@ -5,12 +5,10 @@ import "time"
 type Invoice struct {
 	ID          string      `json:"id" gorm:"type:uuid;not null;primaryKey"`
 	InvoiceCode string      `json:"invoice_code" gorm:"type:text;not null"`
-	PaymentType PaymentType `json:"payment_type" gorm:"type:varchar(30);not null;default:prescription"`
-	// PrescriptionID: set for payment_type=prescription, nil for payment_type=consultation.
-	PrescriptionID *string `json:"prescription_id,omitempty" gorm:"type:uuid;uniqueIndex"`
-	// AppointmentID: required for payment_type=consultation (also the double-billing guard via
-	// uniqueIndex); optionally backfilled for prescription invoices from prescription.appointment_id.
-	AppointmentID  *string   `json:"appointment_id,omitempty" gorm:"type:uuid;uniqueIndex"`
+	PaymentType PaymentType `json:"payment_type" gorm:"column:payment_type;type:varchar(30);not null;default:prescription;uniqueIndex:idx_payment_type_billing_id,priority:1"`
+	// BillingID is the source entity id: prescription id when payment_type=prescription,
+	// appointment id when payment_type=consultation.
+	BillingID      string    `json:"billing_id" gorm:"column:billing_id;type:uuid;not null;uniqueIndex:idx_payment_type_billing_id,priority:2"`
 	PatientID      string    `json:"patient_id" gorm:"type:uuid;not null"`
 	Status         string    `json:"status" gorm:"default:unpaid"`
 	CashierID      string    `json:"cashier_id" gorm:"type:uuid;not null"`

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dto "hospital-backend/central/customers/dto"
+	"hospital-backend/central/internalapi"
 	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
@@ -26,11 +27,6 @@ const (
 	centralOrgPlaceholderID = "00000000-0000-0000-0000-000000000000"
 )
 
-// AccessTokenIssuer issues short-lived access tokens (no refresh / no DB store).
-type AccessTokenIssuer interface {
-	AccessToken(userID, organisationID string) (string, error)
-}
-
 // NotificationEnqueuer enqueues email notifications.
 type NotificationEnqueuer interface {
 	Create(ctx context.Context, data notificationdto.CreateRequest) error
@@ -38,12 +34,12 @@ type NotificationEnqueuer interface {
 
 type CustomerService struct {
 	Repo          CustomerRepository
-	Tokens        AccessTokenIssuer
+	API           *internalapi.Client
 	Notifications NotificationEnqueuer
 }
 
-func NewCustomerService(repo CustomerRepository, tokens AccessTokenIssuer, notifications NotificationEnqueuer) *CustomerService {
-	return &CustomerService{Repo: repo, Tokens: tokens, Notifications: notifications}
+func NewCustomerService(repo CustomerRepository, api *internalapi.Client, notifications NotificationEnqueuer) *CustomerService {
+	return &CustomerService{Repo: repo, API: api, Notifications: notifications}
 }
 
 func (s *CustomerService) Signup(log *zap.Logger, payload dto.SignupPayload) (dto.SignupResult, error) {
@@ -95,7 +91,7 @@ func (s *CustomerService) Signup(log *zap.Logger, payload dto.SignupPayload) (dt
 		return dto.SignupResult{}, err
 	}
 
-	token, err := s.Tokens.AccessToken(customer.ID, "")
+	token, err := s.API.AccessToken(customer.ID, "")
 	if err != nil {
 		log.Error("customer signup failed",
 			zap.String("customer_id", customer.ID),

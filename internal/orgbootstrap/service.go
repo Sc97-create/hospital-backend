@@ -60,6 +60,7 @@ func New(
 	catalog *permissions.PermService,
 	depts *department.DepartmentService,
 	employees employeeInviter,
+	customers customerLookup,
 ) *Service {
 	return &Service{
 		DB:        db,
@@ -68,6 +69,7 @@ func New(
 		Catalog:   catalog,
 		Depts:     depts,
 		Employees: employees,
+		Customers: customers,
 	}
 }
 

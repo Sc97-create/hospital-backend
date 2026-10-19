@@ -15,4 +15,6 @@ var ConstModules ModuleArr = ModuleArr{
 	constants.Prescription,
 	constants.Billing,
 	constants.Dashboard,
+	constants.LabOrder,
+	constants.DiagnosticCentre,
 }

@@ -13,7 +13,6 @@ import (
 	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 
-	"github.com/lib/pq"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 )
@@ -96,8 +95,8 @@ func TestServiceFindModulesByRoleID(t *testing.T) {
 			setup: func(m *mocks.MockRolePermissionRepo) {
 				m.EXPECT().IsAdminRole(gomock.Any(), "role-1").Return(false, nil)
 				m.EXPECT().FindModulePermissionsByRoleID(gomock.Any(), "role-1").Return([]dto.ModulePermissionRow{
-					{ModuleName: "patient", PermissionNames: pq.StringArray{"view", "create"}},
-					{ModuleName: "appointment", PermissionNames: pq.StringArray{"view"}},
+					{ModuleName: "patient", PermissionNames: []string{"view", "create"}},
+					{ModuleName: "appointment", PermissionNames: []string{"view"}},
 				}, nil)
 			},
 			wantAdmin: false,

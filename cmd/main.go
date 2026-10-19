@@ -84,12 +84,14 @@ func main() {
 	routers.RegisterBedRoute(app, containers.BedManagement, containers.JwtManagement, rbac.Subscription)
 	routers.RegisterPrescriptionRoutes(app, containers.PrescriptionManagement, containers.PrescriptionItems, rbac)
 	routers.RegisterSupplierRoutes(app, containers.MedContainer.SupplierService, rbac)
+	routers.RegisterLabOrderRoutes(app, containers.LabContainer.LabOrderService, rbac)
+	routers.RegisterLabTestTemplateRoutes(app, containers.LabContainer.LabTestTemplateService, rbac)
+	routers.RegisterDiagnosticCentreRoutes(app, containers.LabContainer.DiagnosticCentreService, rbac)
 	routers.RegisterDashboardRoutes(app, containers.DashboardContainer.Service, rbac)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice, rbac)
 	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
 	routers.RegisterBillingRoutes(app, containers.BillingService, rbac)
 	routers.RegisterJWTRoutes(app, containers.JwtManagement, cfg.InternalBasicAuth)
-	routers.RegisterOrgBootstrapRoutes(app, containers.OrgBootstrap, cfg.InternalBasicAuth)
 	routers.RegisterPaymentRoutes(
 		app,
 		containers.PaymentContainer.Mod.Paymentservice,

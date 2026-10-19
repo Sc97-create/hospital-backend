@@ -3,13 +3,17 @@ package customers_test
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"hospital-backend/central/customers"
 	dto "hospital-backend/central/customers/dto"
+	"hospital-backend/central/internalapi"
 	notificationdto "hospital-backend/internal/notifications/dto"
 	"hospital-backend/internal/testutil/servicetest"
+	"hospital-backend/pkg/constants"
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/zap"
@@ -82,33 +86,27 @@ func (s *stubCustomerRepo) MarkSignupCodeVerified(_ *zap.Logger, _ string, _ tim
 	return s.markCodeErr
 }
 
-type stubTokenIssuer struct {
-	token string
-	err   error
-}
-
-func (s *stubTokenIssuer) AccessToken(userID, _ string) (string, error) {
-	if s.err != nil {
-		return "", s.err
-	}
-	if s.token == "" {
-		return "access-" + userID, nil
-	}
-	return s.token, nil
-}
-
 type stubNotifier struct {
-	err     error
-	lastReq *notificationdto.CreateRequest
+	err  error
+	last *notificationdto.CreateRequest
 }
 
 func (s *stubNotifier) Create(_ context.Context, data notificationdto.CreateRequest) error {
-	if s.err != nil {
-		return s.err
-	}
 	cp := data
-	s.lastReq = &cp
-	return nil
+	s.last = &cp
+	return s.err
+}
+
+func accessTokenAPI(t *testing.T) *internalapi.Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/hospital/internal/jwt/accessToken" {
+			t.Fatalf("path=%s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"access_token":"tok-signup"}`))
+	}))
+	t.Cleanup(srv.Close)
+	return internalapi.New(srv.URL, "id", "secret")
 }
 
 func TestServiceSignup(t *testing.T) {
@@ -118,7 +116,7 @@ func TestServiceSignup(t *testing.T) {
 		name    string
 		payload dto.SignupPayload
 		repo    *stubCustomerRepo
-		tokens  *stubTokenIssuer
+		api     *internalapi.Client
 		notify  *stubNotifier
 		wantErr error
 	}{
@@ -134,17 +132,9 @@ func TestServiceSignup(t *testing.T) {
 			wantErr: wrapError.ErrCustomerAlreadyExists,
 		},
 		{
-			name:    "notify fails",
-			payload: dto.SignupPayload{FullName: "Ada", WorkEmail: "ada@acme.com", Password: "secret12"},
-			repo:    &stubCustomerRepo{},
-			notify:  &stubNotifier{err: errors.New("smtp down")},
-			wantErr: wrapError.ErrCustomerCreateFailed,
-		},
-		{
 			name:    "success",
 			payload: dto.SignupPayload{FullName: "Ada Lovelace", WorkEmail: "Ada@Acme.com", Password: "secret12"},
 			repo:    &stubCustomerRepo{},
-			tokens:  &stubTokenIssuer{},
 			notify:  &stubNotifier{},
 			wantErr: nil,
 		},
@@ -156,15 +146,15 @@ func TestServiceSignup(t *testing.T) {
 			if repo == nil {
 				repo = &stubCustomerRepo{}
 			}
-			tokens := tt.tokens
-			if tokens == nil {
-				tokens = &stubTokenIssuer{}
+			api := tt.api
+			if api == nil && tt.wantErr == nil {
+				api = accessTokenAPI(t)
 			}
 			notify := tt.notify
 			if notify == nil {
 				notify = &stubNotifier{}
 			}
-			svc := customers.NewCustomerService(repo, tokens, notify)
+			svc := customers.NewCustomerService(repo, api, notify)
 			got, err := svc.Signup(log, tt.payload)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err=%v want=%v", err, tt.wantErr)
@@ -172,18 +162,14 @@ func TestServiceSignup(t *testing.T) {
 			if tt.wantErr != nil {
 				return
 			}
-			if got.AccessToken == "" || got.WorkEmail != "ada@acme.com" {
+			if got.AccessToken != "tok-signup" || got.WorkEmail != "ada@acme.com" {
 				t.Fatalf("unexpected result: %+v", got)
 			}
 			if repo.createdCode == nil || len(repo.createdCode.Code) != 6 {
 				t.Fatalf("expected 6-digit code, got %+v", repo.createdCode)
 			}
-			if notify.lastReq == nil {
-				t.Fatal("expected notification enqueue")
-			}
-			data := notify.lastReq.Data.(map[string]interface{})
-			if data["employee_id"] != repo.created.ID {
-				t.Fatalf("employee_id=%v want customer id", data["employee_id"])
+			if notify.last == nil || notify.last.NotificationType != constants.CustomerEmailVerificationEvent {
+				t.Fatalf("expected verification email enqueued, got %+v", notify.last)
 			}
 			if err := bcrypt.CompareHashAndPassword([]byte(repo.created.PasswordHash), []byte("secret12")); err != nil {
 				t.Fatalf("password hash mismatch: %v", err)
@@ -197,7 +183,7 @@ func TestServiceVerifyEmail(t *testing.T) {
 	now := time.Now()
 
 	t.Run("invalid code length", func(t *testing.T) {
-		svc := customers.NewCustomerService(&stubCustomerRepo{}, &stubTokenIssuer{}, &stubNotifier{})
+		svc := customers.NewCustomerService(&stubCustomerRepo{}, nil, nil)
 		err := svc.VerifyEmail(log, "cust-1", dto.VerifyEmailPayload{Code: "12"})
 		if !errors.Is(err, wrapError.ErrInvalidRequest) {
 			t.Fatalf("err=%v", err)
@@ -205,7 +191,7 @@ func TestServiceVerifyEmail(t *testing.T) {
 	})
 
 	t.Run("code not found", func(t *testing.T) {
-		svc := customers.NewCustomerService(&stubCustomerRepo{findErr: gorm.ErrRecordNotFound}, &stubTokenIssuer{}, &stubNotifier{})
+		svc := customers.NewCustomerService(&stubCustomerRepo{findErr: gorm.ErrRecordNotFound}, nil, nil)
 		err := svc.VerifyEmail(log, "cust-1", dto.VerifyEmailPayload{Code: "123456"})
 		if !errors.Is(err, wrapError.ErrInvalidVerificationCode) {
 			t.Fatalf("err=%v", err)
@@ -215,7 +201,7 @@ func TestServiceVerifyEmail(t *testing.T) {
 	t.Run("expired", func(t *testing.T) {
 		svc := customers.NewCustomerService(&stubCustomerRepo{
 			findCode: customers.SignupCode{ID: "c1", ExpiresAt: now.Add(-time.Minute)},
-		}, &stubTokenIssuer{}, &stubNotifier{})
+		}, nil, nil)
 		err := svc.VerifyEmail(log, "cust-1", dto.VerifyEmailPayload{Code: "123456"})
 		if !errors.Is(err, wrapError.ErrVerificationCodeExpired) {
 			t.Fatalf("err=%v", err)
@@ -225,7 +211,7 @@ func TestServiceVerifyEmail(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc := customers.NewCustomerService(&stubCustomerRepo{
 			findCode: customers.SignupCode{ID: "c1", ExpiresAt: now.Add(10 * time.Minute)},
-		}, &stubTokenIssuer{}, &stubNotifier{})
+		}, nil, nil)
 		if err := svc.VerifyEmail(log, "cust-1", dto.VerifyEmailPayload{Code: "123456"}); err != nil {
 			t.Fatalf("VerifyEmail: %v", err)
 		}

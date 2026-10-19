@@ -88,6 +88,9 @@ func TestIsPublicRoute(t *testing.T) {
 	if !IsPublicRoute("/api/v1/employee/create") {
 		t.Fatal("createAdmin should be public to RBAC")
 	}
+	if !IsPublicRoute("/api/v1/billing/checkByBillingID/lo-1") {
+		t.Fatal("checkByBillingID should be public to RBAC for all roles")
+	}
 	if IsPublicRoute("/api/v1/dashboard/getByStatus") {
 		t.Fatal("dashboard getByStatus should not be public")
 	}

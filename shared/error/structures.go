@@ -94,6 +94,8 @@ var (
 	ErrInvalidPaymentType       = errors.New("invalid or unsupported payment type")
 	ErrAppointmentAlreadyBilled = errors.New("appointment already has a consultation invoice")
 	ErrAppointmentMismatch      = errors.New("appointment does not belong to this patient/organisation")
+	ErrLabOrderAlreadyBilled    = errors.New("lab order already has an invoice")
+	ErrLabOrderMismatch         = errors.New("lab order does not belong to this patient/organisation")
 
 	// Payments domain
 	ErrPaymentNotFound         = errors.New("payment not found")
@@ -114,6 +116,25 @@ var (
 	ErrSupplierNotFound       = errors.New("supplier not found")
 	ErrSupplierCreateFailed   = errors.New("failed to create supplier")
 	ErrSupplierFetchFailed    = errors.New("failed to fetch supplier")
+
+	ErrLabTestNotFound     = errors.New("lab test not found")
+	ErrLabTestCreateFailed = errors.New("failed to create lab test")
+	ErrLabTestFetchFailed  = errors.New("failed to fetch lab test")
+	ErrLabTestUpdateFailed = errors.New("failed to update lab test")
+
+	ErrLabOrderNotFound     = errors.New("lab order not found")
+	ErrLabOrderCreateFailed = errors.New("failed to create lab order")
+	ErrLabOrderFetchFailed  = errors.New("failed to fetch lab order")
+	ErrLabOrderUpdateFailed = errors.New("failed to update lab order")
+
+	ErrLabTestTemplateNotFound     = errors.New("lab test template not found")
+	ErrLabTestTemplateCreateFailed = errors.New("failed to create lab test template")
+	ErrLabTestTemplateFetchFailed  = errors.New("failed to fetch lab test template")
+
+	ErrDiagnosticCentreNotFound     = errors.New("diagnostic centre not found")
+	ErrDiagnosticCentreCreateFailed = errors.New("failed to create diagnostic centre")
+	ErrDiagnosticCentreFetchFailed  = errors.New("failed to fetch diagnostic centre")
+	ErrDiagnosticCentreUpdateFailed = errors.New("failed to update diagnostic centre")
 
 	ErrPasswordUpdateFailed = errors.New("failed to update password")
 	ErrPasswordResetFailed  = errors.New("failed to send password reset link")

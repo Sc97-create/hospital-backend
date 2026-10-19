@@ -11,6 +11,8 @@ import (
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -140,6 +142,67 @@ func TestServiceConfirmManualPayment(t *testing.T) {
 		err := svc.ConfirmManualPayment(log, "inv-1", "org-1", constants.PaymentCash, "")
 		if !errors.Is(err, wrapError.ErrPaymentConfirmFailed) {
 			t.Fatalf("expected payment confirm failed, got %v", err)
+		}
+	})
+}
+
+func TestCreatePendingPaymentUsesBillingIDAsPrescriptionID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	log := servicetest.NopLogger()
+
+	db, err := gorm.Open(sqlite.Open("file:pay_billing_id?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+
+	t.Run("prescription checkout passes billing_id and updates prescription status", func(t *testing.T) {
+		repo := mocks.NewMockIPaymentsRepository(ctrl)
+		rxStatus := mocks.NewMockPrescriptionStatusUpdater(ctrl)
+
+		cmd := servicetest.ValidCreatePaymentCommand()
+		cmd.PrescriptionID = "rx-billing-1" // invoices.billing_id for payment_type=prescription
+		cmd.IdempotencyKey = "idem-rx-billing"
+
+		repo.EXPECT().FindByIdempotencyKey(log, cmd.IdempotencyKey).Return(payments.Payments{}, gorm.ErrRecordNotFound)
+		repo.EXPECT().Create(log, gomock.Any(), gomock.AssignableToTypeOf(payments.Payments{})).DoAndReturn(
+			func(_ *zap.Logger, _ *gorm.DB, payment payments.Payments) error {
+				if payment.InvoiceID != cmd.InvoiceID {
+					t.Fatalf("expected invoice_id %q, got %q", cmd.InvoiceID, payment.InvoiceID)
+				}
+				return nil
+			},
+		)
+		rxStatus.EXPECT().UpdateExtPrescriptionStatus(gomock.Any(), "rx-billing-1", constants.StatusPaymentPending).Return(nil)
+
+		svc := payments.NewPaymentsService(db, repo, nil, nil, rxStatus, nil)
+		got, err := svc.CreatePendingPayment(log, cmd)
+		if err != nil {
+			t.Fatalf("CreatePendingPayment: %v", err)
+		}
+		if got.InvoiceID != cmd.InvoiceID || got.PatientID != cmd.PatientID {
+			t.Fatalf("unexpected payment: %+v", got)
+		}
+	})
+
+	t.Run("consultation checkout has no prescription_id from billing_id", func(t *testing.T) {
+		repo := mocks.NewMockIPaymentsRepository(ctrl)
+		rxStatus := mocks.NewMockPrescriptionStatusUpdater(ctrl)
+
+		cmd := servicetest.ValidCreatePaymentCommand()
+		cmd.PrescriptionID = "" // consultation: billing_id is appointment id, not passed through
+		cmd.IdempotencyKey = "idem-appt-billing"
+
+		repo.EXPECT().FindByIdempotencyKey(log, cmd.IdempotencyKey).Return(payments.Payments{}, gorm.ErrRecordNotFound)
+		repo.EXPECT().Create(log, gomock.Any(), gomock.Any()).Return(nil)
+		// rxStatus must NOT be called — no EXPECT means failure if called
+
+		svc := payments.NewPaymentsService(db, repo, nil, nil, rxStatus, nil)
+		got, err := svc.CreatePendingPayment(log, cmd)
+		if err != nil {
+			t.Fatalf("CreatePendingPayment: %v", err)
+		}
+		if got.InvoiceID != cmd.InvoiceID {
+			t.Fatalf("unexpected payment: %+v", got)
 		}
 	})
 }

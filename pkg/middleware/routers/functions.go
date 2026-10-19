@@ -12,8 +12,9 @@ import (
 	"hospital-backend/internal/department"
 	"hospital-backend/internal/employee"
 	"hospital-backend/internal/jwt"
+	diagnosticcentre "hospital-backend/internal/labService/diagnosticCentre"
+	labservice "hospital-backend/internal/labService/labTest"
 	"hospital-backend/internal/medicine"
-	"hospital-backend/internal/orgbootstrap"
 	"hospital-backend/internal/patient"
 	"hospital-backend/internal/payments"
 	"hospital-backend/internal/payments/providers/razorpay"
@@ -183,6 +184,41 @@ func RegisterSupplierRoutes(app *fiber.App, service *medicine.SupplierService, r
 	supplierGrp.Post("/createSupplier", supplierController.CreateSupplier)
 }
 
+func RegisterLabOrderRoutes(app *fiber.App, service *labservice.LabOrderService, rbac RBACDeps) {
+	version := getVersion(app)
+	labOrders := version.Group("lab-orders")
+	middleware.UseProtected(labOrders, rbac.JWT, rbac.RolePerm, rbac.RoleLookup, rbac.Subscription)
+	ctrl := labservice.NewLabOrderController(service)
+	labOrders.Post("/create", ctrl.Create)
+	labOrders.Get("/list", ctrl.List)
+	labOrders.Get("/getbyID/:id", ctrl.GetByID)
+	labOrders.Patch("/update/:id/status", ctrl.UpdateStatus)
+	labOrders.Patch("/bulkupdatestatus", ctrl.UpdateTestsStatus)
+	labOrders.Patch("/update/:id/tests/:testId/status", ctrl.UpdateTestStatus)
+}
+
+func RegisterLabTestTemplateRoutes(app *fiber.App, service *labservice.LabTestTemplateService, rbac RBACDeps) {
+	version := getVersion(app)
+	templates := version.Group("lab-test-templates")
+	middleware.UseProtected(templates, rbac.JWT, rbac.RolePerm, rbac.RoleLookup, rbac.Subscription)
+	ctrl := labservice.NewLabTestTemplateController(service)
+	templates.Get("/defaults", ctrl.ListDefaults)
+	templates.Post("/create", ctrl.Create)
+	templates.Get("/list", ctrl.List)
+	templates.Get("/getbyID/:id", ctrl.GetByID)
+}
+
+func RegisterDiagnosticCentreRoutes(app *fiber.App, service *diagnosticcentre.DiagnosticCentreService, rbac RBACDeps) {
+	version := getVersion(app)
+	centres := version.Group("diagnostic-centres")
+	middleware.UseProtected(centres, rbac.JWT, rbac.RolePerm, rbac.RoleLookup, rbac.Subscription)
+	ctrl := diagnosticcentre.NewDiagnosticCentreController(service)
+	centres.Post("/create", ctrl.Create)
+	centres.Get("/list", ctrl.List)
+	centres.Put("/getbyID/:id", ctrl.Update)
+	centres.Patch("/getByStatus/:id/status", ctrl.UpdateStatus)
+}
+
 func RegisterDashboardRoutes(app *fiber.App, service *dashboard.DashboardService, rbac RBACDeps) {
 	version := getVersion(app)
 	dashboardGrp := version.Group("dashboard")
@@ -227,6 +263,7 @@ func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ, rbac RB
 	billingGrp.Post("/create", billingController.Checkout)
 	billingGrp.Get("/getInvoiceByPrescriptionID/:prescriptionID", billingController.GetInvoiceByPrescriptionID)
 	billingGrp.Get("/getInvoiceByAppointmentID/:appointmentID", billingController.GetInvoiceByAppointmentID)
+	billingGrp.Get("/checkByBillingID/:billingID", billingController.CheckBillingExists)
 	billingGrp.Get("/getBillDetailsByPrescriptionID/:prescriptionID", billingController.GetBillDetailsByPrescriptionID)
 	billingGrp.Post("/invoices/:invoiceID/retry-payment-link", billingController.RetryPaymentLink)
 }
@@ -262,17 +299,4 @@ func RegisterJWTRoutes(app *fiber.App, service *jwt.JwtService, basicAuth config
 	})
 	ctrl := jwt.NewController(service)
 	grp.Post("/accessToken", ctrl.CreateAccessToken)
-}
-
-// RegisterOrgBootstrapRoutes registers organisation setup APIs central calls on the hospital service.
-func RegisterOrgBootstrapRoutes(app *fiber.App, service *orgbootstrap.Service, basicAuth config.InternalBasicAuth) {
-	version := getVersion(app)
-	grp := version.Group("hospital/internal/organisation")
-	grp.Use(func(c *fiber.Ctx) error {
-		return middleware.AuthenticateBasic(c, basicAuth.ID, basicAuth.Secret)
-	})
-	ctrl := orgbootstrap.NewController(service)
-	grp.Post("/addRoles", ctrl.AddRoles)
-	grp.Post("/addRolePermissions", ctrl.AddRolePermissions)
-	grp.Post("/addFirstUser", ctrl.AddFirstUser)
 }

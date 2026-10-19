@@ -19,7 +19,7 @@ const validCheckoutBody = `{
 		"cashier_id":"cash-1",
 		"payment_mode":"cash",
 		"organisation_id":"org-1",
-		"prescription_id":"rx-1",
+		"billing_id":"rx-1",
 		"financials":{"sub_total_amount":100,"tax_amount":10,"total_amount":110},
 		"dispense_items":[{
 			"medicine_id":"med-1",
@@ -51,7 +51,7 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name:       "missing patient_id",
-			body:       `{"cashier_id":"c1","payment_mode":"cash","organisation_id":"o1","financials":{"sub_total_amount":1,"tax_amount":0,"total_amount":1},"prescription_id":"rx-1","dispense_items":[]}`,
+			body:       `{"cashier_id":"c1","payment_mode":"cash","organisation_id":"o1","financials":{"sub_total_amount":1,"tax_amount":0,"total_amount":1},"billing_id":"rx-1","dispense_items":[]}`,
 			headers:    map[string]string{"Idempotency-Key": "key-1"},
 			wantStatus: fiber.StatusBadRequest,
 		},
@@ -140,6 +140,22 @@ func TestGetInvoiceByPrescriptionID(t *testing.T) {
 			controllertest.AssertStatus(t, resp, tt.wantStatus)
 		})
 	}
+}
+
+func TestCheckBillingExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockInvoiceServicer(ctrl)
+	billingCtrl := billing.NewBillingController(mock)
+	app := controllertest.NewApp(t, func(app *fiber.App) {
+		app.Get("/billing/checkByBillingID/:billingID", billingCtrl.CheckBillingExists)
+	})
+
+	mock.EXPECT().CheckBillingExists(gomock.Any(), "lo-1").Return(int64(1), nil)
+	resp, _ := controllertest.Do(t, app, controllertest.Request{
+		Method: http.MethodGet,
+		Path:   "/billing/checkByBillingID/lo-1",
+	})
+	controllertest.AssertStatus(t, resp, fiber.StatusOK)
 }
 
 func TestGetInvoiceByAppointmentID(t *testing.T) {
