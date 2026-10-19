@@ -1,0 +1,21 @@
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  default: standard
+  # Pre-existing debt; tighten later without blocking CI.
+  disable:
+    - errcheck
+    - unused
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+# Formatting is enforced separately in CI via `gofmt -l`.
+formatters:
+  enable: []

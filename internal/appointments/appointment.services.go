@@ -681,7 +681,7 @@ func (s *AppointmentService) findStatus(status string, endtime time.Time, appoin
 	currenttime := time.Now()
 	todayDate := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), 0, 0, 0, 0, time.Local)
 	todayendtime := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), endtime.Hour(), endtime.Minute(), endtime.Second(), endtime.Nanosecond(), time.Local)
-	if appointmentdate == todayDate {
+	if appointmentdate.Equal(todayDate) {
 		if currenttime.After(todayendtime) {
 			return StatusReschedule
 		}

@@ -5,8 +5,6 @@ import (
 	"hospital-backend/internal/payments/dto"
 )
 
-const ()
-
 type Provider interface {
 	Name() string
 	CreatePayment(ctx context.Context, req dto.CreatePaymentCommand) (dto.CreatePaymentResponse, error)

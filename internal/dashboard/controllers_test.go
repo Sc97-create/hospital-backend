@@ -6,10 +6,10 @@ import (
 
 	apptdto "hospital-backend/internal/appointments/dto"
 	billingdto "hospital-backend/internal/billing/dto"
-	empdto "hospital-backend/internal/employee/dto"
-	rxdto "hospital-backend/internal/prescription/dto"
 	"hospital-backend/internal/dashboard"
 	"hospital-backend/internal/dashboard/mocks"
+	empdto "hospital-backend/internal/employee/dto"
+	rxdto "hospital-backend/internal/prescription/dto"
 	"hospital-backend/internal/testutil/controllertest"
 
 	"github.com/gofiber/fiber/v2"

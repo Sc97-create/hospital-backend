@@ -173,6 +173,11 @@ func (s *FulfillmentService) NotifyPaymentReceived(log *zap.Logger, payment Paym
 	log = ensureLog(log)
 	patientInfo, err := s.Deps.GetNotificationPatientByID(payment.PatientID)
 	if err != nil {
+		log.Error("payment notification failed",
+			zap.String("payment_id", payment.ID),
+			zap.String("reason", "patient_lookup"),
+			zap.Error(err),
+		)
 		return err
 	}
 	patientInfo["amount_paid"] = payment.Amount

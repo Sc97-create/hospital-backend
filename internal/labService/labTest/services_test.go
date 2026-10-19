@@ -191,12 +191,12 @@ func TestLabOrderServiceList(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		repo.EXPECT().FindMany(gomock.Any(), gomock.Any(), gomock.Any()).Return([]labservice.LabOrderListRow{
 			{
-				ID:          "lo-1",
+				ID:             "lo-1",
 				OrganisationID: "org-1",
-				PatientName: "Jane Doe",
-				DoctorName:  "John Smith",
-				Status:      labservice.OrderStatusPending,
-				LabTests:    labservice.OrderedLabTestList{{ID: "t1"}},
+				PatientName:    "Jane Doe",
+				DoctorName:     "John Smith",
+				Status:         labservice.OrderStatusPending,
+				LabTests:       labservice.OrderedLabTestList{{ID: "t1"}},
 			},
 		}, nil)
 		repo.EXPECT().Count(gomock.Any(), gomock.Any(), gomock.Any()).Return(int64(1), nil)

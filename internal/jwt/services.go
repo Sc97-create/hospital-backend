@@ -79,8 +79,10 @@ func (j *JwtService) toClaimsModel(token string, claims jwt.RegisteredClaims) Cl
 func (j *JwtService) UpdateRefreshToken(refreshID string, userID string, organisationID string) (rToken string, err error) {
 	claims := j.createclaims(organisationID, userID, refreshID)
 	token, err := j.token(claims)
-	err = j.RefreshtokenRepo.Update(token, claims.ExpiresAt.Time, refreshID)
 	if err != nil {
+		return "", err
+	}
+	if err = j.RefreshtokenRepo.Update(token, claims.ExpiresAt.Time, refreshID); err != nil {
 		return "", err
 	}
 	return token, nil

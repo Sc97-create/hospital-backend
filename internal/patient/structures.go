@@ -49,10 +49,10 @@ type Patient struct {
 	OrganisationID string    `json:"organisation_id" gorm:"type:uuid"`
 
 	Organisation organisations.Organisation `gorm:"foreignKey:OrganisationID"`
-	Status       Status                    `json:"status" gorm:"default:'free'"`
-	CreatedAt    time.Time                 `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt    time.Time                 `json:"updated_at" gorm:"autoUpdateTime"`
-	Address      string                    `json:"address" gorm:"type:varchar(500)"`
-	TotalVisit   int                       `json:"total_visit"`
-	LastVisit    time.Time                 `json:"last_visit" gorm:"type:timestamp"`
+	Status       Status                     `json:"status" gorm:"default:'free'"`
+	CreatedAt    time.Time                  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time                  `json:"updated_at" gorm:"autoUpdateTime"`
+	Address      string                     `json:"address" gorm:"type:varchar(500)"`
+	TotalVisit   int                        `json:"total_visit"`
+	LastVisit    time.Time                  `json:"last_visit" gorm:"type:timestamp"`
 }

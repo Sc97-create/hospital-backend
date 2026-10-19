@@ -63,8 +63,8 @@ func (c *RazorpayConfig) CreateOrder(_ context.Context, amountPaise int64, curre
 
 func toPaymentLinkData(req createPaymentLinkRequest) map[string]interface{} {
 	data := map[string]interface{}{
-		"amount":   req.Amount,
-		"currency": req.Currency,
+		"amount":         req.Amount,
+		"currency":       req.Currency,
 		"accept_partial": req.AcceptPartial,
 		"reference_id":   req.ReferenceID,
 		"description":    req.Description,

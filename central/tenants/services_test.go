@@ -126,9 +126,9 @@ func (s *stubOrgProvisioner) Update(_ *zap.Logger, organisationID string, payloa
 }
 
 type stubCustomerBinder struct {
-	err              error
-	boundCustomerID  string
-	boundTenantID    string
+	err             error
+	boundCustomerID string
+	boundTenantID   string
 }
 
 func (s *stubCustomerBinder) BindTenantID(_ *zap.Logger, _ *gorm.DB, customerID, tenantID string) error {
