@@ -175,3 +175,82 @@ func TestFindPatients(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdatePatientHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		userID     string
+		setup      func(*mocks.MockPatientServicer)
+		wantStatus int
+	}{
+		{
+			name:       "missing token user",
+			body:       `{"patient_id":"pat-1","organisation_id":"org-1","name":"Jane"}`,
+			wantStatus: fiber.StatusUnauthorized,
+		},
+		{
+			name:   "not found",
+			body:   `{"patient_id":"pat-1","organisation_id":"org-1","name":"Jane"}`,
+			userID: "user-2",
+			setup: func(m *mocks.MockPatientServicer) {
+				m.EXPECT().Update(gomock.Any(), gomock.Any()).Return(errwrap.ErrPatientNotFound)
+			},
+			wantStatus: fiber.StatusNotFound,
+		},
+		{
+			name:   "success",
+			body:   `{"patient_id":"pat-1","organisation_id":"org-1","updated_by":"ignored","name":"Jane"}`,
+			userID: "user-2",
+			setup: func(m *mocks.MockPatientServicer) {
+				m.EXPECT().Update(gomock.Any(), dto.UpdatePatientReq{
+					PatientID:      "pat-1",
+					OrganisationID: "org-1",
+					UpdatedBy:      "user-2",
+					Name:           "Jane",
+				}).Return(nil)
+			},
+			wantStatus: fiber.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mock := mocks.NewMockPatientServicer(ctrl)
+			if tt.setup != nil {
+				tt.setup(mock)
+			}
+			patientCtrl := patient.NewPatientControllerInterface(mock)
+			app := controllertest.NewApp(t, func(app *fiber.App) {
+				if tt.userID != "" {
+					app.Use(controllertest.WithUserID(tt.userID))
+				}
+				app.Patch("/patients/update", patientCtrl.Update)
+			})
+			resp, _ := controllertest.Do(t, app, controllertest.Request{
+				Method: http.MethodPatch,
+				Path:   "/patients/update",
+				Body:   tt.body,
+			})
+			controllertest.AssertStatus(t, resp, tt.wantStatus)
+		})
+	}
+}
+
+func TestDeletePatientHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockPatientServicer(ctrl)
+	mock.EXPECT().Disable(gomock.Any(), "pat-1", "org-1", "user-2").Return(nil)
+	patientCtrl := patient.NewPatientControllerInterface(mock)
+	app := controllertest.NewApp(t, func(app *fiber.App) {
+		app.Use(controllertest.WithUserID("user-2"))
+		app.Delete("/patients/delete", patientCtrl.Delete)
+	})
+	resp, _ := controllertest.Do(t, app, controllertest.Request{
+		Method: http.MethodDelete,
+		Path:   "/patients/delete",
+		Body:   `{"patient_id":"pat-1","organisation_id":"org-1"}`,
+	})
+	controllertest.AssertStatus(t, resp, fiber.StatusOK)
+}

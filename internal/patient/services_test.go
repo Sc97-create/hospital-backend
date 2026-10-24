@@ -2,6 +2,7 @@ package patient_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"hospital-backend/central/organisations"
@@ -13,6 +14,7 @@ import (
 	wrapError "hospital-backend/shared/error"
 
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -350,4 +352,101 @@ func TestCreatePatientSrv(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdatePatient(t *testing.T) {
+	existing := patient.Patient{
+		ID: "pat-1", Name: "Jane", Age: 30, Weight: 65, Gender: "female",
+		EmailID: "jane@example.com", MobileNumber: "9999999999", BloodGroup: "O+", Address: "old",
+	}
+	base := dto.UpdatePatientReq{PatientID: "pat-1", OrganisationID: "org-1", UpdatedBy: "user-2"}
+
+	t.Run("missing updated_by", func(t *testing.T) {
+		svc := newPatientService(t, nil, nil)
+		req := base
+		req.UpdatedBy = ""
+		err := svc.Update(servicetest.NopLogger(), req)
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("expected invalid request, got %v", err)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockPatientRepository(ctrl)
+		repo.EXPECT().ReadOneByOrg(gomock.Any(), "pat-1", "org-1").Return(patient.Patient{}, gorm.ErrRecordNotFound)
+		svc := newPatientService(t, repo, nil)
+		err := svc.Update(servicetest.NopLogger(), base)
+		if !errors.Is(err, wrapError.ErrPatientNotFound) {
+			t.Fatalf("expected not found, got %v", err)
+		}
+	})
+
+	t.Run("no profile changes", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockPatientRepository(ctrl)
+		repo.EXPECT().ReadOneByOrg(gomock.Any(), "pat-1", "org-1").Return(existing, nil)
+		svc := newPatientService(t, repo, nil)
+		req := base
+		req.Name = "Jane"
+		if err := svc.Update(servicetest.NopLogger(), req); err == nil {
+			t.Fatal("expected no fields updated")
+		}
+	})
+
+	t.Run("writes profile and audit columns", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockPatientRepository(ctrl)
+		repo.EXPECT().ReadOneByOrg(gomock.Any(), "pat-1", "org-1").Return(existing, nil)
+		repo.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ *zap.Logger, query string, args ...any) (int64, error) {
+				if !strings.Contains(query, "name = $1") || !strings.Contains(query, "updated_by = $2") || !strings.Contains(query, "updated_at = NOW()") {
+					t.Fatalf("unexpected query: %s", query)
+				}
+				if len(args) != 4 || args[0] != "Janet" || args[1] != "user-2" || args[2] != "pat-1" || args[3] != "org-1" {
+					t.Fatalf("unexpected args: %#v", args)
+				}
+				return int64(1), nil
+			},
+		)
+		svc := newPatientService(t, repo, nil)
+		req := base
+		req.Name = "Janet"
+		if err := svc.Update(servicetest.NopLogger(), req); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestDisablePatient(t *testing.T) {
+	t.Run("sets status disable", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockPatientRepository(ctrl)
+		repo.EXPECT().ReadOneByOrg(gomock.Any(), "pat-1", "org-1").Return(patient.Patient{ID: "pat-1", Status: patient.StatusActive}, nil)
+		repo.EXPECT().Exec(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ *zap.Logger, query string, args ...any) (int64, error) {
+				if !strings.Contains(query, "status = $1") || !strings.Contains(query, "updated_by = $2") || !strings.Contains(query, "updated_at = NOW()") {
+					t.Fatalf("unexpected query: %s", query)
+				}
+				if len(args) != 4 || args[0] != "disable" || args[1] != "user-2" || args[2] != "pat-1" || args[3] != "org-1" {
+					t.Fatalf("unexpected args: %#v", args)
+				}
+				return int64(1), nil
+			},
+		)
+		svc := newPatientService(t, repo, nil)
+		if err := svc.Disable(servicetest.NopLogger(), "pat-1", "org-1", "user-2"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("already disabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		repo := mocks.NewMockPatientRepository(ctrl)
+		repo.EXPECT().ReadOneByOrg(gomock.Any(), "pat-1", "org-1").Return(patient.Patient{Status: patient.StatusDisable}, nil)
+		svc := newPatientService(t, repo, nil)
+		if err := svc.Disable(servicetest.NopLogger(), "pat-1", "org-1", "user-2"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }

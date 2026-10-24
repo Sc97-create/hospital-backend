@@ -5,6 +5,7 @@ import (
 	"hospital-backend/internal/patient/dto"
 	"hospital-backend/pkg/middleware"
 	"hospital-backend/shared/params"
+	"strings"
 
 	errwrap "hospital-backend/shared/error"
 
@@ -14,12 +15,16 @@ import (
 
 type IPatientController interface {
 	AddGeneralInfoHandler(c *fiber.Ctx) (err error)
+	Update(c *fiber.Ctx) (err error)
+	Delete(c *fiber.Ctx) (err error)
 	Find(c *fiber.Ctx) (err error)
 	GetPatientByID(c *fiber.Ctx) (err error)
 }
 
 type PatientServicer interface {
 	CreatePatientSrv(log *zap.Logger, payload dto.PatientInfo) (string, error)
+	Update(log *zap.Logger, req dto.UpdatePatientReq) error
+	Disable(log *zap.Logger, patientID, organisationID, updatedBy string) error
 	FindOne(log *zap.Logger, id string) (dto.PatientResponse, error)
 	FindMany(log *zap.Logger, req dto.PatientListReq) ([]dto.PatientResponse, int64, error)
 }
@@ -79,6 +84,138 @@ func (p *PatientController) wrapCreateError(c *fiber.Ctx, err error) error {
 			return errwrap.Wrap(err, c, fiber.StatusBadRequest)
 		}
 		return errwrap.Wrap(errwrap.ErrPatientCreateFailed, c, fiber.StatusInternalServerError)
+	}
+}
+
+func (p *PatientController) Update(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("patient update request invalid", zap.Error(err))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	req, field, err := toUpdateRequest(payload)
+	if err != nil {
+		logger.Warn("patient update request invalid", zap.Error(err), zap.String("field", field))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	req.UpdatedBy = strings.TrimSpace(middleware.GetUserID(c))
+	if req.UpdatedBy == "" {
+		logger.Warn("patient update request invalid", zap.String("reason", "missing_user"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusUnauthorized)
+	}
+
+	logger.Info("patient update attempt",
+		zap.String("patient_id", req.PatientID),
+		zap.String("updated_by", req.UpdatedBy),
+	)
+	if err = p.PatientService.Update(logger, req); err != nil {
+		return p.wrapUpdateError(c, err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":    "patient updated",
+		"patient_id": req.PatientID,
+		"code":       200,
+	})
+}
+
+func (p *PatientController) Delete(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	payload, err := params.New(c)
+	if err != nil {
+		logger.Warn("patient delete request invalid", zap.Error(err))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	patientID, err := payload.Getstring("patient_id")
+	if err != nil {
+		logger.Warn("patient delete request invalid", zap.String("field", "patient_id"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	organisationID, err := payload.Getstring("organisation_id")
+	if err != nil {
+		logger.Warn("patient delete request invalid", zap.String("field", "organisation_id"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+	updatedBy := strings.TrimSpace(middleware.GetUserID(c))
+	if updatedBy == "" {
+		logger.Warn("patient delete request invalid", zap.String("reason", "missing_user"))
+		return errwrap.Wrap(errwrap.ErrInvalidRequest, c, fiber.StatusUnauthorized)
+	}
+
+	logger.Info("patient delete attempt",
+		zap.String("patient_id", patientID),
+		zap.String("updated_by", updatedBy),
+	)
+	if err = p.PatientService.Disable(logger, patientID, organisationID, updatedBy); err != nil {
+		return p.wrapDeleteError(c, err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":    "patient disabled",
+		"patient_id": patientID,
+		"code":       200,
+	})
+}
+
+func (p *PatientController) wrapDeleteError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, errwrap.ErrInvalidRequest):
+		return errwrap.Wrap(err, c, fiber.StatusBadRequest)
+	case errors.Is(err, errwrap.ErrPatientNotFound):
+		return errwrap.Wrap(err, c, fiber.StatusNotFound)
+	case errors.Is(err, errwrap.ErrPatientDeleteFailed):
+		return errwrap.Wrap(err, c, fiber.StatusInternalServerError)
+	default:
+		return errwrap.Wrap(errwrap.ErrPatientDeleteFailed, c, fiber.StatusInternalServerError)
+	}
+}
+
+func toUpdateRequest(payload *params.Payload) (dto.UpdatePatientReq, string, error) {
+	var req dto.UpdatePatientReq
+	var err error
+	if req.PatientID, err = payload.Getstring("patient_id"); err != nil {
+		return req, "patient_id", err
+	}
+	if req.OrganisationID, err = payload.Getstring("organisation_id"); err != nil {
+		return req, "organisation_id", err
+	}
+	req.Name = optionalString(payload, "name")
+	req.Age = optionalString(payload, "age")
+	req.Weight = optionalString(payload, "weight")
+	req.Gender = optionalString(payload, "gender")
+	req.EmailID = optionalString(payload, "email_id")
+	req.MobileNumber = optionalString(payload, "mobile_number")
+	req.BloodGroup = optionalString(payload, "blood_group")
+	req.Address = optionalString(payload, "address")
+	return req, "", nil
+}
+
+func optionalString(payload *params.Payload, key string) string {
+	value, err := payload.Getstring(key)
+	if err != nil {
+		return ""
+	}
+	return value
+}
+
+func (p *PatientController) wrapUpdateError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, errwrap.ErrInvalidRequest), errors.Is(err, errwrap.ErrPatientNotFound):
+		status := fiber.StatusBadRequest
+		if errors.Is(err, errwrap.ErrPatientNotFound) {
+			status = fiber.StatusNotFound
+		}
+		return errwrap.Wrap(err, c, status)
+	case errors.Is(err, errwrap.ErrPatientAlreadyExists):
+		return errwrap.Wrap(err, c, fiber.StatusConflict)
+	case errors.Is(err, errwrap.ErrPatientUpdateFailed):
+		return errwrap.Wrap(err, c, fiber.StatusInternalServerError)
+	default:
+		var ve *validationError
+		if errors.As(err, &ve) {
+			return errwrap.Wrap(err, c, fiber.StatusBadRequest)
+		}
+		return errwrap.Wrap(errwrap.ErrPatientUpdateFailed, c, fiber.StatusInternalServerError)
 	}
 }
 

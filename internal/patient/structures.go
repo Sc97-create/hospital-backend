@@ -15,6 +15,7 @@ var (
 const (
 	StatusPending Status = "pending"
 	StatusActive  Status = "active"
+	StatusDisable Status = "disable"
 )
 
 type Rooms struct {
@@ -52,6 +53,7 @@ type Patient struct {
 	Status       Status                     `json:"status" gorm:"default:'free'"`
 	CreatedAt    time.Time                  `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time                  `json:"updated_at" gorm:"autoUpdateTime"`
+	UpdatedBy    string                     `json:"updated_by" gorm:"column:updated_by"`
 	Address      string                     `json:"address" gorm:"type:varchar(500)"`
 	TotalVisit   int                        `json:"total_visit"`
 	LastVisit    time.Time                  `json:"last_visit" gorm:"type:timestamp"`

@@ -16,6 +16,23 @@ type PatientInfo struct {
 	HospitalName   string `json:"hospital_name"`
 }
 
+// UpdatePatientReq updates a patient scoped to an organisation.
+// Profile fields are optional; only non-empty values that differ are written.
+// UpdatedBy is the access-token subject. updated_at is set by the server.
+type UpdatePatientReq struct {
+	PatientID      string `json:"patient_id"`
+	OrganisationID string `json:"organisation_id"`
+	UpdatedBy      string `json:"-"`
+	Name           string `json:"name"`
+	Age            string `json:"age"`
+	Weight         string `json:"weight"`
+	Gender         string `json:"gender"`
+	EmailID        string `json:"email_id"`
+	MobileNumber   string `json:"mobile_number"`
+	BloodGroup     string `json:"blood_group"`
+	Address        string `json:"address"`
+}
+
 // PatientListReq is the POST body for patient list (search + pagination).
 type PatientListReq struct {
 	OrganisationID string  `json:"organisation_id"`

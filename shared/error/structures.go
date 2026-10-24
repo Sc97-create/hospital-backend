@@ -48,6 +48,8 @@ var (
 	ErrPatientNotFound          = errors.New("patient not found")
 	ErrPatientAlreadyExists     = errors.New("patient already exists")
 	ErrPatientCreateFailed      = errors.New("failed to create patient")
+	ErrPatientUpdateFailed      = errors.New("failed to update patient")
+	ErrPatientDeleteFailed      = errors.New("failed to delete patient")
 	ErrPatientFetchFailed       = errors.New("failed to fetch patient")
 	ErrPatientsFetchFailed      = errors.New("failed to fetch patients")
 	ErrEmployeesFetchFailed     = errors.New("failed to fetch employees")
