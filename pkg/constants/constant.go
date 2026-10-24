@@ -28,6 +28,8 @@ const (
 	AppointmentCreateSubject                = "Appointment Created"
 	PatientCreatedEvent                     = "patient_created"
 	PatientCreatedSubject                   = "Patient Created"
+	PatientUpdatedEvent                     = "patient_updated"
+	PatientUpdatedSubject                   = "Patient Updated"
 	EmployeeCreatedEvent                    = "employee_created_welcome"
 	EmployeeCreatedSubject                  = "Your staff account is ready"
 	PasswordResetEvent                      = "password_reset_requested"

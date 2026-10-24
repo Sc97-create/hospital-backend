@@ -75,6 +75,26 @@ func (mr *MockPatientRepositoryMockRecorder) Create(log, record any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockPatientRepository)(nil).Create), log, record)
 }
 
+// Exec mocks base method.
+func (m *MockPatientRepository) Exec(log *zap.Logger, query string, args ...any) (int64, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{log, query}
+	for _, a := range args {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Exec", varargs...)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Exec indicates an expected call of Exec.
+func (mr *MockPatientRepositoryMockRecorder) Exec(log, query any, args ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{log, query}, args...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockPatientRepository)(nil).Exec), varargs...)
+}
+
 // ReadMany mocks base method.
 func (m *MockPatientRepository) ReadMany(log *zap.Logger, query string, args ...any) ([]patient.Patient, error) {
 	m.ctrl.T.Helper()
@@ -108,6 +128,21 @@ func (m *MockPatientRepository) ReadOne(log *zap.Logger, patientID string) (pati
 func (mr *MockPatientRepositoryMockRecorder) ReadOne(log, patientID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOne", reflect.TypeOf((*MockPatientRepository)(nil).ReadOne), log, patientID)
+}
+
+// ReadOneByOrg mocks base method.
+func (m *MockPatientRepository) ReadOneByOrg(log *zap.Logger, patientID, organisationID string) (patient.Patient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadOneByOrg", log, patientID, organisationID)
+	ret0, _ := ret[0].(patient.Patient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadOneByOrg indicates an expected call of ReadOneByOrg.
+func (mr *MockPatientRepositoryMockRecorder) ReadOneByOrg(log, patientID, organisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadOneByOrg", reflect.TypeOf((*MockPatientRepository)(nil).ReadOneByOrg), log, patientID, organisationID)
 }
 
 // ReadOneWithOrganisationID mocks base method.

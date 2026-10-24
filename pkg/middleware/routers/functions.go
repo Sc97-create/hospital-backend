@@ -112,6 +112,8 @@ func RegisterPatientRoutes(app *fiber.App, service *patient.PatientService, rbac
 	middleware.UseProtected(patientGroup, rbac.JWT, rbac.RolePerm, rbac.RoleLookup, rbac.Subscription)
 	patientManagement := patient.NewPatientControllerInterface(service)
 	patientGroup.Post("/addGeneralInfo", patientManagement.AddGeneralInfoHandler)
+	patientGroup.Patch("/update", patientManagement.Update)
+	patientGroup.Delete("/delete", patientManagement.Delete)
 	patientGroup.Post("/getPatients", patientManagement.Find)
 	patientGroup.Get("/getpatientByID/:patientID", patientManagement.GetPatientByID)
 }

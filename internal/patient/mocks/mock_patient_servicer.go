@@ -86,3 +86,31 @@ func (mr *MockPatientServicerMockRecorder) FindOne(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOne", reflect.TypeOf((*MockPatientServicer)(nil).FindOne), log, id)
 }
+
+// Update mocks base method.
+func (m *MockPatientServicer) Update(log *zap.Logger, req dto.UpdatePatientReq) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", log, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockPatientServicerMockRecorder) Update(log, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockPatientServicer)(nil).Update), log, req)
+}
+
+// Disable mocks base method.
+func (m *MockPatientServicer) Disable(log *zap.Logger, patientID, organisationID, updatedBy string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Disable", log, patientID, organisationID, updatedBy)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Disable indicates an expected call of Disable.
+func (mr *MockPatientServicerMockRecorder) Disable(log, patientID, organisationID, updatedBy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disable", reflect.TypeOf((*MockPatientServicer)(nil).Disable), log, patientID, organisationID, updatedBy)
+}

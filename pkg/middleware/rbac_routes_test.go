@@ -31,6 +31,14 @@ func TestResolveRoutePermission_IntentNotMethod(t *testing.T) {
 	if !ok || module != constants.Patient || action != permissions.View {
 		t.Fatalf("param path: got module=%q action=%q ok=%v", module, action, ok)
 	}
+	module, action, ok = ResolveRoutePermission("/api/v1/patients/update")
+	if !ok || module != constants.Patient || action != permissions.Update {
+		t.Fatalf("patients update: got module=%q action=%q ok=%v", module, action, ok)
+	}
+	module, action, ok = ResolveRoutePermission("/api/v1/patients/delete")
+	if !ok || module != constants.Patient || action != permissions.Delete {
+		t.Fatalf("patients delete: got module=%q action=%q ok=%v", module, action, ok)
+	}
 
 	module, action, ok = ResolveRoutePermission("/api/v1/dashboard/getByStatus")
 	if !ok || module != constants.Dashboard || action != permissions.View {

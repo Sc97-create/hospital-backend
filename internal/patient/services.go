@@ -125,6 +125,233 @@ func (p *PatientService) CreatePatientSrv(log *zap.Logger, payload dto.PatientIn
 	return patientModel.ID, nil
 }
 
+func (p *PatientService) Update(log *zap.Logger, req dto.UpdatePatientReq) error {
+	log = ensureLog(log)
+	req.PatientID = strings.TrimSpace(req.PatientID)
+	req.OrganisationID = strings.TrimSpace(req.OrganisationID)
+	req.UpdatedBy = strings.TrimSpace(req.UpdatedBy)
+	if req.PatientID == "" || req.OrganisationID == "" || req.UpdatedBy == "" {
+		field := "updated_by"
+		if req.PatientID == "" {
+			field = "patient_id"
+		} else if req.OrganisationID == "" {
+			field = "organisation_id"
+		}
+		log.Warn("patient update failed", zap.String("reason", "validation"), zap.String("field", field))
+		return wrapError.ErrInvalidRequest
+	}
+
+	existing, err := p.PRepo.ReadOneByOrg(log, req.PatientID, req.OrganisationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("patient update failed",
+				zap.String("patient_id", req.PatientID),
+				zap.String("reason", "not_found"),
+			)
+			return wrapError.ErrPatientNotFound
+		}
+		log.Error("patient update failed",
+			zap.String("patient_id", req.PatientID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPatientUpdateFailed
+	}
+
+	clauses, args, err := changedProfileClauses(existing, req)
+	if err != nil {
+		log.Warn("patient update failed",
+			zap.String("patient_id", req.PatientID),
+			zap.String("reason", "validation"),
+			zap.Error(err),
+		)
+		return err
+	}
+	if len(clauses) == 0 {
+		log.Warn("patient update failed",
+			zap.String("patient_id", req.PatientID),
+			zap.String("reason", "no_changes"),
+		)
+		return &validationError{Field: "body", Msg: "no fields updated"}
+	}
+
+	argPos := len(args) + 1
+	clauses = append(clauses, fmt.Sprintf("updated_by = $%d", argPos), "updated_at = NOW()")
+	args = append(args, req.UpdatedBy)
+	argPos++
+	query := "UPDATE patients SET " + strings.Join(clauses, ", ") +
+		fmt.Sprintf(" WHERE id = $%d AND organisation_id = $%d", argPos, argPos+1)
+	args = append(args, req.PatientID, req.OrganisationID)
+
+	rows, err := p.PRepo.Exec(log, query, args...)
+	if err != nil {
+		if isUniqueViolation(err) {
+			log.Error("patient update failed",
+				zap.String("patient_id", req.PatientID),
+				zap.String("reason", "duplicate"),
+				zap.Error(err),
+			)
+			return wrapError.ErrPatientAlreadyExists
+		}
+		log.Error("patient update failed",
+			zap.String("patient_id", req.PatientID),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPatientUpdateFailed
+	}
+	if rows == 0 {
+		log.Warn("patient update failed",
+			zap.String("patient_id", req.PatientID),
+			zap.String("reason", "not_found"),
+		)
+		return wrapError.ErrPatientNotFound
+	}
+
+	p.enqueuePatientUpdated(log, existing, req)
+	log.Info("patient update success",
+		zap.String("patient_id", req.PatientID),
+		zap.String("updated_by", req.UpdatedBy),
+	)
+	return nil
+}
+
+func (p *PatientService) Disable(log *zap.Logger, patientID, organisationID, updatedBy string) error {
+	log = ensureLog(log)
+	patientID = strings.TrimSpace(patientID)
+	organisationID = strings.TrimSpace(organisationID)
+	updatedBy = strings.TrimSpace(updatedBy)
+	if patientID == "" || organisationID == "" || updatedBy == "" {
+		log.Warn("patient delete failed", zap.String("reason", "validation"))
+		return wrapError.ErrInvalidRequest
+	}
+
+	existing, err := p.PRepo.ReadOneByOrg(log, patientID, organisationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("patient delete failed",
+				zap.String("patient_id", patientID),
+				zap.String("reason", "not_found"),
+			)
+			return wrapError.ErrPatientNotFound
+		}
+		log.Error("patient delete failed",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "db_read"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPatientDeleteFailed
+	}
+	if existing.Status == StatusDisable {
+		log.Info("patient delete skipped",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "already_disabled"),
+		)
+		return nil
+	}
+
+	query := `UPDATE patients SET status = $1, updated_by = $2, updated_at = NOW() WHERE id = $3 AND organisation_id = $4`
+	rows, err := p.PRepo.Exec(log, query, string(StatusDisable), updatedBy, patientID, organisationID)
+	if err != nil {
+		log.Error("patient delete failed",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "db_update"),
+			zap.Error(err),
+		)
+		return wrapError.ErrPatientDeleteFailed
+	}
+	if rows == 0 {
+		log.Warn("patient delete failed",
+			zap.String("patient_id", patientID),
+			zap.String("reason", "not_found"),
+		)
+		return wrapError.ErrPatientNotFound
+	}
+	log.Info("patient delete success",
+		zap.String("patient_id", patientID),
+		zap.String("updated_by", updatedBy),
+		zap.String("status", string(StatusDisable)),
+	)
+	return nil
+}
+
+func changedProfileClauses(existing Patient, req dto.UpdatePatientReq) ([]string, []any, error) {
+	var clauses []string
+	var args []any
+	clauses, args = appendStringChange(clauses, args, "name", req.Name, existing.Name)
+	clauses, args = appendStringChange(clauses, args, "gender", req.Gender, existing.Gender)
+	clauses, args = appendStringChange(clauses, args, "email_id", req.EmailID, existing.EmailID)
+	clauses, args = appendStringChange(clauses, args, "mobile_number", req.MobileNumber, existing.MobileNumber)
+	clauses, args = appendStringChange(clauses, args, "blood_group", req.BloodGroup, existing.BloodGroup)
+	clauses, args = appendStringChange(clauses, args, "address", req.Address, existing.Address)
+
+	if age := strings.TrimSpace(req.Age); age != "" {
+		parsed, err := strconv.Atoi(age)
+		if err != nil || parsed < 0 {
+			return nil, nil, &validationError{Field: "age", Msg: "age should be greater then 0"}
+		}
+		if parsed != existing.Age {
+			clauses = append(clauses, fmt.Sprintf("age = $%d", len(args)+1))
+			args = append(args, parsed)
+		}
+	}
+	if weight := strings.TrimSpace(req.Weight); weight != "" {
+		parsed, err := strconv.ParseFloat(weight, 64)
+		if err != nil || parsed <= 0 {
+			return nil, nil, &validationError{Field: "weight", Msg: "weight should not be 0"}
+		}
+		stored := int(parsed)
+		if stored != existing.Weight {
+			clauses = append(clauses, fmt.Sprintf("weight = $%d", len(args)+1))
+			args = append(args, stored)
+		}
+	}
+	return clauses, args, nil
+}
+
+func appendStringChange(clauses []string, args []any, column, incoming, current string) ([]string, []any) {
+	incoming = strings.TrimSpace(incoming)
+	if incoming == "" || incoming == current {
+		return clauses, args
+	}
+	clauses = append(clauses, fmt.Sprintf("%s = $%d", column, len(args)+1))
+	args = append(args, incoming)
+	return clauses, args
+}
+
+func (p *PatientService) enqueuePatientUpdated(log *zap.Logger, existing Patient, req dto.UpdatePatientReq) {
+	if p.notifications == nil {
+		return
+	}
+	name := existing.Name
+	if strings.TrimSpace(req.Name) != "" {
+		name = strings.TrimSpace(req.Name)
+	}
+	email := existing.EmailID
+	if strings.TrimSpace(req.EmailID) != "" {
+		email = strings.TrimSpace(req.EmailID)
+	}
+	data := map[string]interface{}{
+		"patient_name":     name,
+		"patient_email_id": email,
+		"patient_code":     existing.UHID,
+		"patient_id":       existing.ID,
+		"updated_by":       req.UpdatedBy,
+	}
+	err := p.notifications.Create(context.Background(), notificationdto.CreateRequest{
+		Data:             data,
+		NotificationType: constants.PatientUpdatedEvent,
+		Subject:          constants.PatientUpdatedSubject,
+	})
+	if err != nil {
+		log.Error("patient update notification failed",
+			zap.String("patient_id", existing.ID),
+			zap.String("reason", "notification"),
+			zap.Error(err),
+		)
+	}
+}
+
 func (p *PatientService) parseNotificationDetails(patientModel Patient, orgData organisations.Organisation) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"patient_name":     patientModel.Name,

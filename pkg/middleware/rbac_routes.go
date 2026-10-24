@@ -47,6 +47,7 @@ var CreateRoutes = map[string]string{
 
 var UpdateRoutes = map[string]string{
 	"/api/v1/employee/update":                                constants.Employee,
+	"/api/v1/patients/update":                                constants.Patient,
 	"/api/v1/prescription/updatePrescriptions":               constants.Prescription,
 	"/api/v1/prescription/updatePrescriptionItem":            constants.Prescription,
 	"/api/v1/prescription/updateStatus":                      constants.Prescription,
@@ -101,6 +102,7 @@ var ViewRoutes = map[string]string{
 
 var DeleteRoutes = map[string]string{
 	"/api/v1/employee/delete": constants.Employee,
+	"/api/v1/patients/delete": constants.Patient,
 }
 
 func normalizeRoutePath(path string) string {

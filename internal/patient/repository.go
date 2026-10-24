@@ -12,8 +12,10 @@ type PatientRepository interface {
 	Create(log *zap.Logger, record *Patient) error
 	ReadMany(log *zap.Logger, query string, args ...any) ([]Patient, error)
 	ReadOne(log *zap.Logger, patientID string) (Patient, error)
+	ReadOneByOrg(log *zap.Logger, patientID, organisationID string) (Patient, error)
 	Count(log *zap.Logger, query string, args ...any) (int64, error)
 	ReadOneWithOrganisationID(log *zap.Logger, query string, args ...any) (map[string]interface{}, error)
+	Exec(log *zap.Logger, query string, args ...any) (int64, error)
 }
 
 func (p *PatientRepo) Create(log *zap.Logger, record *Patient) error {
@@ -49,6 +51,28 @@ func (p *PatientRepo) ReadOne(log *zap.Logger, id string) (patient Patient, err 
 		return
 	}
 	return
+}
+
+func (p *PatientRepo) ReadOneByOrg(log *zap.Logger, patientID, organisationID string) (patient Patient, err error) {
+	log = ensureLog(log)
+	err = p.db.Where("id = ? AND organisation_id = ?", patientID, organisationID).First(&patient).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Error("patient repo error", zap.String("op", "ReadOneByOrg"), zap.Error(err))
+		}
+		return
+	}
+	return
+}
+
+func (p *PatientRepo) Exec(log *zap.Logger, query string, args ...any) (int64, error) {
+	log = ensureLog(log)
+	result := p.db.Exec(query, args...)
+	if result.Error != nil {
+		log.Error("patient repo error", zap.String("op", "Exec"), zap.Error(result.Error))
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }
 
 func (p *PatientRepo) Count(log *zap.Logger, query string, args ...any) (int64, error) {
