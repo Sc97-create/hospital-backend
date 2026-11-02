@@ -22,16 +22,18 @@ import (
 )
 
 type stubCustomerRepo struct {
-	exists       bool
-	existsErr    error
-	createErr    error
-	created      *customers.Customer
-	codeErr      error
-	createdCode  *customers.SignupCode
-	findCode     customers.SignupCode
-	findErr      error
-	markCodeErr  error
-	markEmailErr error
+	exists        bool
+	existsErr     error
+	createErr     error
+	created       *customers.Customer
+	codeErr       error
+	createdCode   *customers.SignupCode
+	findCode      customers.SignupCode
+	findErr       error
+	markCodeErr   error
+	markEmailErr  error
+	loginCustomer customers.Customer
+	loginErr      error
 }
 
 func (s *stubCustomerRepo) Create(_ *zap.Logger, customer customers.Customer) error {
@@ -52,6 +54,16 @@ func (s *stubCustomerRepo) ExistsByWorkEmail(_ *zap.Logger, _ string) (bool, err
 
 func (s *stubCustomerRepo) GetByID(_ *zap.Logger, _ string) (customers.Customer, error) {
 	return customers.Customer{}, gorm.ErrRecordNotFound
+}
+
+func (s *stubCustomerRepo) GetByWorkEmail(_ *zap.Logger, _ string) (customers.Customer, error) {
+	if s.loginErr != nil {
+		return customers.Customer{}, s.loginErr
+	}
+	if s.loginCustomer.ID == "" {
+		return customers.Customer{}, customers.ErrCustomerNotFound
+	}
+	return s.loginCustomer, nil
 }
 
 func (s *stubCustomerRepo) GetByTenantID(_ *zap.Logger, _ string) (customers.Customer, error) {
@@ -89,6 +101,15 @@ func (s *stubCustomerRepo) MarkSignupCodeVerified(_ *zap.Logger, _ string, _ tim
 type stubNotifier struct {
 	err  error
 	last *notificationdto.CreateRequest
+}
+
+type stubSubscriptionChecker struct {
+	expired bool
+	err     error
+}
+
+func (s stubSubscriptionChecker) ExpiredByTenantID(*zap.Logger, string) (bool, error) {
+	return s.expired, s.err
 }
 
 func (s *stubNotifier) Create(_ context.Context, data notificationdto.CreateRequest) error {
@@ -216,4 +237,120 @@ func TestServiceVerifyEmail(t *testing.T) {
 			t.Fatalf("VerifyEmail: %v", err)
 		}
 	})
+}
+
+func TestServiceLogin(t *testing.T) {
+	log := servicetest.NopLogger()
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret12"), 8)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	tenantID := "tenant-1"
+	active := customers.Customer{
+		ID:           "cust-1",
+		WorkEmail:    "ada@acme.com",
+		PasswordHash: string(hash),
+		Status:       constants.StatusActive,
+		TenantID:     &tenantID,
+	}
+
+	tests := []struct {
+		name        string
+		payload     dto.LoginPayload
+		repo        *stubCustomerRepo
+		api         *internalapi.Client
+		subs        customers.SubscriptionChecker
+		wantErr     error
+		wantTok     string
+		wantTenant  string
+		wantExpired bool
+	}{
+		{
+			name:    "missing email",
+			payload: dto.LoginPayload{Password: "secret12"},
+			wantErr: wrapError.ErrInvalidRequest,
+		},
+		{
+			name:    "short password",
+			payload: dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "short"},
+			wantErr: wrapError.ErrInvalidRequest,
+		},
+		{
+			name:    "unknown email",
+			payload: dto.LoginPayload{WorkEmail: "missing@acme.com", Password: "secret12"},
+			repo:    &stubCustomerRepo{},
+			wantErr: wrapError.ErrInvalidCredentials,
+		},
+		{
+			name:    "wrong password",
+			payload: dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "secret99"},
+			repo:    &stubCustomerRepo{loginCustomer: active},
+			wantErr: wrapError.ErrInvalidCredentials,
+		},
+		{
+			name:    "inactive customer",
+			payload: dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "secret12"},
+			repo: &stubCustomerRepo{loginCustomer: customers.Customer{
+				ID: active.ID, WorkEmail: active.WorkEmail, PasswordHash: active.PasswordHash, Status: constants.StatusInactive,
+			}},
+			wantErr: wrapError.ErrInvalidCredentials,
+		},
+		{
+			name:    "lookup failure",
+			payload: dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "secret12"},
+			repo:    &stubCustomerRepo{loginErr: errors.New("db down")},
+			wantErr: wrapError.ErrLoginFailed,
+		},
+		{
+			name:       "success",
+			payload:    dto.LoginPayload{WorkEmail: "Ada@Acme.com", Password: "secret12"},
+			repo:       &stubCustomerRepo{loginCustomer: active},
+			subs:       stubSubscriptionChecker{},
+			wantErr:    nil,
+			wantTok:    "tok-signup",
+			wantTenant: tenantID,
+		},
+		{
+			name:        "subscription expired",
+			payload:     dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "secret12"},
+			repo:        &stubCustomerRepo{loginCustomer: active},
+			subs:        stubSubscriptionChecker{expired: true},
+			wantErr:     nil,
+			wantTok:     "tok-signup",
+			wantTenant:  tenantID,
+			wantExpired: true,
+		},
+		{
+			name:    "subscription lookup failure",
+			payload: dto.LoginPayload{WorkEmail: "ada@acme.com", Password: "secret12"},
+			repo:    &stubCustomerRepo{loginCustomer: active},
+			subs:    stubSubscriptionChecker{err: errors.New("db down")},
+			wantErr: wrapError.ErrLoginFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := tt.repo
+			if repo == nil {
+				repo = &stubCustomerRepo{}
+			}
+			api := tt.api
+			if api == nil && tt.wantErr == nil {
+				api = accessTokenAPI(t)
+			}
+			svc := customers.NewCustomerService(repo, api, nil)
+			svc.Subscriptions = tt.subs
+			got, err := svc.Login(log, tt.payload)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err=%v want=%v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			if got.AccessToken != tt.wantTok || got.CustomerID != "cust-1" || got.TenantID != tt.wantTenant || got.SubscriptionExpired != tt.wantExpired {
+				t.Fatalf("unexpected result: %+v", got)
+			}
+		})
+	}
 }

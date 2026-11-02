@@ -85,3 +85,32 @@ func TestNormalizeTimeOfDay(t *testing.T) {
 		t.Fatalf("unexpected normalized time: %v", got)
 	}
 }
+
+func TestFindStatusElapsedSlotIsNotScheduled(t *testing.T) {
+	svc := &AppointmentService{}
+	loc := clinicLocation()
+	now := time.Now().In(loc)
+	// Stored appointment dates are UTC midnight, which is not the same instant as local midnight.
+	todayUTC := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	got := svc.findStatus(string(StatusScheduled), now.Add(-time.Hour), todayUTC)
+	if got != StatusReschedule {
+		t.Fatalf("elapsed slot status=%s, want %s", got, StatusReschedule)
+	}
+
+	got = svc.findStatus(string(StatusScheduled), now.Add(time.Hour), todayUTC)
+	if got != StatusScheduled {
+		t.Fatalf("open slot status=%s, want %s", got, StatusScheduled)
+	}
+
+	got = svc.findStatus(string(StatusOngoing), now.Add(-time.Hour), todayUTC)
+	if got != StatusOngoing {
+		t.Fatalf("started consult status=%s, want %s", got, StatusOngoing)
+	}
+
+	yesterday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
+	got = svc.findStatus(string(StatusScheduled), now.Add(-time.Hour), yesterday)
+	if got != StatusMissed {
+		t.Fatalf("past day status=%s, want %s", got, StatusMissed)
+	}
+}

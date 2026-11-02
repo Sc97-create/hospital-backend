@@ -16,6 +16,7 @@ import (
 type CustomerServicer interface {
 	Signup(log *zap.Logger, payload dto.SignupPayload) (dto.SignupResult, error)
 	VerifyEmail(log *zap.Logger, customerID string, payload dto.VerifyEmailPayload) error
+	Login(log *zap.Logger, payload dto.LoginPayload) (dto.LoginResult, error)
 }
 
 type CustomerController struct {
@@ -25,6 +26,7 @@ type CustomerController struct {
 type ICustomerController interface {
 	Signup(c *fiber.Ctx) error
 	VerifyEmail(c *fiber.Ctx) error
+	Login(c *fiber.Ctx) error
 }
 
 func NewICustomerController(service CustomerServicer) ICustomerController {
@@ -51,6 +53,30 @@ func (cc *CustomerController) Signup(c *fiber.Ctx) error {
 		"work_email":   result.WorkEmail,
 		"status":       result.Status,
 		"access_token": result.AccessToken,
+	})
+}
+
+func (cc *CustomerController) Login(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	payload, err := bindLoginPayload(c)
+	if err != nil {
+		logger.Warn("customer login request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("customer login attempt", zap.String("work_email", payload.WorkEmail))
+	result, err := cc.Service.Login(logger, payload)
+	if err != nil {
+		return wrapLoginError(c, err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":              "Login successful",
+		"customer_id":          result.CustomerID,
+		"work_email":           result.WorkEmail,
+		"status":               result.Status,
+		"tenant_id":            result.TenantID,
+		"access_token":         result.AccessToken,
+		"subscription_expired": result.SubscriptionExpired,
 	})
 }
 
@@ -95,6 +121,21 @@ func bindSignupPayload(c *fiber.Ctx) (dto.SignupPayload, error) {
 	return payload, nil
 }
 
+func bindLoginPayload(c *fiber.Ctx) (dto.LoginPayload, error) {
+	p, err := params.New(c)
+	if err != nil {
+		return dto.LoginPayload{}, err
+	}
+	payload := dto.LoginPayload{}
+	if payload.WorkEmail, err = requiredString(p, "work_email"); err != nil {
+		return payload, err
+	}
+	if payload.Password, err = requiredString(p, "password"); err != nil {
+		return payload, err
+	}
+	return payload, nil
+}
+
 func bindVerifyEmailPayload(c *fiber.Ctx) (dto.VerifyEmailPayload, error) {
 	p, err := params.New(c)
 	if err != nil {
@@ -123,6 +164,17 @@ func wrapSignupError(c *fiber.Ctx, err error) error {
 		return wrapError.Wrap(err, c, fiber.StatusConflict)
 	default:
 		return wrapError.Wrap(wrapError.ErrCustomerCreateFailed, c, fiber.StatusInternalServerError)
+	}
+}
+
+func wrapLoginError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, wrapError.ErrInvalidRequest):
+		return wrapError.Wrap(err, c, fiber.StatusBadRequest)
+	case errors.Is(err, wrapError.ErrInvalidCredentials):
+		return wrapError.Wrap(err, c, fiber.StatusUnauthorized)
+	default:
+		return wrapError.Wrap(wrapError.ErrLoginFailed, c, fiber.StatusInternalServerError)
 	}
 }
 

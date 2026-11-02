@@ -7,17 +7,23 @@ import (
 )
 
 type Payments struct {
-	ID             string    `json:"id" gorm:"type:uuid;not null;primaryKey"`
-	InvoiceID      string    `json:"invoice_id" gorm:"type:uuid;not null"`
-	PatientID      string    `json:"patient_id" gorm:"type:uuid;not null"`
-	Amount         float64   `json:"amount" gorm:"type:numeric(10,2);not null"`
-	Currency       string    `json:"currency" gorm:"type:varchar(5);not null;default:INR"`
-	Source         string    `json:"source" gorm:"type:varchar(50);not null;default:link"`
-	Channel        string    `json:"channel" gorm:"type:varchar(50);not null;default:upi"`
-	InitiatedBy    string    `json:"initiated_by" gorm:"type:varchar(50);not null"`
-	IdempotencyKey string    `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
-	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt      time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID        string `json:"id" gorm:"type:uuid;not null;primaryKey"`
+	InvoiceID string `json:"invoice_id" gorm:"type:uuid;not null"`
+	// PatientID is required for hospital payments. Subscription payments set CustomerID and leave this empty.
+	PatientID string `json:"patient_id" gorm:"type:uuid"`
+	// CustomerID is required for subscription payments.
+	CustomerID        *string   `json:"customer_id,omitempty" gorm:"type:uuid"`
+	OrderID           string    `json:"order_id,omitempty" gorm:"column:order_id;type:varchar(100);index"`
+	ProviderPaymentID string    `json:"provider_payment_id,omitempty" gorm:"column:provider_payment_id;type:varchar(100)"`
+	PaymentSignature  string    `json:"payment_signature,omitempty" gorm:"column:payment_signature;type:varchar(255)"`
+	Amount            float64   `json:"amount" gorm:"type:numeric(10,2);not null"`
+	Currency          string    `json:"currency" gorm:"type:varchar(5);not null;default:INR"`
+	Source            string    `json:"source" gorm:"type:varchar(50);not null;default:link"`
+	Channel           string    `json:"channel" gorm:"type:varchar(50);not null;default:upi"`
+	InitiatedBy       string    `json:"initiated_by" gorm:"type:varchar(50);not null"`
+	IdempotencyKey    string    `json:"idempotency_key" gorm:"type:varchar(255);not null;uniqueIndex"`
+	CreatedAt         time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt         time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 type PaymentAttempts struct {
 	ID                  string            `json:"id" gorm:"type:uuid;not null;primaryKey"`
@@ -27,6 +33,7 @@ type PaymentAttempts struct {
 	AttemptNo           int               `json:"attempt_no" gorm:"type:int;not null"`
 	ProviderLinkID      string            `json:"provider_link_id" gorm:"type:varchar;index"` // Razorpay plink_xxx
 	ProviderOrderID     string            `json:"provider_order_id" gorm:"type:varchar"`      // webhook order_id
+	PaymentSignature    string            `json:"payment_signature,omitempty" gorm:"column:payment_signature;type:varchar(255)"`
 	PaidAt              time.Time         `json:"paid_at" gorm:"type:timestamptz"`
 	PaymentLink         string            `json:"payment_link" gorm:"type:text"`
 	ProviderRequest     datatypes.JSONMap `json:"provider_request" gorm:"type:jsonb"`

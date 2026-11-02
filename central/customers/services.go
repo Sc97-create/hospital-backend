@@ -32,10 +32,16 @@ type NotificationEnqueuer interface {
 	Create(ctx context.Context, data notificationdto.CreateRequest) error
 }
 
+// SubscriptionChecker reports whether a tenant's latest subscription has reached end_at.
+type SubscriptionChecker interface {
+	ExpiredByTenantID(log *zap.Logger, tenantID string) (bool, error)
+}
+
 type CustomerService struct {
 	Repo          CustomerRepository
 	API           *internalapi.Client
 	Notifications NotificationEnqueuer
+	Subscriptions SubscriptionChecker
 }
 
 func NewCustomerService(repo CustomerRepository, api *internalapi.Client, notifications NotificationEnqueuer) *CustomerService {
@@ -166,6 +172,138 @@ func (s *CustomerService) VerifyEmail(log *zap.Logger, customerID string, payloa
 
 	log.Info("customer email verify success", zap.String("customer_id", customerID))
 	return nil
+}
+
+func (s *CustomerService) Login(log *zap.Logger, payload dto.LoginPayload) (dto.LoginResult, error) {
+	log = ensureLog(log)
+	if err := validateLoginPayload(payload); err != nil {
+		log.Warn("customer login failed", zap.String("reason", "validation"))
+		return dto.LoginResult{}, wrapError.ErrInvalidRequest
+	}
+
+	email := strings.ToLower(strings.TrimSpace(payload.WorkEmail))
+	customer, err := s.Repo.GetByWorkEmail(log, email)
+	if err != nil {
+		return dto.LoginResult{}, loginLookupError(log, email, err)
+	}
+	if err := authorizeCustomerLogin(log, customer, payload.Password); err != nil {
+		return dto.LoginResult{}, err
+	}
+
+	token, err := s.issueLoginToken(log, customer.ID)
+	if err != nil {
+		return dto.LoginResult{}, err
+	}
+	expired, err := s.subscriptionExpired(log, customer)
+	if err != nil {
+		return dto.LoginResult{}, err
+	}
+
+	log.Info("customer login success",
+		zap.String("customer_id", customer.ID),
+		zap.Bool("subscription_expired", expired),
+	)
+	result := toLoginResult(customer, token)
+	result.SubscriptionExpired = expired
+	return result, nil
+}
+
+func (s *CustomerService) subscriptionExpired(log *zap.Logger, customer Customer) (bool, error) {
+	if customer.TenantID == nil || strings.TrimSpace(*customer.TenantID) == "" {
+		return false, nil
+	}
+	if s.Subscriptions == nil {
+		log.Error("customer login failed",
+			zap.String("customer_id", customer.ID),
+			zap.String("reason", "subscription_checker"),
+		)
+		return false, wrapError.ErrLoginFailed
+	}
+	expired, err := s.Subscriptions.ExpiredByTenantID(log, strings.TrimSpace(*customer.TenantID))
+	if err != nil {
+		log.Error("customer login failed",
+			zap.String("customer_id", customer.ID),
+			zap.String("tenant_id", strings.TrimSpace(*customer.TenantID)),
+			zap.String("reason", "subscription_lookup"),
+			zap.Error(err),
+		)
+		return false, wrapError.ErrLoginFailed
+	}
+	return expired, nil
+}
+
+func loginLookupError(log *zap.Logger, email string, err error) error {
+	if errors.Is(err, ErrCustomerNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Warn("customer login failed",
+			zap.String("work_email", email),
+			zap.String("reason", "customer_not_found"),
+		)
+		return wrapError.ErrInvalidCredentials
+	}
+	log.Error("customer login failed",
+		zap.String("work_email", email),
+		zap.String("reason", "customer_lookup"),
+		zap.Error(err),
+	)
+	return wrapError.ErrLoginFailed
+}
+
+func authorizeCustomerLogin(log *zap.Logger, customer Customer, password string) error {
+	if customer.Status != constants.StatusActive {
+		log.Warn("customer login failed",
+			zap.String("customer_id", customer.ID),
+			zap.String("reason", "inactive"),
+		)
+		return wrapError.ErrInvalidCredentials
+	}
+	if !passwordMatches(customer.PasswordHash, password) {
+		log.Warn("customer login failed",
+			zap.String("customer_id", customer.ID),
+			zap.String("reason", "invalid_credentials"),
+		)
+		return wrapError.ErrInvalidCredentials
+	}
+	return nil
+}
+
+func (s *CustomerService) issueLoginToken(log *zap.Logger, customerID string) (string, error) {
+	if s.API == nil {
+		log.Error("customer login failed",
+			zap.String("customer_id", customerID),
+			zap.String("reason", "token_client"),
+		)
+		return "", wrapError.ErrLoginFailed
+	}
+	token, err := s.API.AccessToken(customerID, "")
+	if err != nil {
+		log.Error("customer login failed",
+			zap.String("customer_id", customerID),
+			zap.String("reason", "issue_token"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrLoginFailed
+	}
+	return token, nil
+}
+
+func toLoginResult(customer Customer, token string) dto.LoginResult {
+	result := dto.LoginResult{
+		CustomerID:  customer.ID,
+		WorkEmail:   customer.WorkEmail,
+		Status:      customer.Status,
+		AccessToken: token,
+	}
+	if customer.TenantID != nil {
+		result.TenantID = *customer.TenantID
+	}
+	return result
+}
+
+func passwordMatches(hash, password string) bool {
+	if hash == "" {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 func (s *CustomerService) GetByTenantID(log *zap.Logger, tenantID string) (Customer, error) {

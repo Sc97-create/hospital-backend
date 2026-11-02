@@ -47,6 +47,8 @@ type NotificationConfig struct {
 	SMTPUsername string
 	SMTPPassword string
 	FromName     string
+	FromEmail    string
+	ReplyTo      string
 	MaxRetries   int
 	RetryBackoff int // in minutes
 }

@@ -10,8 +10,9 @@ import (
 // Some POSTs are reads (e.g. getPatients) and must live under ViewRoutes.
 //
 // Unmapped authenticated routes fail closed in AuthorizeRBAC.
-// Intentionally unmapped until modules exist: bed/*, admins/organisationSchedule/*,
+// Intentionally unmapped until modules exist: bed/*,
 // organisation update/get (no organisation module).
+// admins/organisationSchedule/* is gated by the Hospital Admin role, not these maps.
 
 var PublicRoutes = map[string]struct{}{
 	"/api/v1/authentication/login":                                    {},

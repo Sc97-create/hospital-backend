@@ -31,12 +31,16 @@ func (s *stubPlanReader) GetByID(_ *zap.Logger, _ string) (plans.Plan, error) {
 }
 
 type stubSubRepo struct {
-	createErr  error
-	created    *subscriptions.Subscription
-	byOrder    subscriptions.Subscription
-	byOrderErr error
-	updates    map[string]interface{}
-	updateID   string
+	createErr   error
+	created     *subscriptions.Subscription
+	byOrder     subscriptions.Subscription
+	byOrderErr  error
+	updates     map[string]interface{}
+	updateID    string
+	withPlan    subscriptions.SubscriptionPlanRow
+	withPlanErr error
+	byID        subscriptions.Subscription
+	byIDErr     error
 }
 
 func (s *stubSubRepo) Create(_ *zap.Logger, _ *gorm.DB, sub subscriptions.Subscription) error {
@@ -48,11 +52,14 @@ func (s *stubSubRepo) Create(_ *zap.Logger, _ *gorm.DB, sub subscriptions.Subscr
 	return nil
 }
 
-func (s *stubSubRepo) GetByOrderID(_ *zap.Logger, _ string) (subscriptions.Subscription, error) {
-	if s.byOrderErr != nil {
-		return subscriptions.Subscription{}, s.byOrderErr
+func (s *stubSubRepo) GetByID(_ *zap.Logger, _ string) (subscriptions.Subscription, error) {
+	if s.byIDErr != nil {
+		return subscriptions.Subscription{}, s.byIDErr
 	}
-	return s.byOrder, nil
+	if s.byID.ID == "" {
+		return subscriptions.Subscription{}, subscriptions.ErrSubscriptionNotFound
+	}
+	return s.byID, nil
 }
 
 func (s *stubSubRepo) GetLatestByTenantID(_ *zap.Logger, _ string) (subscriptions.Subscription, error) {
@@ -62,18 +69,64 @@ func (s *stubSubRepo) GetLatestByTenantID(_ *zap.Logger, _ string) (subscription
 	return s.byOrder, nil
 }
 
+func (s *stubSubRepo) GetLatestWithPlanByTenantID(_ *zap.Logger, _ string) (subscriptions.SubscriptionPlanRow, error) {
+	if s.withPlanErr != nil {
+		return subscriptions.SubscriptionPlanRow{}, s.withPlanErr
+	}
+	if s.withPlan.ID == "" {
+		return subscriptions.SubscriptionPlanRow{}, subscriptions.ErrSubscriptionNotFound
+	}
+	return s.withPlan, nil
+}
+
 func (s *stubSubRepo) UpdateByID(_ *zap.Logger, _ *gorm.DB, id string, updates map[string]interface{}) error {
 	s.updateID = id
 	s.updates = updates
 	if s.created != nil {
-		if orderID, ok := updates["order_id"].(string); ok {
-			s.created.OrderID = orderID
-		}
 		if status, ok := updates["status"].(string); ok {
 			s.created.Status = status
 		}
 	}
 	return nil
+}
+
+type stubBilling struct {
+	called         bool
+	renewal        bool
+	customerID     string
+	orderID        string
+	confirmCalled  bool
+	subscriptionID string
+	confirmErr     error
+}
+
+func (s *stubBilling) CreateSubscriptionInvoice(_ *zap.Logger, _ context.Context, req paymentdto.SubscriptionInvoiceRequest) (paymentdto.SubscriptionInvoiceResponse, error) {
+	s.called = true
+	s.renewal = req.Renewal
+	s.customerID = req.CustomerID
+	kind := "subscription_new"
+	if req.Renewal {
+		kind = "subscription_renewal"
+	}
+	return paymentdto.SubscriptionInvoiceResponse{InvoiceID: "11111111-1111-1111-1111-111111111111", PaymentType: kind, Status: "unpaid"}, nil
+}
+
+func (s *stubBilling) RecordSubscriptionPayment(_ *zap.Logger, _ context.Context, req paymentdto.SubscriptionPaymentRequest) error {
+	s.orderID = req.OrderID
+	return nil
+}
+
+func (s *stubBilling) ConfirmSubscriptionPayment(_ *zap.Logger, _ context.Context, req paymentdto.ConfirmSubscriptionPaymentRequest) (paymentdto.ConfirmSubscriptionPaymentResponse, error) {
+	s.confirmCalled = true
+	s.orderID = req.OrderID
+	if s.confirmErr != nil {
+		return paymentdto.ConfirmSubscriptionPaymentResponse{}, s.confirmErr
+	}
+	id := s.subscriptionID
+	if id == "" {
+		id = "sub-1"
+	}
+	return paymentdto.ConfirmSubscriptionPaymentResponse{PaymentID: "pay-1", OrderID: req.OrderID, SubscriptionID: id}, nil
 }
 
 type stubOrderCreator struct {
@@ -147,7 +200,7 @@ func TestServiceCreateSubscription(t *testing.T) {
 		},
 		{
 			name:    "invalid billing cycle for paid plan",
-			payload: dto.CreateSubscriptionPayload{PlanID: "p1", TenantID: "t1", BillingCycle: 3},
+			payload: dto.CreateSubscriptionPayload{PlanID: "p1", TenantID: "t1", BillingCycle: 4},
 			plan:    &stubPlanReader{plan: standard},
 			wantErr: wrapError.ErrInvalidRequest,
 		},
@@ -176,10 +229,12 @@ func TestServiceCreateSubscription(t *testing.T) {
 		{
 			name: "paid plan pending_payment until order.paid",
 			payload: dto.CreateSubscriptionPayload{
-				PlanID:       "plan-standard",
-				TenantID:     "tenant-1",
-				HospitalName: "Acme Hospital",
-				BillingCycle: 12,
+				PlanID:         "plan-standard",
+				TenantID:       "tenant-1",
+				HospitalName:   "Acme Hospital",
+				BillingCycle:   12,
+				CustomerID:     "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+				OrganisationID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 			},
 			plan:        &stubPlanReader{plan: standard},
 			repo:        &stubSubRepo{},
@@ -194,9 +249,11 @@ func TestServiceCreateSubscription(t *testing.T) {
 		{
 			name: "order error returned as-is",
 			payload: dto.CreateSubscriptionPayload{
-				PlanID:       "plan-standard",
-				TenantID:     "tenant-1",
-				BillingCycle: 4,
+				PlanID:         "plan-standard",
+				TenantID:       "tenant-1",
+				BillingCycle:   6,
+				CustomerID:     "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+				OrganisationID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 			},
 			plan:    &stubPlanReader{plan: standard},
 			repo:    &stubSubRepo{},
@@ -219,7 +276,9 @@ func TestServiceCreateSubscription(t *testing.T) {
 			if orders == nil {
 				orders = &stubOrderCreator{}
 			}
+			billing := &stubBilling{}
 			svc := subscriptions.NewSubscriptionService(nil, repo, plan, orders, &stubTenantActivator{}, "rzp_test_key")
+			svc.Billing = billing
 			got, err := svc.CreateSubscription(log, context.Background(), tt.payload)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err=%v want=%v", err, tt.wantErr)
@@ -246,8 +305,11 @@ func TestServiceCreateSubscription(t *testing.T) {
 				if got.OrderID != tt.wantOrderID || got.KeyID != "rzp_test_key" {
 					t.Fatalf("order_id=%q key_id=%q", got.OrderID, got.KeyID)
 				}
-				if repo.updates["order_id"] != tt.wantOrderID {
-					t.Fatalf("persisted order_id=%v", repo.updates["order_id"])
+				if !billing.called || billing.renewal || billing.orderID != tt.wantOrderID {
+					t.Fatalf("billing called=%v renewal=%v order=%q", billing.called, billing.renewal, billing.orderID)
+				}
+				if _, stored := repo.updates["order_id"]; stored {
+					t.Fatalf("order_id must stay off the subscription: %v", repo.updates)
 				}
 			}
 			if tt.wantStatus == "active" {
@@ -263,25 +325,24 @@ func TestServiceCreateSubscription(t *testing.T) {
 	}
 }
 
-func TestActivateByOrderID(t *testing.T) {
+func TestActivateBySubscriptionID(t *testing.T) {
 	log := servicetest.NopLogger()
-	repo := &stubSubRepo{byOrder: subscriptions.Subscription{
+	repo := &stubSubRepo{byID: subscriptions.Subscription{
 		ID:           "sub-1",
 		TenantID:     "tenant-1",
 		Status:       "pending_payment",
 		BillingCycle: "6",
-		OrderID:      "order_1",
 	}}
 	tenant := &stubTenantActivator{}
 	svc := subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{}, &stubOrderCreator{}, tenant, "")
-	if err := svc.ActivateByOrderID(log, "order_1", "pay_1"); err != nil {
+	if err := svc.ActivateBySubscriptionID(log, "sub-1", "pay_1"); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	if repo.updates["status"] != "active" {
 		t.Fatalf("updates=%v", repo.updates)
 	}
-	if repo.updates["provider_payment_id"] != "pay_1" {
-		t.Fatalf("provider_payment_id missing: %v", repo.updates)
+	if _, stored := repo.updates["provider_payment_id"]; stored {
+		t.Fatalf("provider payment id must stay off the subscription: %v", repo.updates)
 	}
 	if !tenant.called || tenant.tenantID != "tenant-1" {
 		t.Fatalf("tenant activate called=%v id=%q", tenant.called, tenant.tenantID)
@@ -296,15 +357,16 @@ func TestConfirmCheckoutStoresOnly(t *testing.T) {
 		signature = "9ef4dffbfd84f1318f6739a3ce19f9d85851857ae648f114332d8401e0949a3d"
 	)
 
-	repo := &stubSubRepo{byOrder: subscriptions.Subscription{
+	repo := &stubSubRepo{byID: subscriptions.Subscription{
 		ID:           "sub-1",
 		TenantID:     "tenant-1",
 		Status:       "pending_payment",
 		BillingCycle: "6",
-		OrderID:      orderID,
 	}}
 	tenant := &stubTenantActivator{}
+	billing := &stubBilling{subscriptionID: "sub-1"}
 	svc := subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{}, &stubOrderCreator{}, tenant, "rzp_test_key")
+	svc.Billing = billing
 
 	got, err := svc.ConfirmCheckout(log, dto.ConfirmCheckoutPayload{
 		RazorpayOrderID:   orderID,
@@ -317,14 +379,11 @@ func TestConfirmCheckoutStoresOnly(t *testing.T) {
 	if got.Status != "pending_payment" || got.SubscriptionID != "sub-1" || got.PaymentID != paymentID {
 		t.Fatalf("got=%+v", got)
 	}
-	if repo.updates["provider_payment_id"] != paymentID {
-		t.Fatalf("provider_payment_id=%v", repo.updates["provider_payment_id"])
+	if !billing.confirmCalled || billing.orderID != orderID {
+		t.Fatalf("confirm called=%v order=%q", billing.confirmCalled, billing.orderID)
 	}
-	if repo.updates["payment_signature"] != signature {
-		t.Fatalf("payment_signature=%v", repo.updates["payment_signature"])
-	}
-	if repo.updates["status"] != nil {
-		t.Fatalf("status should not change on confirm: %v", repo.updates["status"])
+	if repo.updates != nil {
+		t.Fatalf("subscription row must not change on confirm: %v", repo.updates)
 	}
 	if tenant.called {
 		t.Fatal("tenant must not activate on confirm checkout")
@@ -381,4 +440,205 @@ func TestCheckEndByOrganisation(t *testing.T) {
 	if !got.Ended || got.Message != "subscription ended" {
 		t.Fatalf("paid got=%+v", got)
 	}
+}
+
+func TestExpiredByTenantID(t *testing.T) {
+	log := servicetest.NopLogger()
+	past := time.Now().Add(-time.Minute)
+	future := time.Now().Add(time.Hour)
+	svc := subscriptions.NewSubscriptionService(nil, &stubSubRepo{}, &stubPlanReader{}, &stubOrderCreator{}, &stubTenantActivator{}, "")
+
+	expired, err := svc.ExpiredByTenantID(log, "  ")
+	if err != nil || expired {
+		t.Fatalf("empty tenant expired=%v err=%v", expired, err)
+	}
+
+	repo := &stubSubRepo{byOrderErr: subscriptions.ErrSubscriptionNotFound}
+	svc = subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{}, &stubOrderCreator{}, &stubTenantActivator{}, "")
+	expired, err = svc.ExpiredByTenantID(log, "tenant-1")
+	if err != nil || expired {
+		t.Fatalf("missing subscription expired=%v err=%v", expired, err)
+	}
+
+	repo = &stubSubRepo{byOrder: subscriptions.Subscription{ID: "sub-1", EndAt: &past}}
+	svc = subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{}, &stubOrderCreator{}, &stubTenantActivator{}, "")
+	expired, err = svc.ExpiredByTenantID(log, "tenant-1")
+	if err != nil || !expired {
+		t.Fatalf("past end expired=%v err=%v", expired, err)
+	}
+
+	repo.byOrder.EndAt = &future
+	expired, err = svc.ExpiredByTenantID(log, "tenant-1")
+	if err != nil || expired {
+		t.Fatalf("future end expired=%v err=%v", expired, err)
+	}
+}
+
+func TestGetByTenantID(t *testing.T) {
+	log := servicetest.NopLogger()
+	past := time.Now().Add(-time.Hour)
+	svc := subscriptions.NewSubscriptionService(nil, &stubSubRepo{}, nil, nil, nil, "")
+
+	_, err := svc.GetByTenantID(log, " ")
+	if !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("empty tenant err=%v", err)
+	}
+
+	_, err = svc.GetByTenantID(log, "tenant-1")
+	if !errors.Is(err, wrapError.ErrSubscriptionNotFound) {
+		t.Fatalf("missing err=%v", err)
+	}
+
+	svc = subscriptions.NewSubscriptionService(nil, &stubSubRepo{withPlanErr: errors.New("db down")}, nil, nil, nil, "")
+	_, err = svc.GetByTenantID(log, "tenant-1")
+	if !errors.Is(err, wrapError.ErrSubscriptionFetchFailed) {
+		t.Fatalf("db err=%v", err)
+	}
+
+	repo := &stubSubRepo{withPlan: subscriptions.SubscriptionPlanRow{
+		ID:           "sub-1",
+		TenantID:     "tenant-1",
+		PlanID:       "plan-1",
+		Status:       "active",
+		BillingCycle: "12",
+		Price:        1200,
+		EndAt:        &past,
+		PlanName:     "Clinic",
+		PlanStatus:   "active",
+		MonthlyPrice: 100,
+		Discount:     10,
+		PlanDetails:  map[string]any{"seats": float64(5)},
+	}}
+	svc = subscriptions.NewSubscriptionService(nil, repo, nil, nil, nil, "")
+	got, err := svc.GetByTenantID(log, "tenant-1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.SubscriptionID != "sub-1" || got.Plan.Name != "Clinic" || got.Plan.MonthlyPrice != 100 || !got.Expired {
+		t.Fatalf("got=%+v", got)
+	}
+	if got.Plan.PlanDetails["seats"] != float64(5) {
+		t.Fatalf("plan details=%v", got.Plan.PlanDetails)
+	}
+}
+
+func TestUpdateSubscription(t *testing.T) {
+	log := servicetest.NopLogger()
+	standard := plans.Plan{
+		ID:           "plan-standard",
+		Name:         plans.PlanNameStandard,
+		MonthlyPrice: 2000,
+		Discount:     10,
+		Status:       "active",
+	}
+	freeTrial := plans.Plan{
+		ID:   "plan-free-trial",
+		Name: plans.PlanNameFreeTrial,
+	}
+	existing := subscriptions.Subscription{ID: "sub-1", TenantID: "tenant-1", Status: "active", BillingCycle: "7d"}
+
+	t.Run("missing subscription_id", func(t *testing.T) {
+		svc := subscriptions.NewSubscriptionService(nil, &stubSubRepo{}, &stubPlanReader{}, &stubOrderCreator{}, &stubTenantActivator{}, "")
+		_, err := svc.UpdateSubscription(log, context.Background(), dto.UpdateSubscriptionPayload{PlanID: "plan-standard"})
+		if !errors.Is(err, wrapError.ErrInvalidRequest) {
+			t.Fatalf("err=%v", err)
+		}
+	})
+
+	t.Run("subscription not found", func(t *testing.T) {
+		svc := subscriptions.NewSubscriptionService(nil, &stubSubRepo{}, &stubPlanReader{plan: standard}, &stubOrderCreator{}, &stubTenantActivator{}, "")
+		_, err := svc.UpdateSubscription(log, context.Background(), dto.UpdateSubscriptionPayload{
+			SubscriptionID: "missing", PlanID: "plan-standard", BillingCycle: 12,
+		})
+		if !errors.Is(err, wrapError.ErrSubscriptionNotFound) {
+			t.Fatalf("err=%v", err)
+		}
+	})
+
+	t.Run("free trial sets dates and skips order", func(t *testing.T) {
+		repo := &stubSubRepo{byID: existing}
+		orders := &stubOrderCreator{}
+		tenant := &stubTenantActivator{}
+		svc := subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{plan: freeTrial}, orders, tenant, "rzp_test_key")
+		got, err := svc.UpdateSubscription(log, context.Background(), dto.UpdateSubscriptionPayload{
+			SubscriptionID: "sub-1",
+			PlanID:         "plan-free-trial",
+		})
+		if err != nil {
+			t.Fatalf("update: %v", err)
+		}
+		if orders.called || got.OrderID != "" || got.Status != "active" || got.BillingCycle != "7d" || got.Price != 0 {
+			t.Fatalf("got=%+v orderCalled=%v", got, orders.called)
+		}
+		if !tenant.called || repo.updates["plan_id"] != "plan-free-trial" {
+			t.Fatalf("updates=%v tenant=%v", repo.updates, tenant.called)
+		}
+		if _, stored := repo.updates["order_id"]; stored {
+			t.Fatalf("order_id must stay off the subscription: %v", repo.updates)
+		}
+		start, _ := repo.updates["start_at"].(time.Time)
+		end, _ := repo.updates["end_at"].(time.Time)
+		if start.IsZero() || end.Sub(start) < 6*24*time.Hour {
+			t.Fatalf("start=%v end=%v", start, end)
+		}
+	})
+
+	t.Run("standard plan creates order invoice and payment", func(t *testing.T) {
+		repo := &stubSubRepo{byID: existing}
+		orders := &stubOrderCreator{orderID: "order_renew"}
+		billing := &stubBilling{}
+		svc := subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{plan: standard}, orders, &stubTenantActivator{}, "rzp_test_key")
+		svc.Billing = billing
+		got, err := svc.UpdateSubscription(log, context.Background(), dto.UpdateSubscriptionPayload{
+			SubscriptionID: "sub-1",
+			PlanID:         "plan-standard",
+			HospitalName:   "Acme Hospital",
+			BillingCycle:   12,
+			CustomerID:     "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			OrganisationID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+		})
+		if err != nil {
+			t.Fatalf("update: %v", err)
+		}
+		wantPrice := 2000 * 0.9 * 12
+		if got.OrderID != "order_renew" || got.KeyID != "rzp_test_key" || got.Status != "pending_payment" || got.Price != wantPrice {
+			t.Fatalf("got=%+v", got)
+		}
+		if repo.updates["billing_cycle"] != "12" || repo.updates["plan_id"] != "plan-standard" {
+			t.Fatalf("updates=%v", repo.updates)
+		}
+		if _, stored := repo.updates["order_id"]; stored {
+			t.Fatalf("order_id must stay off the subscription: %v", repo.updates)
+		}
+		if !billing.called || !billing.renewal || billing.orderID != "order_renew" {
+			t.Fatalf("billing called=%v renewal=%v order=%q", billing.called, billing.renewal, billing.orderID)
+		}
+		start, _ := repo.updates["start_at"].(time.Time)
+		end, _ := repo.updates["end_at"].(time.Time)
+		if start.IsZero() || end.Before(start.AddDate(0, 11, 0)) {
+			t.Fatalf("start=%v end=%v", start, end)
+		}
+		if orders.lastReq.Amount != int64(wantPrice*100) || orders.lastReq.Currency != "INR" || orders.lastReq.Notes["subscription_id"] != "sub-1" {
+			t.Fatalf("order=%+v", orders.lastReq)
+		}
+	})
+
+	t.Run("order failure leaves subscription unchanged", func(t *testing.T) {
+		repo := &stubSubRepo{byID: existing}
+		orders := &stubOrderCreator{err: wrapError.ErrOrderCreateFailed}
+		svc := subscriptions.NewSubscriptionService(nil, repo, &stubPlanReader{plan: standard}, orders, &stubTenantActivator{}, "")
+		_, err := svc.UpdateSubscription(log, context.Background(), dto.UpdateSubscriptionPayload{
+			SubscriptionID: "sub-1",
+			PlanID:         "plan-standard",
+			BillingCycle:   6,
+			CustomerID:     "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+			OrganisationID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+		})
+		if !errors.Is(err, wrapError.ErrOrderCreateFailed) {
+			t.Fatalf("err=%v", err)
+		}
+		if repo.updates != nil {
+			t.Fatalf("updates=%v", repo.updates)
+		}
+	})
 }

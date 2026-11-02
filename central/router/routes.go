@@ -69,12 +69,16 @@ func registerSubscriptionRoutes(version fiber.Router, service *subscriptions.Sub
 	grp.Use(auth)
 	ctrl := subscriptions.NewISubscriptionController(service)
 	grp.Post("/create", ctrl.Create)
+	grp.Post("/update", ctrl.Update)
 	grp.Post("/confirmCheckout", ctrl.ConfirmCheckout)
+	grp.Get("/getByTenant/:tenant_id", ctrl.GetByTenant)
 }
 
 func registerCustomerRoutes(version fiber.Router, service *customers.CustomerService, auth fiber.Handler) {
 	ctrl := customers.NewICustomerController(service)
-	version.Group("central/customer").Post("/signup", ctrl.Signup)
+	public := version.Group("central/customer")
+	public.Post("/signup", ctrl.Signup)
+	public.Post("/login", ctrl.Login)
 	verify := version.Group("central/customer")
 	verify.Use(auth)
 	verify.Post("/verifyEmail", ctrl.VerifyEmail)

@@ -6,6 +6,7 @@ import (
 	"hospital-backend/internal/medicine/dto"
 	"hospital-backend/pkg/types"
 	wrapError "hospital-backend/shared/error"
+	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -46,6 +47,10 @@ func NewMedicineService(db *gorm.DB, Mrepo MedicineRepository, SMed InventoryCre
 
 func (MService *MedicineService) CreateMedicine(log *zap.Logger, MedicinePayload dto.RequestPayload) error {
 	log = ensureLog(log)
+	if err := validateDiscounts(MedicinePayload.MedicineArray); err != nil {
+		log.Warn("medicine purchase failed", zap.String("reason", "invalid_discount"))
+		return err
+	}
 	MedicinePayload.InvoiceDate = time.Now()
 	purchaseEntry := MService.toPurchaseEntry(MedicinePayload)
 	medicines := MService.toMedicine(MedicinePayload.MedicineArray, MedicinePayload.UserID, MedicinePayload.OrganisationID)
@@ -154,7 +159,7 @@ func (Mservice *MedicineService) toMedicineMvmt(meds []dto.MedicineInfo, userID 
 		medMvmt.QtyChanged = each.PurchaseQtyBoxes * each.UnitPerBoxes
 		medMvmt.CreatedBy = userID
 		medMvmt.SourceType = types.PurchaseEntry
-		medMvmt.UnitPriceAtTimeOfMvmt = each.SellingPrice / float64(each.UnitPerBoxes)
+		medMvmt.UnitPriceAtTimeOfMvmt = roundMoney(netSellingPrice(each) / float64(each.UnitPerBoxes))
 		MedMvmt = append(MedMvmt, medMvmt)
 	}
 	return MedMvmt
@@ -206,19 +211,49 @@ func (Mservice *MedicineService) toMedicineInventory(med []dto.MedicineInfo, use
 		MedInventory.CurrentStockUnits = each.PurchaseQtyBoxes * each.UnitPerBoxes
 		MedInventory.CreatedAt = time.Now()
 		MedInventory.CreatedBy = userID
-		MedInventory.Pricing.PurchasePrice = each.PurchasePrice
-		if each.SellingPrice == 0 {
-			MedInventory.Pricing.SellingPrice = each.MRP
-		}
-		MedInventory.Pricing.SellingPrice = each.SellingPrice
-		MedInventory.Pricing.MRP = each.MRP
-		MedInventory.Pricing.Discount = each.Discount
-		MedInventory.Pricing.DiscountType = "amount"
-		MedInventory.Pricing.UnitPrice = each.MRP / float64(each.UnitPerBoxes)
-		MedInventory.Pricing.TotalPrice = (each.PurchasePrice - each.Discount) * float64(each.PurchaseQtyBoxes)
+		applyMedicinePricing(&MedInventory.Pricing, each)
 		MedInventorys = append(MedInventorys, MedInventory)
 	}
 	return MedInventorys
+}
+
+const discountTypePercent = "percent"
+
+func validateDiscounts(items []dto.MedicineInfo) error {
+	for _, item := range items {
+		if item.Discount < 0 || item.Discount > 100 {
+			return wrapError.ErrInvalidRequest
+		}
+	}
+	return nil
+}
+
+func applyMedicinePricing(pricing *types.Pricing, item dto.MedicineInfo) {
+	selling := listedSellingPrice(item)
+	pricing.PurchasePrice = item.PurchasePrice
+	pricing.SellingPrice = selling
+	pricing.MRP = item.MRP
+	pricing.Discount = item.Discount
+	pricing.DiscountType = discountTypePercent
+	pricing.UnitPrice = item.MRP / float64(item.UnitPerBoxes)
+	pricing.TotalPrice = netSellingPrice(item) * float64(item.PurchaseQtyBoxes)
+}
+
+func listedSellingPrice(item dto.MedicineInfo) float64 {
+	if item.SellingPrice == 0 {
+		return item.MRP
+	}
+	return item.SellingPrice
+}
+
+func netSellingPrice(item dto.MedicineInfo) float64 {
+	selling := listedSellingPrice(item)
+	discountAmount := selling * item.Discount / 100
+	return roundMoney(selling - discountAmount)
+}
+
+func roundMoney(value float64) float64 {
+	return math.Round(value*100) / 100
 }
 
 func (Mservice *MedicineService) GetOne(log *zap.Logger, id string) (*Medicine, error) {

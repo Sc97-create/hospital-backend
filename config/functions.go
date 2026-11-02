@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -26,10 +27,16 @@ func Load() (*Config, error) {
 	if port == "" {
 		port = "8080"
 	}
-	smtpHost := viper.GetString("SMTP_HOST")
-	smtpPassword := viper.GetString("SMTP_PASSWORD")
+	smtpHost := strings.TrimSpace(viper.GetString("SMTP_HOST"))
+	smtpPassword := strings.TrimSpace(viper.GetString("SMTP_PASSWORD"))
 	smtpPort := viper.GetInt("SMTP_PORT")
-	smtpUsername := viper.GetString("SMTP_USERNAME")
+	smtpUsername := strings.TrimSpace(viper.GetString("SMTP_USERNAME"))
+	mailFromName := strings.TrimSpace(viper.GetString("MAIL_FROM_NAME"))
+	mailFromEmail := strings.TrimSpace(viper.GetString("MAIL_FROM_EMAIL"))
+	mailReplyTo := strings.TrimSpace(viper.GetString("MAIL_REPLY_TO"))
+	if mailFromEmail == "" {
+		mailFromEmail = smtpUsername
+	}
 	razorpayCallbackUrl := viper.GetString("RAZORPAY_CALLBACK_URL")
 	razorpayWebhookSecret := viper.GetString("RAZORPAY_WEBHOOK_SECRET")
 	razorpayApiKey := viper.GetString("RAZORPAY_API_KEY")
@@ -81,6 +88,9 @@ func Load() (*Config, error) {
 			SMTPPort:     smtpPort,
 			SMTPUsername: smtpUsername,
 			SMTPPassword: smtpPassword,
+			FromName:     mailFromName,
+			FromEmail:    mailFromEmail,
+			ReplyTo:      mailReplyTo,
 		},
 		RazorPayClient: RazorPayClient{
 			CallbackUrl: razorpayCallbackUrl,

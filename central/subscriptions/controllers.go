@@ -21,6 +21,8 @@ type ISubscriptionController interface {
 	Create(c *fiber.Ctx) error
 	ConfirmCheckout(c *fiber.Ctx) error
 	CheckEnd(c *fiber.Ctx) error
+	GetByTenant(c *fiber.Ctx) error
+	Update(c *fiber.Ctx) error
 }
 
 func NewISubscriptionController(service *SubscriptionService) ISubscriptionController {
@@ -35,6 +37,7 @@ func (sc *SubscriptionController) Create(c *fiber.Ctx) error {
 		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
 	}
 
+	payload.CustomerID = middleware.GetUserID(c)
 	logger.Info("subscription create attempt",
 		zap.String("tenant_id", payload.TenantID),
 		zap.String("plan_id", payload.PlanID),
@@ -63,6 +66,48 @@ func (sc *SubscriptionController) Create(c *fiber.Ctx) error {
 		resp["key_id"] = result.KeyID
 	}
 	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+func (sc *SubscriptionController) Update(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	payload, err := bindUpdatePayload(c)
+	if err != nil {
+		logger.Warn("subscription update request invalid", zap.Error(err))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	payload.CustomerID = middleware.GetUserID(c)
+	logger.Info("subscription update attempt",
+		zap.String("subscription_id", payload.SubscriptionID),
+		zap.String("plan_id", payload.PlanID),
+		zap.Int("billing_cycle", payload.BillingCycle),
+	)
+	result, err := sc.Service.UpdateSubscription(logger, c.Context(), payload)
+	if err != nil {
+		return wrapUpdateError(c, err)
+	}
+	return c.Status(fiber.StatusOK).JSON(subscriptionWriteResponse("subscription updated successfully", result))
+}
+
+func subscriptionWriteResponse(message string, result dto.CreateSubscriptionResult) fiber.Map {
+	resp := fiber.Map{
+		"message":         message,
+		"subscription_id": result.SubscriptionID,
+		"tenant_id":       result.TenantID,
+		"hospital_name":   result.HospitalName,
+		"price":           result.Price,
+		"billing_cycle":   result.BillingCycle,
+		"status":          result.Status,
+		"start_at":        result.StartAt,
+		"end_at":          result.EndAt,
+	}
+	if result.OrderID != "" {
+		resp["order_id"] = result.OrderID
+	}
+	if result.KeyID != "" {
+		resp["key_id"] = result.KeyID
+	}
+	return resp
 }
 
 func (sc *SubscriptionController) ConfirmCheckout(c *fiber.Ctx) error {
@@ -112,6 +157,25 @@ func (sc *SubscriptionController) CheckEnd(c *fiber.Ctx) error {
 	})
 }
 
+func (sc *SubscriptionController) GetByTenant(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	tenantID := strings.TrimSpace(c.Params("tenant_id"))
+	if tenantID == "" {
+		logger.Warn("subscription lookup request invalid", zap.String("reason", "missing_tenant_id"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	logger.Info("subscription lookup attempt", zap.String("tenant_id", tenantID))
+	result, err := sc.Service.GetByTenantID(logger, tenantID)
+	if err != nil {
+		return wrapGetByTenantError(c, err)
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":      "subscription fetched successfully",
+		"subscription": result,
+	})
+}
+
 func bindCreatePayload(c *fiber.Ctx) (dto.CreateSubscriptionPayload, error) {
 	p, err := params.New(c)
 	if err != nil {
@@ -127,6 +191,29 @@ func bindCreatePayload(c *fiber.Ctx) (dto.CreateSubscriptionPayload, error) {
 	payload.HospitalName, _ = p.Getstring("hospital_name")
 	payload.HospitalName = strings.TrimSpace(payload.HospitalName)
 	// Optional for free trial; validated against allowed months for paid plans in the service.
+	if cycle, err := p.Getint("billing_cycle"); err == nil {
+		payload.BillingCycle = cycle
+	}
+	if price, err := p.Getfloat("price"); err == nil {
+		payload.Price = price
+	}
+	return payload, nil
+}
+
+func bindUpdatePayload(c *fiber.Ctx) (dto.UpdateSubscriptionPayload, error) {
+	p, err := params.New(c)
+	if err != nil {
+		return dto.UpdateSubscriptionPayload{}, err
+	}
+	payload := dto.UpdateSubscriptionPayload{}
+	if payload.SubscriptionID, err = requiredString(p, "subscription_id"); err != nil {
+		return payload, err
+	}
+	if payload.PlanID, err = requiredString(p, "plan_id"); err != nil {
+		return payload, err
+	}
+	payload.HospitalName, _ = p.Getstring("hospital_name")
+	payload.HospitalName = strings.TrimSpace(payload.HospitalName)
 	if cycle, err := p.Getint("billing_cycle"); err == nil {
 		payload.BillingCycle = cycle
 	}
@@ -168,14 +255,42 @@ func wrapCreateError(c *fiber.Ctx, err error) error {
 		errors.Is(err, wrapError.ErrInvalidAmount),
 		errors.Is(err, wrapError.ErrInvalidCurrency):
 		return wrapError.Wrap(err, c, fiber.StatusBadRequest)
-	case errors.Is(err, wrapError.ErrPlanNotFound):
+	case errors.Is(err, wrapError.ErrPlanNotFound),
+		errors.Is(err, wrapError.ErrOrganisationNotFound):
 		return wrapError.Wrap(err, c, fiber.StatusNotFound)
 	case errors.Is(err, wrapError.ErrUnauthorized):
 		return wrapError.Wrap(err, c, fiber.StatusUnauthorized)
-	case errors.Is(err, wrapError.ErrOrderCreateFailed):
+	case errors.Is(err, wrapError.ErrInvoiceAlreadyExists):
+		return wrapError.Wrap(err, c, fiber.StatusConflict)
+	case errors.Is(err, wrapError.ErrOrderCreateFailed),
+		errors.Is(err, wrapError.ErrInvoiceCreateFailed),
+		errors.Is(err, wrapError.ErrPaymentCreateFailed):
 		return wrapError.Wrap(err, c, fiber.StatusInternalServerError)
 	default:
 		return wrapError.Wrap(wrapError.ErrSubscriptionCreateFailed, c, fiber.StatusInternalServerError)
+	}
+}
+
+func wrapUpdateError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, wrapError.ErrInvalidRequest),
+		errors.Is(err, wrapError.ErrInvalidAmount),
+		errors.Is(err, wrapError.ErrInvalidCurrency):
+		return wrapError.Wrap(err, c, fiber.StatusBadRequest)
+	case errors.Is(err, wrapError.ErrPlanNotFound),
+		errors.Is(err, wrapError.ErrSubscriptionNotFound),
+		errors.Is(err, wrapError.ErrOrganisationNotFound):
+		return wrapError.Wrap(err, c, fiber.StatusNotFound)
+	case errors.Is(err, wrapError.ErrUnauthorized):
+		return wrapError.Wrap(err, c, fiber.StatusUnauthorized)
+	case errors.Is(err, wrapError.ErrInvoiceAlreadyExists):
+		return wrapError.Wrap(err, c, fiber.StatusConflict)
+	case errors.Is(err, wrapError.ErrOrderCreateFailed),
+		errors.Is(err, wrapError.ErrInvoiceCreateFailed),
+		errors.Is(err, wrapError.ErrPaymentCreateFailed):
+		return wrapError.Wrap(err, c, fiber.StatusInternalServerError)
+	default:
+		return wrapError.Wrap(wrapError.ErrSubscriptionUpdateFailed, c, fiber.StatusInternalServerError)
 	}
 }
 
@@ -191,11 +306,23 @@ func wrapCheckEndError(c *fiber.Ctx, err error) error {
 	}
 }
 
-func wrapConfirmCheckoutError(c *fiber.Ctx, err error) error {
+func wrapGetByTenantError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, wrapError.ErrInvalidRequest):
 		return wrapError.Wrap(err, c, fiber.StatusBadRequest)
 	case errors.Is(err, wrapError.ErrSubscriptionNotFound):
+		return wrapError.Wrap(err, c, fiber.StatusNotFound)
+	default:
+		return wrapError.Wrap(wrapError.ErrSubscriptionFetchFailed, c, fiber.StatusInternalServerError)
+	}
+}
+
+func wrapConfirmCheckoutError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, wrapError.ErrInvalidRequest):
+		return wrapError.Wrap(err, c, fiber.StatusBadRequest)
+	case errors.Is(err, wrapError.ErrSubscriptionNotFound),
+		errors.Is(err, wrapError.ErrPaymentNotFound):
 		return wrapError.Wrap(err, c, fiber.StatusNotFound)
 	default:
 		return wrapError.Wrap(wrapError.ErrSubscriptionUpdateFailed, c, fiber.StatusInternalServerError)

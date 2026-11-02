@@ -13,7 +13,9 @@ const (
 type PaymentType string
 
 const (
-	PaymentTypeConsultation PaymentType = "consultation"
-	PaymentTypePrescription PaymentType = "prescription"
-	PaymentTypeLabOrder     PaymentType = "lab_order"
+	PaymentTypeConsultation        PaymentType = "consultation"
+	PaymentTypePrescription        PaymentType = "prescription"
+	PaymentTypeLabOrder            PaymentType = "lab_order"
+	PaymentTypeSubscriptionNew     PaymentType = "subscription_new"
+	PaymentTypeSubscriptionRenewal PaymentType = "subscription_renewal"
 )

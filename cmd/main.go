@@ -89,8 +89,8 @@ func main() {
 	routers.RegisterDiagnosticCentreRoutes(app, containers.LabContainer.DiagnosticCentreService, rbac)
 	routers.RegisterDashboardRoutes(app, containers.DashboardContainer.Service, rbac)
 	routers.RegisterAppointments(app, containers.AppointmentContainer.Appointmentservice, rbac)
-	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule)
-	routers.RegisterBillingRoutes(app, containers.BillingService, rbac)
+	routers.RegisterOrgSchedule(app, containers.OrganisationSchedule, containers.RoleService, rbac)
+	routers.RegisterBillingRoutes(app, containers.BillingService, cfg.InternalBasicAuth, rbac)
 	routers.RegisterJWTRoutes(app, containers.JwtManagement, cfg.InternalBasicAuth)
 	routers.RegisterPaymentRoutes(
 		app,

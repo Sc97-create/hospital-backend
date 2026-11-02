@@ -123,3 +123,11 @@ func (RoleSer *RoleServices) FindByID(log *zap.Logger, id string) (Role, error) 
 	}
 	return role, nil
 }
+
+func (RoleSer *RoleServices) FindNameByID(log *zap.Logger, id string) (string, error) {
+	role, err := RoleSer.FindByID(log, id)
+	if err != nil {
+		return "", err
+	}
+	return role.Name, nil
+}

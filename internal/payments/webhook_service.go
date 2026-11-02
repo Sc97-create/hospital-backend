@@ -29,8 +29,9 @@ type IWebhookService struct {
 
 // TenantEntitlementActivator is the common hook used after a webhook signature is verified
 // to activate the tenant (and its pending subscription) for a paid Razorpay order.
+// The subscription id comes from the invoice linked to the payment with that order_id.
 type TenantEntitlementActivator interface {
-	ActivateByOrderID(log *zap.Logger, orderID, providerPaymentID string) error
+	ActivateBySubscriptionID(log *zap.Logger, subscriptionID, providerPaymentID string) error
 }
 
 func NewWebhookService(
@@ -336,7 +337,18 @@ func (w *IWebhookService) handleOrderPaid(log *zap.Logger, provider string, even
 		return false, wrapError.ErrWebhookProcessFailed
 	}
 
-	if err := w.TenantEntitlement.ActivateByOrderID(log, orderID, event.ProviderPaymentID); err != nil {
+	subscriptionID, err := w.subscriptionIDByOrder(log, orderID, event.ProviderPaymentID)
+	if err != nil {
+		log.Error("payment webhook failed",
+			zap.String("provider", provider),
+			zap.String("provider_order_id", orderID),
+			zap.String("reason", "subscription_lookup"),
+			zap.Error(err),
+		)
+		return false, err
+	}
+
+	if err := w.TenantEntitlement.ActivateBySubscriptionID(log, subscriptionID, event.ProviderPaymentID); err != nil {
 		log.Error("payment webhook failed",
 			zap.String("provider", provider),
 			zap.String("provider_order_id", orderID),
@@ -353,6 +365,52 @@ func (w *IWebhookService) handleOrderPaid(log *zap.Logger, provider string, even
 		zap.String("provider_payment_id", event.ProviderPaymentID),
 	)
 	return true, nil
+}
+
+func (w *IWebhookService) subscriptionIDByOrder(log *zap.Logger, orderID, providerPaymentID string) (string, error) {
+	if w.db == nil {
+		return "", wrapError.ErrWebhookProcessFailed
+	}
+	var row struct {
+		SubscriptionID string `gorm:"column:subscription_id"`
+	}
+	err := w.db.Raw(`
+		SELECT i.billing_id AS subscription_id
+		FROM payments p
+		JOIN invoices i ON i.id = p.invoice_id
+		WHERE p.order_id = ?
+		  AND i.payment_type IN ('subscription_new', 'subscription_renewal')
+		LIMIT 1
+	`, orderID).Scan(&row).Error
+	if err != nil {
+		return "", err
+	}
+	if row.SubscriptionID == "" {
+		return "", wrapError.ErrSubscriptionNotFound
+	}
+	now := time.Now()
+	if err := w.db.Model(&Payments{}).Where("order_id = ?", orderID).Updates(map[string]any{
+		"provider_payment_id": providerPaymentID,
+		"updated_at":          now,
+	}).Error; err != nil {
+		log.Error("payment webhook failed",
+			zap.String("provider_order_id", orderID),
+			zap.String("reason", "payment_update"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrWebhookProcessFailed
+	}
+	if err := w.db.Model(&PaymentAttempts{}).Where("provider_order_id = ?", orderID).Updates(map[string]any{
+		"provider_payment_id": providerPaymentID,
+	}).Error; err != nil {
+		log.Error("payment webhook failed",
+			zap.String("provider_order_id", orderID),
+			zap.String("reason", "attempt_update"),
+			zap.Error(err),
+		)
+		return "", wrapError.ErrWebhookProcessFailed
+	}
+	return row.SubscriptionID, nil
 }
 
 func (w *IWebhookService) toWebhookEvent(dtowebhookevent dto.ParsedWebhookEvent, paymentAttemptID string) WebhookEvents {

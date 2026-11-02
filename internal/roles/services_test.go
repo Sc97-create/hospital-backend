@@ -215,3 +215,14 @@ func TestServiceFindByID(t *testing.T) {
 		}
 	})
 }
+
+func TestServiceFindNameByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := mocks.NewMockRoleRepository(ctrl)
+	repo.EXPECT().FindByID(gomock.Any(), "r1").Return(roles.Role{ID: "r1", Name: roles.DefaultRoleHospitalAdmin}, nil)
+	svc := newRoleService(t, repo)
+	name, err := svc.FindNameByID(zap.NewNop(), "r1")
+	if err != nil || name != roles.DefaultRoleHospitalAdmin {
+		t.Fatalf("name=%q err=%v", name, err)
+	}
+}
