@@ -150,10 +150,7 @@ func (e *EmployeeController) parseEmpJobDetails(payload *params.Payload, req *dt
 	if err != nil {
 		return "dept_id", err
 	}
-	req.LicenseNo, err = payload.Getstring("license_no")
-	if err != nil {
-		return "license_no", err
-	}
+	req.LicenseNo = optionalString(payload, "license_no")
 	req.Qualification, err = payload.Getstring("qualification")
 	if err != nil {
 		return "qualification", err
@@ -191,7 +188,7 @@ func (e *EmployeeController) parseShiftTimings(payload *params.Payload, req *dto
 func (e *EmployeeController) parseEmergencyDetails(payload *params.Payload, req *dto.EmpRequest) (string, error) {
 	emergency, err := payload.GetObject("emergency_details")
 	if err != nil {
-		return "emergency_details", err
+		return "", nil
 	}
 	req.EmergencyDetails.Email, err = emergency.Getstring("email")
 	if err != nil {
@@ -201,11 +198,16 @@ func (e *EmployeeController) parseEmergencyDetails(payload *params.Payload, req 
 	if err != nil {
 		return "emergency_details.name", err
 	}
-	req.EmergencyDetails.Contact, err = emergency.Getstring("contact")
-	if err != nil {
-		return "emergency_details.contact", err
-	}
+	req.EmergencyDetails.Contact = optionalString(emergency, "contact")
 	return "", nil
+}
+
+func optionalString(payload *params.Payload, key string) string {
+	value, err := payload.Getstring(key)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 func (e *EmployeeController) Delete(c *fiber.Ctx) (err error) {
 	logger := middleware.GetLogger(c)

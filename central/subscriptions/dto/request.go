@@ -3,13 +3,15 @@ package dto
 import "time"
 
 // CreateSubscriptionPayload creates an active subscription for an existing tenant.
-// billing_cycle (months: 4, 6, or 12) is required for paid plans; ignored for free trial.
+// billing_cycle (months: 3, 6, or 12) is required for paid plans; ignored for free trial.
 type CreateSubscriptionPayload struct {
-	PlanID       string  `json:"plan_id"`
-	TenantID     string  `json:"tenant_id"`
-	HospitalName string  `json:"hospital_name"`
-	Price        float64 `json:"price"`
-	BillingCycle int     `json:"billing_cycle"`
+	PlanID         string  `json:"plan_id"`
+	TenantID       string  `json:"tenant_id"`
+	HospitalName   string  `json:"hospital_name"`
+	Price          float64 `json:"price"`
+	BillingCycle   int     `json:"billing_cycle"`
+	CustomerID     string  `json:"-"`
+	OrganisationID string  `json:"-"`
 }
 
 // CreateSubscriptionResult is returned after a successful subscription create.
@@ -26,6 +28,18 @@ type CreateSubscriptionResult struct {
 	EndAt          *time.Time `json:"end_at,omitempty"`
 }
 
+// UpdateSubscriptionPayload changes the plan on an existing subscription.
+// billing_cycle (months: 3, 6, or 12) is required for the standard plan and ignored for free trial.
+type UpdateSubscriptionPayload struct {
+	SubscriptionID string  `json:"subscription_id"`
+	PlanID         string  `json:"plan_id"`
+	HospitalName   string  `json:"hospital_name"`
+	Price          float64 `json:"price"`
+	BillingCycle   int     `json:"billing_cycle"`
+	CustomerID     string  `json:"-"`
+	OrganisationID string  `json:"-"`
+}
+
 // ConfirmCheckoutPayload is sent by the frontend after Razorpay Checkout success.
 type ConfirmCheckoutPayload struct {
 	RazorpayPaymentID string `json:"razorpay_payment_id"`
@@ -39,6 +53,30 @@ type ConfirmCheckoutResult struct {
 	OrderID        string `json:"order_id"`
 	PaymentID      string `json:"payment_id"`
 	Status         string `json:"status"`
+}
+
+// SubscriptionPlan is the plan row joined onto a subscription.
+type SubscriptionPlan struct {
+	Name         string         `json:"name"`
+	Status       string         `json:"status"`
+	MonthlyPrice float64        `json:"monthly_price"`
+	Discount     float64        `json:"discount"`
+	PlanDetails  map[string]any `json:"plan_details"`
+}
+
+// SubscriptionDetail is the latest subscription for a tenant, with its plan.
+type SubscriptionDetail struct {
+	SubscriptionID string           `json:"subscription_id"`
+	TenantID       string           `json:"tenant_id"`
+	PlanID         string           `json:"plan_id"`
+	Status         string           `json:"status"`
+	BillingCycle   string           `json:"billing_cycle"`
+	Price          float64          `json:"price"`
+	OrderID        string           `json:"order_id,omitempty"`
+	StartAt        *time.Time       `json:"start_at,omitempty"`
+	EndAt          *time.Time       `json:"end_at,omitempty"`
+	Expired        bool             `json:"expired"`
+	Plan           SubscriptionPlan `json:"plan"`
 }
 
 // CheckEndResult reports whether the organisation's trial or paid subscription has reached end_at.

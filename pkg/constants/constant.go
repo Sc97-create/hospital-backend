@@ -58,6 +58,7 @@ const (
 	PaymentReceivedEvent                   = "payment_recieved"
 	PaymentReceivedSubject                 = "Payment Received"
 	PaymentUPI                      string = "upi"
+	PaymentCard                     string = "card"
 	PaymentLink                     string = "link"
 	PaymentExternal                 string = "external"
 	PaymentCash                     string = "cash"

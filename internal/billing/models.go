@@ -5,13 +5,16 @@ import "time"
 type Invoice struct {
 	ID          string      `json:"id" gorm:"type:uuid;not null;primaryKey"`
 	InvoiceCode string      `json:"invoice_code" gorm:"type:text;not null"`
-	PaymentType PaymentType `json:"payment_type" gorm:"column:payment_type;type:varchar(30);not null;default:prescription;uniqueIndex:idx_payment_type_billing_id,priority:1"`
-	// BillingID is the source entity id: prescription id when payment_type=prescription,
-	// appointment id when payment_type=consultation.
-	BillingID      string    `json:"billing_id" gorm:"column:billing_id;type:uuid;not null;uniqueIndex:idx_payment_type_billing_id,priority:2"`
-	PatientID      string    `json:"patient_id" gorm:"type:uuid;not null"`
+	PaymentType PaymentType `json:"payment_type" gorm:"column:payment_type;type:varchar(30);not null;default:prescription"`
+	// BillingID is the source entity id: prescription id, appointment id, lab order id, or subscription id.
+	// Uniqueness of (payment_type, billing_id) is a partial index in Migrate; subscription_renewal may repeat.
+	BillingID string `json:"billing_id" gorm:"column:billing_id;type:uuid;not null"`
+	// PatientID is required for hospital invoices. Subscription invoices leave it empty and set CustomerID.
+	PatientID string `json:"patient_id" gorm:"type:uuid"`
+	// CustomerID is required for subscription_new and subscription_renewal.
+	CustomerID     *string   `json:"customer_id,omitempty" gorm:"type:uuid"`
 	Status         string    `json:"status" gorm:"default:unpaid"`
-	CashierID      string    `json:"cashier_id" gorm:"type:uuid;not null"`
+	CashierID      string    `json:"cashier_id" gorm:"type:uuid"`
 	OrganisationID string    `json:"organisation_id" gorm:"type:uuid;not null"`
 	SubtotalAmount float64   `json:"sub_total_amount" gorm:"type:numeric(10,2);not null"`
 	TaxAmount      float64   `json:"tax_amount" gorm:"type:numeric(10,2);not null"`

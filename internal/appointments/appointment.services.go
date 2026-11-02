@@ -669,30 +669,53 @@ func (s *AppointmentService) toAppointmentList(data []map[string]interface{}) []
 
 func (s *AppointmentService) findStatus(status string, endtime time.Time, appointmentdate time.Time) Status {
 	switch status {
-	case "ongoing":
+	case string(StatusOngoing):
 		return StatusOngoing
-	case "completed":
+	case string(StatusCompleted):
 		return StatusCompleted
-	case "cancelled":
+	case string(StatusCancelled):
 		return StatusCancelled
-	case "waiting":
+	case string(StatusWaiting):
 		return StatusWaiting
 	}
-	currenttime := time.Now()
-	todayDate := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), 0, 0, 0, 0, time.Local)
-	todayendtime := time.Date(currenttime.Year(), currenttime.Month(), currenttime.Day(), endtime.Hour(), endtime.Minute(), endtime.Second(), endtime.Nanosecond(), time.Local)
-	if appointmentdate.Equal(todayDate) {
-		if currenttime.After(todayendtime) {
-			return StatusReschedule
-		}
-	}
-	if appointmentdate.After(todayDate) {
+
+	loc := clinicLocation()
+	now := time.Now().In(loc)
+	apptDay := calendarDay(appointmentdate, loc)
+	today := calendarDay(now, loc)
+	if apptDay.After(today) {
 		return StatusUpcoming
 	}
-	if appointmentdate.Before(todayDate) {
+	if apptDay.Before(today) {
 		return StatusMissed
 	}
+	if slotEnded(now, endtime) {
+		return StatusReschedule
+	}
 	return StatusScheduled
+}
+
+func clinicLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil || loc == nil {
+		return time.FixedZone("IST", (5*60+30)*60)
+	}
+	return loc
+}
+
+func calendarDay(value time.Time, loc *time.Location) time.Time {
+	if value.IsZero() {
+		return time.Date(1, 1, 1, 0, 0, 0, 0, loc)
+	}
+	in := value.In(loc)
+	return time.Date(in.Year(), in.Month(), in.Day(), 0, 0, 0, 0, loc)
+}
+
+func slotEnded(now, end time.Time) bool {
+	if end.IsZero() {
+		return false
+	}
+	return !now.Before(end)
 }
 
 func (s *AppointmentService) GetAppointmentPreview(log *zap.Logger, organisationID string, appointmentID string) (dto.AppointmentDetails, error) {

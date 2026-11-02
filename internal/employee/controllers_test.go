@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
 const validEmployeeBody = `{
@@ -55,6 +56,39 @@ func TestAdd(t *testing.T) {
 			body: validEmployeeBody,
 			setup: func(m *mocks.MockEmployeeServicer) {
 				m.EXPECT().CreateEmployee(gomock.Any(), gomock.Any()).Return("emp-1", nil)
+			},
+			wantStatus: 200,
+		},
+		{
+			name: "registration and emergency contact optional",
+			body: `{
+				"organisation_id":"org-1",
+				"first_name":"Jane",
+				"last_name":"Doe",
+				"mobile_number":"9876543210",
+				"email_id":"jane@example.com",
+				"address":"123 Main St",
+				"date_of_birth":"1990-01-01",
+				"date_of_joining":"2020-01-01",
+				"role_id":"role-1",
+				"dept_id":"dept-1",
+				"qualification":"MBBS",
+				"employee_type":"full_time",
+				"shift_timings":{"start_time":"09:00","end_time":"17:00"},
+				"emergency_details":{"email":"em@example.com","name":"Emergency"}
+			}`,
+			setup: func(m *mocks.MockEmployeeServicer) {
+				m.EXPECT().CreateEmployee(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ *zap.Logger, req dto.EmpRequest) (string, error) {
+						if req.LicenseNo != "" || req.EmergencyDetails.Contact != "" {
+							return "", errors.New("optional fields were required")
+						}
+						if req.EmergencyDetails.Name != "Emergency" {
+							return "", errors.New("emergency name missing")
+						}
+						return "emp-1", nil
+					},
+				)
 			},
 			wantStatus: 200,
 		},

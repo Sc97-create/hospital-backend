@@ -15,6 +15,7 @@ type CustomerRepository interface {
 	Create(log *zap.Logger, customer Customer) error
 	ExistsByWorkEmail(log *zap.Logger, workEmail string) (bool, error)
 	GetByID(log *zap.Logger, customerID string) (Customer, error)
+	GetByWorkEmail(log *zap.Logger, workEmail string) (Customer, error)
 	GetByTenantID(log *zap.Logger, tenantID string) (Customer, error)
 	MarkEmailVerified(log *zap.Logger, customerID string, verifiedAt time.Time) error
 	BindTenantID(log *zap.Logger, tx *gorm.DB, customerID, tenantID string) error
@@ -50,6 +51,24 @@ func (r *CustomerRepo) GetByID(log *zap.Logger, customerID string) (Customer, er
 	err := r.db.Where("id = ?", customerID).First(&customer).Error
 	if err != nil {
 		log.Error("customer repo error", zap.String("op", "GetByID"), zap.Error(err))
+		return Customer{}, err
+	}
+	return customer, nil
+}
+
+func (r *CustomerRepo) GetByWorkEmail(log *zap.Logger, workEmail string) (Customer, error) {
+	log = ensureLog(log)
+	workEmail = strings.ToLower(strings.TrimSpace(workEmail))
+	if workEmail == "" {
+		return Customer{}, ErrCustomerNotFound
+	}
+	var customer Customer
+	err := r.db.Where("work_email = ?", workEmail).First(&customer).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return Customer{}, ErrCustomerNotFound
+		}
+		log.Error("customer repo error", zap.String("op", "GetByWorkEmail"), zap.Error(err))
 		return Customer{}, err
 	}
 	return customer, nil

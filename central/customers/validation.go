@@ -22,3 +22,14 @@ func validateSignupPayload(payload dto.SignupPayload) error {
 	}
 	return nil
 }
+
+func validateLoginPayload(payload dto.LoginPayload) error {
+	email := strings.TrimSpace(payload.WorkEmail)
+	if email == "" || !strings.Contains(email, "@") {
+		return wrapError.ErrInvalidRequest
+	}
+	if len(payload.Password) < minPasswordLen {
+		return wrapError.ErrInvalidRequest
+	}
+	return nil
+}

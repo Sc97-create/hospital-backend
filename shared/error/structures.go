@@ -30,6 +30,7 @@ var (
 	ErrSubscriptionCreateFailed = errors.New("failed to create subscription")
 	ErrSubscriptionUpdateFailed = errors.New("failed to update subscription")
 	ErrSubscriptionNotFound     = errors.New("subscription not found")
+	ErrSubscriptionFetchFailed  = errors.New("failed to fetch subscription")
 
 	// Customer domain
 	ErrCustomerAlreadyExists   = errors.New("customer already exists")

@@ -15,13 +15,23 @@ const (
 )
 
 var allowedBillingCycles = map[int]struct{}{
-	4:  {},
+	3:  {},
 	6:  {},
 	12: {},
 }
 
 func validateCreatePayload(payload dto.CreateSubscriptionPayload) error {
 	if strings.TrimSpace(payload.PlanID) == "" || strings.TrimSpace(payload.TenantID) == "" {
+		return wrapError.ErrInvalidRequest
+	}
+	if payload.Price < 0 {
+		return wrapError.ErrInvalidRequest
+	}
+	return nil
+}
+
+func validateUpdatePayload(payload dto.UpdateSubscriptionPayload) error {
+	if strings.TrimSpace(payload.SubscriptionID) == "" || strings.TrimSpace(payload.PlanID) == "" {
 		return wrapError.ErrInvalidRequest
 	}
 	if payload.Price < 0 {

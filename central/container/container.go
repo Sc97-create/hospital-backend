@@ -54,7 +54,9 @@ func New(db *gorm.DB, cfg *config.Config, deps Deps) *Container {
 		tenantService,
 		cfg.RazorPayClient.RPayConfig.ApiKey,
 	)
+	subscriptionService.Billing = paymentService
 	customerService := customers.NewCustomerService(customerRepo, api, deps.Notifications)
+	customerService.Subscriptions = subscriptionService
 	return &Container{
 		Organisations: organisationService,
 		Tenants:       tenantService,

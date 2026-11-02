@@ -247,17 +247,19 @@ func RegisterAppointments(app *fiber.App, service *appointments.AppointmentServi
 	appointmentGrp.Post("/getappointmentByPatientID", appointmentController.GetAppointmentByPatientID)
 }
 
-func RegisterOrgSchedule(app *fiber.App, service *admins.OrganisationScheduleService) {
+func RegisterOrgSchedule(app *fiber.App, service *admins.OrganisationScheduleService, roleSvc *roles.RoleServices, rbac RBACDeps) {
 	version := getVersion(app)
-	admingrp := version.Group("admins")
-	orgSched := admingrp.Group("organisationSchedule")
-	// Unmapped until a dedicated module exists.
+	orgSched := version.Group("admins").Group("organisationSchedule")
+	orgSched.Use(func(c *fiber.Ctx) error {
+		return middleware.Authenticate(c, rbac.JWT)
+	})
+	orgSched.Use(middleware.EnforceSubscription(rbac.Subscription))
+	orgSched.Use(middleware.RequireRole(rbac.RoleLookup, roleSvc, roles.DefaultRoleHospitalAdmin))
 	orgSchedController := admins.NewOrgSchedController(service)
 	orgSched.Post("/create", orgSchedController.Create)
-
 }
 
-func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ, rbac RBACDeps) {
+func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ, basicAuth config.InternalBasicAuth, rbac RBACDeps) {
 	version := getVersion(app)
 	billingGrp := version.Group("billing")
 	middleware.UseProtected(billingGrp, rbac.JWT, rbac.RolePerm, rbac.RoleLookup, rbac.Subscription)
@@ -268,6 +270,13 @@ func RegisterBillingRoutes(app *fiber.App, service *billing.InvoiceServ, rbac RB
 	billingGrp.Get("/checkByBillingID/:billingID", billingController.CheckBillingExists)
 	billingGrp.Get("/getBillDetailsByPrescriptionID/:prescriptionID", billingController.GetBillDetailsByPrescriptionID)
 	billingGrp.Post("/invoices/:invoiceID/retry-payment-link", billingController.RetryPaymentLink)
+
+	internalInvoice := version.Group("hospital/internal/invoice")
+	internalInvoice.Use(func(c *fiber.Ctx) error {
+		return middleware.AuthenticateBasic(c, basicAuth.ID, basicAuth.Secret)
+	})
+	invoiceHandler := &billing.SubscriptionInvoiceHandler{Service: service}
+	internalInvoice.Post("/subscription", invoiceHandler.Create)
 }
 
 func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, webhook *payments.IWebhookService, rzpClient *razorpay.RazorpayConfig, basicAuth config.InternalBasicAuth, rbac RBACDeps) {
@@ -290,6 +299,9 @@ func RegisterPaymentRoutes(app *fiber.App, payment *payments.PaymentsService, we
 		return middleware.AuthenticateBasic(c, basicAuth.ID, basicAuth.Secret)
 	})
 	internalGrp.Post("/createOrder", paymentController.CreateOrder)
+	paymentHandler := &payments.SubscriptionPaymentHandler{Service: payment}
+	internalGrp.Post("/subscription", paymentHandler.Create)
+	internalGrp.Post("/subscription/confirm", paymentHandler.Confirm)
 }
 
 // RegisterJWTRoutes registers the access-token API central calls on the hospital service.

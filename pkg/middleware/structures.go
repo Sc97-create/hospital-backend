@@ -21,6 +21,11 @@ type RoleIDFinder interface {
 	FindRoleIDByUserID(log *zap.Logger, userID string) (string, error)
 }
 
+// RoleNameFinder resolves a role's display name from its id.
+type RoleNameFinder interface {
+	FindNameByID(log *zap.Logger, roleID string) (string, error)
+}
+
 // RoleAccessLoader loads module permissions for a role (satisfied by RolePermissionService).
 type RoleAccessLoader interface {
 	FindModulesByRoleID(log *zap.Logger, roleID string) (rpdto.RoleAccess, error)
