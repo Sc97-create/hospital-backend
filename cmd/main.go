@@ -51,6 +51,7 @@ func main() {
 
 	app := fiber.New(clientConfig)
 	middleware.HandleMiddleware(app)
+	middleware.RegisterHealth(app, database.PostgreClient.GormDriver)
 	containers := appinit.NewContainer(database.PostgreClient.GormDriver, cfg)
 	err = containers.PermissionService.DefaultPerm(logger.Log)
 	if err != nil {

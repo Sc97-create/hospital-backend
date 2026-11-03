@@ -11,14 +11,17 @@ import (
 )
 
 func Load() (*Config, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	filep := filepath.Join(dir, "deploy/local/.env")
-	err = godotenv.Load(filep)
-	if err != nil {
-		log.Println("err", err)
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" || appEnv == "local" {
+		dir, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		filep := filepath.Join(dir, "deploy/local/.env")
+		err = godotenv.Load(filep)
+		if err != nil {
+			log.Println("err", err)
+		}
 	}
 
 	viper.AutomaticEnv()
@@ -46,7 +49,7 @@ func Load() (*Config, error) {
 		razorpayBaseUrl = "https://api.razorpay.com/v1"
 	}
 
-	appEnv := viper.GetString("APP_ENV")
+	//appEnv := viper.GetString("APP_ENV")
 	env := viper.GetString("ENV")
 	if env == "" {
 		env = appEnv
