@@ -15,6 +15,7 @@ import (
 // admins/organisationSchedule/* is gated by the Hospital Admin role, not these maps.
 
 var PublicRoutes = map[string]struct{}{
+	"/api/v1/health":                                                  {},
 	"/api/v1/authentication/login":                                    {},
 	"/api/v1/authentication/refresh":                                  {},
 	"/api/v1/authentication/logout":                                   {},
