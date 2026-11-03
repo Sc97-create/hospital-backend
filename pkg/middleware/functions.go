@@ -20,7 +20,7 @@ func HandleMiddleware(app *fiber.App) {
 	app.Use(logger.New())
 	app.Use(healthcheck.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:9069,http://localhost:5173",
+		AllowOrigins:     "http://localhost:9069,http://localhost:5173,https://stg.floatohealth.com",
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE",
 		AllowHeaders:     "Content-Type,Origin,Accept,Authorization,Idempotency-Key,X-Request-ID",
 		AllowCredentials: true,
