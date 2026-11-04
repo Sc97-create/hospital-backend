@@ -2,38 +2,40 @@
 <p style="margin:0 0 16px 0;">Dear {{.PatientName}},</p>
 
 <p style="margin:0 0 20px 0;">
-  Your payment was received successfully.
+  We have received your payment. A copy of the receipt is below.
 </p>
 
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-  style="background-color:#f9fafb; border-radius:6px; border:1px solid #eef0f2;">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f4faf8; border:1px solid #d7efe6; border-radius:8px; margin:0 0 18px 0;">
   <tr>
-    <td style="padding:14px 16px; color:#666666; font-size:13px;">
-      Amount Paid
+    <td style="padding:18px 16px;">
+      <p style="margin:0; color:#5f7a72; font-size:12px; letter-spacing:0.6px;">AMOUNT PAID</p>
+      <p style="margin:6px 0 0 0; color:#1f3a4d; font-size:28px; line-height:1.2; font-weight:bold;">
+        {{.Currency}} {{.Amount}}
+      </p>
     </td>
-    <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold;">
-      {{.Currency}} {{.Amount}}
+  </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid #e6eaee; border-radius:8px;">
+  <tr>
+    <td style="padding:14px 16px; border-bottom:1px solid #e6eaee; color:#667085; font-size:13px; width:42%;">
+      Payment status
+    </td>
+    <td style="padding:14px 16px; border-bottom:1px solid #e6eaee; color:#0f7b4c; font-size:14px; font-weight:bold;">
+      Received
     </td>
   </tr>
   <tr>
-    <td style="padding:14px 16px; color:#666666; font-size:13px;">
-      Payment Status
+    <td style="padding:14px 16px; color:#667085; font-size:13px;">
+      Paid at
     </td>
-    <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold;">
-      {{.PaymentStatus}}
-    </td>
-  </tr>
-  <tr>
-    <td style="padding:14px 16px; color:#666666; font-size:13px;">
-      Paid At
-    </td>
-    <td style="padding:14px 16px; color:#2c3e50; font-size:14px; font-weight:bold;">
+    <td style="padding:14px 16px; color:#1f3a4d; font-size:14px; font-weight:bold;">
       {{.PaidAt}}
     </td>
   </tr>
 </table>
 
-<p style="margin:20px 0 0 0; color:#666666; font-size:14px;">
+<p style="margin:20px 0 0 0; color:#3d4c5c; font-size:14px;">
   Thank you for your payment.
 </p>
 {{end}}
