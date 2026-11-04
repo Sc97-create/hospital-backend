@@ -37,6 +37,7 @@ func Load() (*Config, error) {
 	mailFromName := strings.TrimSpace(viper.GetString("MAIL_FROM_NAME"))
 	mailFromEmail := strings.TrimSpace(viper.GetString("MAIL_FROM_EMAIL"))
 	mailReplyTo := strings.TrimSpace(viper.GetString("MAIL_REPLY_TO"))
+	resendAPIKey := strings.TrimSpace(viper.GetString("RESEND_API_KEY"))
 	if mailFromEmail == "" {
 		mailFromEmail = smtpUsername
 	}
@@ -94,6 +95,7 @@ func Load() (*Config, error) {
 			FromName:     mailFromName,
 			FromEmail:    mailFromEmail,
 			ReplyTo:      mailReplyTo,
+			ResendAPIKey: resendAPIKey,
 		},
 		RazorPayClient: RazorPayClient{
 			CallbackUrl: razorpayCallbackUrl,
