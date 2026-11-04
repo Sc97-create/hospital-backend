@@ -49,6 +49,7 @@ type NotificationConfig struct {
 	FromName     string
 	FromEmail    string
 	ReplyTo      string
+	ResendAPIKey string
 	MaxRetries   int
 	RetryBackoff int // in minutes
 }

@@ -38,12 +38,12 @@ func New(db *gorm.DB, cfg config.Config) (*Module, error) {
 
 	repo := repository.NewDB(db)
 
-	smtpProvider, err := email.NewSmtpProvider(cfg.NotificationConfig)
+	resendProvider, err := email.NewResendProvider(cfg.NotificationConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SMTP provider: %w", err)
+		return nil, fmt.Errorf("failed to create Resend provider: %w", err)
 	}
 
-	emailSender := email.NewSender(smtpProvider)
+	emailSender := email.NewSender(resendProvider)
 
 	factory := notifications.NewFactory(map[notifications.ChannelType]notifications.Sender{
 		notifications.ChannelType(notifications.EmailChannel): emailSender,

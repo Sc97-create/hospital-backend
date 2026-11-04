@@ -183,7 +183,7 @@ func (s *FulfillmentService) NotifyPaymentReceived(log *zap.Logger, payment Paym
 	patientInfo["amount_paid"] = payment.Amount
 	patientInfo["payment_status"] = constants.PaymentReceivedEvent
 	patientInfo["currency"] = payment.Currency
-	patientInfo["paid_at"] = paidAt.Format("02 Jan 2006 15:04:05")
+	patientInfo["paid_at"] = paidAt.Format("02 Jan 2006, 03:04 PM")
 
 	return s.Deps.CreateNotification(context.Background(), notificationdto.CreateRequest{
 		Data:             patientInfo,
