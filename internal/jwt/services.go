@@ -339,9 +339,32 @@ func (j *JwtService) getPrivateKey(path KeyPath) (*ecdsa.PrivateKey, error) {
 	if pemBlock == nil {
 		return nil, fmt.Errorf("failed to decode PEM block from private key")
 	}
-	privateKey, err := x509.ParseECPrivateKey(pemBlock.Bytes)
+	return parseECPrivateKey(pemBlock)
+}
+
+func parseECPrivateKey(block *pem.Block) (*ecdsa.PrivateKey, error) {
+	switch block.Type {
+	case "EC PRIVATE KEY":
+		privateKey, err := x509.ParseECPrivateKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse EC private key: %w", err)
+		}
+		return privateKey, nil
+	case "PRIVATE KEY":
+		return parsePKCS8ECPrivateKey(block.Bytes)
+	default:
+		return nil, fmt.Errorf("failed to parse EC private key: unsupported PEM type %s", block.Type)
+	}
+}
+
+func parsePKCS8ECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
+	parsed, err := x509.ParsePKCS8PrivateKey(der)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse EC private key: %w", err)
+	}
+	privateKey, ok := parsed.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse EC private key: expected ECDSA key")
 	}
 	return privateKey, nil
 }
@@ -386,15 +409,24 @@ func (j *JwtService) getPublickey() (*ecdsa.PublicKey, error) {
 	if pemBlock == nil {
 		return nil, fmt.Errorf("failed to decode PEM block from public key")
 	}
-	parsedKey, err := x509.ParsePKIXPublicKey(pemBlock.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	return parseECPublicKey(pemBlock)
+}
+
+func parseECPublicKey(block *pem.Block) (*ecdsa.PublicKey, error) {
+	switch block.Type {
+	case "PUBLIC KEY", "EC PUBLIC KEY":
+		parsedKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %w", err)
+		}
+		ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("public key is not ECDSA")
+		}
+		return ecdsaKey, nil
+	default:
+		return nil, fmt.Errorf("failed to parse public key: unsupported PEM type %s", block.Type)
 	}
-	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("public key is not ECDSA")
-	}
-	return ecdsaKey, nil
 }
 
 //createrefreshtoken
