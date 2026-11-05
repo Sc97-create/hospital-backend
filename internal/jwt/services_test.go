@@ -172,6 +172,78 @@ func TestAccessToken_ContainsExpiry(t *testing.T) {
 	}
 }
 
+func TestAccessTokenAcceptsPKCS8PrivateKey(t *testing.T) {
+	dir := t.TempDir()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privPath := filepath.Join(dir, "private.pem")
+	pubPath := filepath.Join(dir, "public.pem")
+	if err := os.WriteFile(privPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pubPath, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := newService(&mockRefreshTokenRepo{}, &config.Config{
+		PrivateKeyPath: privPath,
+		PublicKeyPath:  pubPath,
+	})
+	token, err := svc.AccessToken("user-1", "org-1")
+	if err != nil {
+		t.Fatalf("AccessToken: %v", err)
+	}
+	if _, err := svc.parseToken(token); err != nil {
+		t.Fatalf("parseToken: %v", err)
+	}
+}
+
+func TestAccessTokenAcceptsECPublicKey(t *testing.T) {
+	dir := t.TempDir()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privDER, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privPath := filepath.Join(dir, "private.pem")
+	pubPath := filepath.Join(dir, "public.pem")
+	if err := os.WriteFile(privPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pubPath, pem.EncodeToMemory(&pem.Block{Type: "EC PUBLIC KEY", Bytes: pubDER}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := newService(&mockRefreshTokenRepo{}, &config.Config{
+		PrivateKeyPath: privPath,
+		PublicKeyPath:  pubPath,
+	})
+	token, err := svc.AccessToken("user-1", "org-1")
+	if err != nil {
+		t.Fatalf("AccessToken: %v", err)
+	}
+	if _, err := svc.parseToken(token); err != nil {
+		t.Fatalf("parseToken: %v", err)
+	}
+}
+
 func TestKeyFilePathUsesAbsolutePath(t *testing.T) {
 	got, err := keyFilePath("/etc/floato/keys/jwt-private.pem")
 	if err != nil {
