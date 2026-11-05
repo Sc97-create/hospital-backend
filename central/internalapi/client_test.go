@@ -2,8 +2,10 @@ package internalapi_test
 
 import (
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"hospital-backend/central/internalapi"
@@ -33,7 +35,38 @@ func TestAccessToken(t *testing.T) {
 
 func TestAccessTokenFailure(t *testing.T) {
 	_, err := internalapi.New("", "id", "secret").AccessToken("user-1", "")
-	if err != wrapError.ErrAccessTokenCreateFailed {
+	if !errors.Is(err, wrapError.ErrAccessTokenCreateFailed) || !errors.Is(err, internalapi.ErrNotConfigured) {
 		t.Fatalf("err=%v", err)
+	}
+	if !strings.Contains(err.Error(), "not_configured") || !strings.Contains(err.Error(), "base_url") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestAccessTokenStatusReasons(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+		reason string
+	}{
+		{name: "unauthorized", status: http.StatusUnauthorized, body: `{"error":"Unauthorized"}`, reason: "unauthorized"},
+		{name: "issuer", status: http.StatusInternalServerError, body: `{"error":"failed to create access token"}`, reason: "issuer"},
+		{name: "empty token", status: http.StatusOK, body: `{"access_token":""}`, reason: "empty_token"},
+		{name: "decode", status: http.StatusOK, body: `{`, reason: "decode"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+
+			_, err := internalapi.New(srv.URL, "id", "secret").AccessToken("user-1", "")
+			if !errors.Is(err, wrapError.ErrAccessTokenCreateFailed) || !strings.Contains(err.Error(), tt.reason) {
+				t.Fatalf("err=%v", err)
+			}
+		})
 	}
 }

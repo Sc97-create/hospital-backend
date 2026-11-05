@@ -17,11 +17,30 @@ import (
 	wrapError "hospital-backend/shared/error"
 )
 
+var (
+	errWorkingDirectory = errors.New("working directory")
+	errPrivateKey       = errors.New("private key")
+	errSignToken        = errors.New("sign token")
+)
+
 func ensureLog(log *zap.Logger) *zap.Logger {
 	if log == nil {
 		return zap.NewNop()
 	}
 	return log
+}
+
+func accessTokenIssueReason(err error) string {
+	switch {
+	case errors.Is(err, errWorkingDirectory):
+		return "working_directory"
+	case errors.Is(err, errPrivateKey):
+		return "private_key"
+	case errors.Is(err, errSignToken):
+		return "sign"
+	default:
+		return "issue"
+	}
 }
 
 type JwtService struct {
@@ -281,18 +300,18 @@ func (j *JwtService) toRefreshTokenModel(token string, id string, userID string,
 func (j *JwtService) token(claims jwt.RegisteredClaims) (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", errWorkingDirectory, err)
 	}
 	privateKeypath := filepath.Join(dir, j.Cfg.PrivateKeyPath)
 	privateKey, err := j.getPrivateKey(KeyPath(privateKeypath))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", errPrivateKey, err)
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["kid"] = uuid.NewString()
 	accesstoken, err := token.SignedString(privateKey)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", errSignToken, err)
 	}
 	return accesstoken, nil
 }

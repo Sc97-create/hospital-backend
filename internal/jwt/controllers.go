@@ -56,7 +56,7 @@ func (c *Controller) CreateAccessToken(ctx *fiber.Ctx) error {
 	if err != nil {
 		log.Error("access token create failed",
 			zap.String("user_id", req.UserID),
-			zap.String("reason", "issue"),
+			zap.String("reason", accessTokenIssueReason(err)),
 			zap.Error(err),
 		)
 		return wrapError.Wrap(wrapError.ErrAccessTokenCreateFailed, ctx, fiber.StatusInternalServerError)

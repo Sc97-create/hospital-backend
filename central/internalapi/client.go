@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -33,10 +34,29 @@ func New(baseURL, basicAuthID, basicAuthSecret string) *Client {
 	}
 }
 
+func (c *Client) missingConfig() string {
+	if c == nil {
+		return "client"
+	}
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return "base_url"
+	}
+	if strings.TrimSpace(c.BasicAuthID) == "" {
+		return "client_id"
+	}
+	if strings.TrimSpace(c.BasicAuthSecret) == "" {
+		return "client_secret"
+	}
+	if c.HTTPClient == nil {
+		return "http_client"
+	}
+	return ""
+}
+
 // Post sends a JSON body to path with Basic Auth and returns the status and raw body.
 func (c *Client) Post(ctx context.Context, path string, payload any) (int, []byte, error) {
-	if c == nil || c.BaseURL == "" || c.BasicAuthID == "" || c.BasicAuthSecret == "" || c.HTTPClient == nil {
-		return 0, nil, ErrNotConfigured
+	if gap := c.missingConfig(); gap != "" {
+		return 0, nil, fmt.Errorf("%w: %s", ErrNotConfigured, gap)
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
