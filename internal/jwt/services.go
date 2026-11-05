@@ -9,6 +9,7 @@ import (
 	"hospital-backend/config"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -297,12 +298,26 @@ func (j *JwtService) toRefreshTokenModel(token string, id string, userID string,
 	}
 	return &refreshToken, nil
 }
-func (j *JwtService) token(claims jwt.RegisteredClaims) (string, error) {
+func keyFilePath(configured string) (string, error) {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	if filepath.IsAbs(configured) {
+		return configured, nil
+	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errWorkingDirectory, err)
 	}
-	privateKeypath := filepath.Join(dir, j.Cfg.PrivateKeyPath)
+	return filepath.Join(dir, configured), nil
+}
+
+func (j *JwtService) token(claims jwt.RegisteredClaims) (string, error) {
+	privateKeypath, err := keyFilePath(j.Cfg.PrivateKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", errPrivateKey, err)
+	}
 	privateKey, err := j.getPrivateKey(KeyPath(privateKeypath))
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errPrivateKey, err)
@@ -359,11 +374,10 @@ func (j *JwtService) checkRefreshToken(refreshToken *RefreshToken, userID string
 	return
 }
 func (j *JwtService) getPublickey() (*ecdsa.PublicKey, error) {
-	dir, err := os.Getwd()
+	publicPath, err := keyFilePath(j.Cfg.PublicKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	publicPath := filepath.Join(dir, j.Cfg.PublicKeyPath)
 	key, err := os.ReadFile(publicPath)
 	if err != nil {
 		return nil, err
