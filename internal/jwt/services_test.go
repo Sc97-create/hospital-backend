@@ -172,6 +172,30 @@ func TestAccessToken_ContainsExpiry(t *testing.T) {
 	}
 }
 
+func TestKeyFilePathUsesAbsolutePath(t *testing.T) {
+	got, err := keyFilePath("/etc/floato/keys/jwt-private.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "/etc/floato/keys/jwt-private.pem" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestKeyFilePathJoinsRelativePath(t *testing.T) {
+	got, err := keyFilePath("config/keys/jwt_private.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != filepath.Join(dir, "config/keys/jwt_private.pem") {
+		t.Fatalf("got %s", got)
+	}
+}
+
 func TestAccessToken_MissingPrivateKey(t *testing.T) {
 	cfg := &config.Config{
 		PrivateKeyPath: "missing/private.pem",
