@@ -20,6 +20,10 @@ import (
 
 const defaultBuffer = 5 * time.Minute
 
+var clinicNow = func() time.Time {
+	return time.Now().In(clinicLocation())
+}
+
 type NotificationEnqueuer interface {
 	Create(ctx context.Context, data notificationdto.CreateRequest) error
 }
@@ -358,7 +362,7 @@ func (s *AppointmentService) createSlots(schedule admindto.GetResponse, date str
 	if scheduleEnd.Before(scheduleStart) {
 		return nil, errors.New("schedule end time must be after start time")
 	}
-	currentTime := time.Now()
+	currentTime := clinicNow()
 	currentDate := currentTime.Format(time.DateOnly)
 	now := s.normalizeTimeOfDay(currentTime)
 	if currentDate == date {
