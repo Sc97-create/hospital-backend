@@ -3,6 +3,8 @@ package appointments
 import (
 	"testing"
 	"time"
+
+	admindto "hospital-backend/internal/admins/dto"
 )
 
 func TestValidateAppointmentFields(t *testing.T) {
@@ -74,6 +76,31 @@ func TestGenerateAppointmentCode(t *testing.T) {
 	code := svc.generateAppointmentCode()
 	if code == "" {
 		t.Fatal("expected non-empty code")
+	}
+}
+
+func TestCreateSlotsUsesClinicClock(t *testing.T) {
+	loc := clinicLocation()
+	orig := clinicNow
+	clinicNow = func() time.Time {
+		return time.Date(2026, 11, 6, 22, 3, 0, 0, loc)
+	}
+	t.Cleanup(func() { clinicNow = orig })
+
+	svc := &AppointmentService{}
+	schedule := admindto.GetResponse{
+		Starttime:      time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC),
+		Endtime:        time.Date(0, 1, 1, 21, 0, 0, 0, time.UTC),
+		BreakStarttime: time.Date(0, 1, 1, 13, 0, 0, 0, time.UTC),
+		BreakEndtime:   time.Date(0, 1, 1, 14, 0, 0, 0, time.UTC),
+		Slotduration:   30,
+	}
+	slots, err := svc.createSlots(schedule, "2026-11-06")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 0 {
+		t.Fatalf("expected no slots at 22:03 IST, got %d", len(slots))
 	}
 }
 

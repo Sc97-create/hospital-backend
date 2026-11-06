@@ -1,0 +1,88 @@
+name: Deploy Staging
+
+on:
+  workflow_run:
+    workflows: ["Go CI Pipeline"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    steps:
+      - name: Deploy only the current main commit
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const target = context.eventName === "workflow_dispatch"
+              ? context.sha
+              : context.payload.workflow_run.head_sha;
+            const { data } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: "main",
+            });
+            if (data.commit.sha !== target) {
+              core.notice(`Skipping deploy. main is ${data.commit.sha}; this run is ${target}.`);
+              core.setOutput("deploy", "false");
+              return;
+            }
+            core.setOutput("deploy", "true");
+            core.setOutput("sha", target);
+
+      - name: Pull, build, and restart
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_HOST: ${{ secrets.STAGING_HOST }}
+          SSH_USER: ${{ secrets.STAGING_USER }}
+          SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
+          GIT_SHA: ${{ steps.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          port="${SSH_PORT:-22}"
+          ssh -i ~/.ssh/staging_key \
+            -p "$port" \
+            -o StrictHostKeyChecking=accept-new \
+            "$SSH_USER@$SSH_HOST" \
+            "GIT_SHA='$GIT_SHA' bash -s" << 'EOF'
+          set -euo pipefail
+          export PATH="/usr/local/go/bin:${PATH}"
+          cd /opt/floato/app
+          git fetch origin "$GIT_SHA"
+          git checkout --detach "$GIT_SHA"
+          go mod download
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o floato-server.new ./cmd
+          if [ -f floato-server ]; then
+            cp -a floato-server floato-server.prev
+          fi
+          sudo -n /usr/bin/systemctl stop floato
+          sudo -n /usr/bin/install -m 755 floato-server.new /opt/floato/app/floato-server
+          sudo -n /usr/bin/systemctl start floato
+          if ! curl -fsS --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:8080/api/v1/health; then
+            echo "health check failed; restoring the previous binary"
+            if [ -f floato-server.prev ]; then
+              sudo -n /usr/bin/install -m 755 floato-server.prev /opt/floato/app/floato-server
+              sudo -n /usr/bin/systemctl start floato
+            fi
+            exit 1
+          fi
+          rm -f floato-server.new
+          EOF
