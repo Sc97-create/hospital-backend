@@ -23,3 +23,18 @@ type OrganisationPayload struct {
 	PatientLookup bool `json:"patient_lookup"`
 	LabReports    bool `json:"lab_reports"`
 }
+
+// OrganisationDetails is the public organisation view returned for a user lookup.
+// License, tax, address, and data-sharing fields are omitted.
+type OrganisationDetails struct {
+	ID               string    `json:"id"`
+	TenantID         string    `json:"tenant_id"`
+	IsPrimary        bool      `json:"is_primary"`
+	LegalEntityName  string    `json:"legal_entity_name"`
+	OrganisationType string    `json:"organisation_type"`
+	FacilityName     string    `json:"facility_name"`
+	RegistrationNo   string    `json:"registration_no"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}

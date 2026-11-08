@@ -199,6 +199,120 @@ func TestServiceGetOrgByID(t *testing.T) {
 	}
 }
 
+func TestServiceGetOrgByUserID(t *testing.T) {
+	log := servicetest.NopLogger()
+
+	tests := []struct {
+		name    string
+		userID  string
+		setup   func(*mocks.MockOrganisationRepo)
+		wantErr error
+		wantID  string
+	}{
+		{
+			name:    "empty id",
+			userID:  "  ",
+			wantErr: wrapError.ErrInvalidRequest,
+		},
+		{
+			name:   "not found",
+			userID: "user-missing",
+			setup: func(m *mocks.MockOrganisationRepo) {
+				m.EXPECT().GetByID(log, gomock.Any(), "user-missing").Return(organisations.Organisation{}, gorm.ErrRecordNotFound)
+			},
+			wantErr: wrapError.ErrOrganisationNotFound,
+		},
+		{
+			name:   "db error",
+			userID: "user-1",
+			setup: func(m *mocks.MockOrganisationRepo) {
+				m.EXPECT().GetByID(log, gomock.Any(), "user-1").Return(organisations.Organisation{}, errors.New("db error"))
+			},
+			wantErr: wrapError.ErrOrganisationFetchFailed,
+		},
+		{
+			name:   "success",
+			userID: "user-1",
+			setup: func(m *mocks.MockOrganisationRepo) {
+				m.EXPECT().GetByID(log, gomock.Any(), "user-1").Return(organisations.Organisation{
+					ID:              "org-1",
+					LegalEntityName: "Acme",
+				}, nil)
+			},
+			wantID: "org-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repo := mocks.NewMockOrganisationRepo(ctrl)
+			if tt.setup != nil {
+				tt.setup(repo)
+			}
+			svc := organisations.NewOrganisationService(nil, repo)
+			got, err := svc.GetOrgByUserID(log, tt.userID)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("got err %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if got.ID != tt.wantID {
+				t.Fatalf("id: got %q want %q", got.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestServiceGetOrgByUserIDWithDB(t *testing.T) {
+	log := servicetest.NopLogger()
+	db := testRepoDB(t)
+	if err := db.Exec(`CREATE TABLE users (id text primary key, organisation_id text not null)`).Error; err != nil {
+		t.Fatalf("create users: %v", err)
+	}
+	repo := organisations.NewOrganisationRepo(db)
+	if err := repo.Create(log, nil, sampleOrg("tenant-1", "org-a")); err != nil {
+		t.Fatalf("create org a: %v", err)
+	}
+	if err := repo.Create(log, nil, sampleOrg("tenant-1", "org-b")); err != nil {
+		t.Fatalf("create org b: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO users (id, organisation_id) VALUES (?, ?), (?, ?)`,
+		"user-a", "org-a", "user-orphan", "org-missing",
+	).Error; err != nil {
+		t.Fatalf("seed users: %v", err)
+	}
+	svc := organisations.NewOrganisationService(db, repo)
+
+	got, err := svc.GetOrgByUserID(log, "user-a")
+	if err != nil {
+		t.Fatalf("linked user: %v", err)
+	}
+	if got.ID != "org-a" || got.FacilityName != "Main Campus" || got.RegistrationNo != "REG-1" {
+		t.Fatalf("got %+v", got)
+	}
+
+	_, err = svc.GetOrgByUserID(log, "user-missing")
+	if !errors.Is(err, wrapError.ErrOrganisationNotFound) {
+		t.Fatalf("missing user: got %v", err)
+	}
+
+	_, err = svc.GetOrgByUserID(log, "user-orphan")
+	if !errors.Is(err, wrapError.ErrOrganisationNotFound) {
+		t.Fatalf("orphan organisation: got %v", err)
+	}
+
+	_, err = svc.GetOrgByUserID(log, "   ")
+	if !errors.Is(err, wrapError.ErrInvalidRequest) {
+		t.Fatalf("blank user id: got %v", err)
+	}
+}
+
 func TestServiceListByTenantID(t *testing.T) {
 	log := servicetest.NopLogger()
 

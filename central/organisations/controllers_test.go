@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"hospital-backend/central/organisations"
+	orgdto "hospital-backend/central/organisations/dto"
 	"hospital-backend/central/organisations/mocks"
 	"hospital-backend/internal/testutil/controllertest"
 	wrapError "hospital-backend/shared/error"
@@ -186,6 +187,96 @@ func TestControllerGetByID(t *testing.T) {
 				return
 			}
 			controllertest.AssertStatus(t, resp, tt.wantStatus)
+		})
+	}
+}
+
+func TestControllerGetByUserID(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		setup      func(*mocks.MockOrganisationServicer)
+		wantStatus int
+	}{
+		{
+			name:       "missing user_id",
+			path:       "/getorganisationDetailsByUserId/",
+			wantStatus: fiber.StatusNotFound,
+		},
+		{
+			name: "invalid request",
+			path: "/getorganisationDetailsByUserId/user-1",
+			setup: func(m *mocks.MockOrganisationServicer) {
+				m.EXPECT().GetOrgByUserID(gomock.Any(), "user-1").Return(orgdto.OrganisationDetails{}, wrapError.ErrInvalidRequest)
+			},
+			wantStatus: fiber.StatusBadRequest,
+		},
+		{
+			name: "not found",
+			path: "/getorganisationDetailsByUserId/user-missing",
+			setup: func(m *mocks.MockOrganisationServicer) {
+				m.EXPECT().GetOrgByUserID(gomock.Any(), "user-missing").Return(orgdto.OrganisationDetails{}, wrapError.ErrOrganisationNotFound)
+			},
+			wantStatus: fiber.StatusNotFound,
+		},
+		{
+			name: "fetch failed",
+			path: "/getorganisationDetailsByUserId/user-1",
+			setup: func(m *mocks.MockOrganisationServicer) {
+				m.EXPECT().GetOrgByUserID(gomock.Any(), "user-1").Return(orgdto.OrganisationDetails{}, wrapError.ErrOrganisationFetchFailed)
+			},
+			wantStatus: fiber.StatusInternalServerError,
+		},
+		{
+			name: "success",
+			path: "/getorganisationDetailsByUserId/user-1",
+			setup: func(m *mocks.MockOrganisationServicer) {
+				m.EXPECT().GetOrgByUserID(gomock.Any(), "user-1").Return(orgdto.OrganisationDetails{
+					ID:              "org-1",
+					LegalEntityName: "Acme",
+				}, nil)
+			},
+			wantStatus: fiber.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mock := mocks.NewMockOrganisationServicer(ctrl)
+			if tt.setup != nil {
+				tt.setup(mock)
+			}
+			orgCtrl := organisations.NewIOrganisationController(mock)
+			app := controllertest.NewApp(t, func(app *fiber.App) {
+				app.Get("/getorganisationDetailsByUserId/:user_id", orgCtrl.GetByUserID)
+			})
+			resp, body := controllertest.Do(t, app, controllertest.Request{
+				Method: http.MethodGet,
+				Path:   tt.path,
+			})
+			if tt.name == "missing user_id" {
+				if resp.StatusCode != fiber.StatusNotFound && resp.StatusCode != fiber.StatusBadRequest {
+					t.Fatalf("status = %d, want 404 or 400", resp.StatusCode)
+				}
+				return
+			}
+			controllertest.AssertStatus(t, resp, tt.wantStatus)
+			if tt.wantStatus == fiber.StatusOK {
+				var out map[string]any
+				if err := json.Unmarshal(body, &out); err != nil {
+					t.Fatalf("decode: %v", err)
+				}
+				data, _ := out["data"].(map[string]any)
+				if data["id"] != "org-1" {
+					t.Fatalf("unexpected response: %s", body)
+				}
+				for _, key := range []string{"gstin", "address", "data_sharing", "license_number", "license_expiry"} {
+					if _, ok := data[key]; ok {
+						t.Fatalf("response includes %s: %s", key, body)
+					}
+				}
+			}
 		})
 	}
 }
