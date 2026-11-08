@@ -137,6 +137,55 @@ func (s *OrganisationService) GetOrgByID(log *zap.Logger, organisationID string)
 	return org, nil
 }
 
+// GetOrgByUserID returns the organisation linked to a hospital user.
+// License, tax, address, and data-sharing columns are not read.
+func (s *OrganisationService) GetOrgByUserID(log *zap.Logger, userID string) (dto.OrganisationDetails, error) {
+	log = ensureLog(log)
+	if strings.TrimSpace(userID) == "" {
+		return dto.OrganisationDetails{}, wrapError.ErrInvalidRequest
+	}
+
+	org, err := s.OrganisationRepo.GetByID(log,
+		`select o.id,o.tenant_id,o.is_primary,o.legal_entity_name,o.organisation_type,o.facility_name,o.registration_no,o.status,o.created_at,o.updated_at from organisations o inner join users u on u.organisation_id = o.id where u.id=$1`,
+		userID,
+	)
+	if err != nil {
+		return dto.OrganisationDetails{}, mapOrgByUserErr(log, userID, err)
+	}
+	return toOrganisationDetails(org), nil
+}
+
+func toOrganisationDetails(org Organisation) dto.OrganisationDetails {
+	return dto.OrganisationDetails{
+		ID:               org.ID,
+		TenantID:         org.TenantID,
+		IsPrimary:        org.IsPrimary,
+		LegalEntityName:  org.LegalEntityName,
+		OrganisationType: org.OrganisationType,
+		FacilityName:     org.FacilityName,
+		RegistrationNo:   org.RegistrationNo,
+		Status:           org.Status,
+		CreatedAt:        org.CreatedAt,
+		UpdatedAt:        org.UpdatedAt,
+	}
+}
+
+func mapOrgByUserErr(log *zap.Logger, userID string, err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Warn("organisation get by user failed",
+			zap.String("user_id", userID),
+			zap.String("reason", "not_found"),
+		)
+		return wrapError.ErrOrganisationNotFound
+	}
+	log.Error("organisation get by user failed",
+		zap.String("user_id", userID),
+		zap.String("reason", "db_read"),
+		zap.Error(err),
+	)
+	return wrapError.ErrOrganisationFetchFailed
+}
+
 // GetPrimaryByTenantID returns the primary organisation for a tenant.
 func (s *OrganisationService) GetPrimaryByTenantID(log *zap.Logger, tenantID string) (Organisation, error) {
 	log = ensureLog(log)

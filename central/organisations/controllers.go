@@ -18,6 +18,7 @@ type OrganisationServicer interface {
 	AddOrganisation(log *zap.Logger, payload dto.OrganisationPayload) (string, error)
 	UpdateAddress(log *zap.Logger, payload dto.OrganisationPayload) error
 	GetOrgByID(log *zap.Logger, organisationID string) (Organisation, error)
+	GetOrgByUserID(log *zap.Logger, userID string) (dto.OrganisationDetails, error)
 	ListByTenantID(log *zap.Logger, tenantID string) ([]Organisation, error)
 	Update(log *zap.Logger, organisationID string, payload dto.OrganisationPayload) error
 }
@@ -30,6 +31,7 @@ type IOrganisationController interface {
 	AddOrganisation(c *fiber.Ctx) error
 	UpdateAddress(c *fiber.Ctx) error
 	GetByID(c *fiber.Ctx) error
+	GetByUserID(c *fiber.Ctx) error
 	ListByTenant(c *fiber.Ctx) error
 	Update(c *fiber.Ctx) error
 }
@@ -101,6 +103,21 @@ func (OC *OrganisationController) GetByID(c *fiber.Ctx) error {
 	}
 
 	organisation, err := OC.Service.GetOrgByID(logger, organisationID)
+	if err != nil {
+		return wrapGetError(c, err)
+	}
+	return c.JSON(fiber.Map{"data": organisation, "code": 200})
+}
+
+func (OC *OrganisationController) GetByUserID(c *fiber.Ctx) error {
+	logger := middleware.GetLogger(c)
+	userID := strings.TrimSpace(c.Params("user_id"))
+	if userID == "" {
+		logger.Warn("organisation get by user request invalid", zap.String("reason", "missing_user_id"))
+		return wrapError.Wrap(wrapError.ErrInvalidRequest, c, fiber.StatusBadRequest)
+	}
+
+	organisation, err := OC.Service.GetOrgByUserID(logger, userID)
 	if err != nil {
 		return wrapGetError(c, err)
 	}

@@ -72,6 +72,21 @@ func (mr *MockOrganisationServicerMockRecorder) GetOrgByID(log, organisationID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrgByID", reflect.TypeOf((*MockOrganisationServicer)(nil).GetOrgByID), log, organisationID)
 }
 
+// GetOrgByUserID mocks base method.
+func (m *MockOrganisationServicer) GetOrgByUserID(log *zap.Logger, userID string) (dto.OrganisationDetails, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrgByUserID", log, userID)
+	ret0, _ := ret[0].(dto.OrganisationDetails)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrgByUserID indicates an expected call of GetOrgByUserID.
+func (mr *MockOrganisationServicerMockRecorder) GetOrgByUserID(log, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrgByUserID", reflect.TypeOf((*MockOrganisationServicer)(nil).GetOrgByUserID), log, userID)
+}
+
 // ListByTenantID mocks base method.
 func (m *MockOrganisationServicer) ListByTenantID(log *zap.Logger, tenantID string) ([]organisations.Organisation, error) {
 	m.ctrl.T.Helper()

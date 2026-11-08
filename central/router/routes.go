@@ -44,6 +44,7 @@ func registerOrganisationRoutes(version fiber.Router, service *organisations.Org
 	grp.Post("/add", ctrl.AddOrganisation)
 	grp.Patch("/updateAddress", ctrl.UpdateAddress)
 	grp.Get("/getbyid/:organisation_id", ctrl.GetByID)
+	grp.Get("/getorganisationDetailsByUserId/:user_id", ctrl.GetByUserID)
 	grp.Get("/listByTenant/:tenant_id", ctrl.ListByTenant)
 	grp.Patch("/update", ctrl.Update)
 }
