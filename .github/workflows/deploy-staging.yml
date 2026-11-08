@@ -50,21 +50,18 @@ jobs:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
           SSH_USER: ${{ secrets.STAGING_USER }}
+          SSH_PORT: ${{ secrets.STAGING_SSH_PORT }}
           GIT_SHA: ${{ steps.gate.outputs.sha }}
         run: |
           set -euo pipefail
-          if [ -z "${SSH_HOST}" ] || [ -z "${SSH_USER}" ] || [ -z "${SSH_KEY}" ]; then
-            echo "STAGING_HOST, STAGING_USER, or STAGING_SSH_KEY is empty for this workflow."
-            echo "Add them under Settings, Secrets and variables, Actions, Repository secrets."
-            exit 1
-          fi
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
+          port="${SSH_PORT:-22}"
           ssh -i ~/.ssh/staging_key \
-            -p 22 \
+            -p "$port" \
             -o StrictHostKeyChecking=accept-new \
-            "${SSH_USER}@${SSH_HOST}" \
+            "$SSH_USER@$SSH_HOST" \
             "GIT_SHA='$GIT_SHA' bash -s" << 'EOF'
           set -euo pipefail
           export PATH="/usr/local/go/bin:${PATH}"
