@@ -4,7 +4,7 @@ import "testing"
 
 func TestCreateDeptArray(t *testing.T) {
 	svc := NewDepartmentService(nil)
-	depts := svc.createDeptArray("org-1")
+	depts := svc.createDeptArray()
 
 	if len(depts) != len(DefaultDeptArr) {
 		t.Fatalf("expected %d departments, got %d", len(DefaultDeptArr), len(depts))
@@ -12,8 +12,8 @@ func TestCreateDeptArray(t *testing.T) {
 
 	names := make(map[string]bool)
 	for _, d := range depts {
-		if d.OrganisationID != "org-1" {
-			t.Fatalf("expected org-1, got %q", d.OrganisationID)
+		if d.FacilityTypeID != nil {
+			t.Fatalf("facility type must stay unset, got %q", *d.FacilityTypeID)
 		}
 		if d.ID == "" {
 			t.Fatal("expected generated id")

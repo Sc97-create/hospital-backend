@@ -221,19 +221,11 @@ func (s *Service) AddFirstUser(log *zap.Logger, req FirstUserRequest) (FirstUser
 }
 
 func (s *Service) ensureAdminDepartment(log *zap.Logger, organisationID string) (string, error) {
-	dept, err := s.Depts.FindDeptByName(log, organisationID, department.DefaultDeptAdmin)
-	if err != nil {
-		log.Error("organisation first user failed", zap.String("reason", "department_lookup"), zap.Error(err))
-		return "", wrapError.ErrOrganisationSetupFailed
-	}
-	if strings.TrimSpace(dept.ID) != "" {
-		return dept.ID, nil
-	}
 	if err := s.Depts.InsertMany(log, s.DB, organisationID); err != nil {
 		log.Error("organisation first user failed", zap.String("reason", "department_seed"), zap.Error(err))
 		return "", wrapError.ErrOrganisationSetupFailed
 	}
-	dept, err = s.Depts.FindDeptByName(log, organisationID, department.DefaultDeptAdmin)
+	dept, err := s.Depts.FindDeptByName(log, organisationID, department.DefaultDeptAdmin)
 	if err != nil || strings.TrimSpace(dept.ID) == "" {
 		log.Error("organisation first user failed", zap.String("reason", "department_missing"), zap.Error(err))
 		return "", wrapError.ErrOrganisationSetupFailed

@@ -1,6 +1,7 @@
 package department
 
 import (
+	"strings"
 	"time"
 
 	wrapError "hospital-backend/shared/error"
@@ -41,30 +42,52 @@ func (DeptService *DepartmentService) FindMany(log *zap.Logger, organisationID s
 
 func (DeptService *DepartmentService) InsertMany(log *zap.Logger, tx *gorm.DB, organisationID string) error {
 	log = ensureLog(log)
-	deptArray := DeptService.createDeptArray(organisationID)
-	err := DeptService.DepRepo.BatchInsert(log, tx, deptArray)
+	missing, err := DeptService.missingDepartments(log, organisationID)
 	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		if err = DeptService.DepRepo.BatchInsert(log, tx, missing); err != nil {
+			log.Error("department seed failed",
+				zap.String("reason", "db_insert"),
+				zap.Error(err),
+			)
+			return err
+		}
+	}
+	if err = DeptService.DepRepo.LinkByNames(log, tx, organisationID, []string(DefaultDeptArr)); err != nil {
 		log.Error("department seed failed",
-			zap.String("reason", "db_insert"),
+			zap.String("reason", "link_organisation"),
 			zap.Error(err),
 		)
 		return err
 	}
-	log.Info("department seed success",
-		zap.Int("count", len(deptArray)),
-	)
+	log.Info("department seed success", zap.Int("count", len(missing)))
 	return nil
 }
 
-func (DeptService *DepartmentService) createDeptArray(organisationID string) []Department {
+func (DeptService *DepartmentService) missingDepartments(log *zap.Logger, organisationID string) ([]Department, error) {
+	var missing []Department
+	for _, dept := range DeptService.createDeptArray() {
+		existing, err := DeptService.FindDeptByName(log, organisationID, dept.Name)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(existing.ID) == "" {
+			missing = append(missing, dept)
+		}
+	}
+	return missing, nil
+}
+
+func (DeptService *DepartmentService) createDeptArray() []Department {
 	var defaultDepartments []Department
 	for _, each := range DefaultDeptArr {
 		defaultDepartments = append(defaultDepartments, Department{
-			ID:             uuid.NewString(),
-			Name:           each,
-			CreatedAt:      time.Now(),
-			OrganisationID: organisationID,
-			IsActive:       true,
+			ID:        uuid.NewString(),
+			Name:      each,
+			CreatedAt: time.Now(),
+			IsActive:  true,
 		})
 	}
 	return defaultDepartments

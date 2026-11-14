@@ -59,10 +59,6 @@ func ensureSharedForeignKeys(gdb *gorm.DB) error {
 		   ADD CONSTRAINT fk_users_role
 		   FOREIGN KEY (role_id) REFERENCES roles(id)
 		   ON UPDATE CASCADE ON DELETE RESTRICT`,
-		`ALTER TABLE departments
-		   ADD CONSTRAINT fk_departments_organisation
-		   FOREIGN KEY (organisation_id) REFERENCES organisations(id)
-		   ON UPDATE CASCADE ON DELETE RESTRICT`,
 		`ALTER TABLE roles
 		   ADD CONSTRAINT fk_roles_organisation
 		   FOREIGN KEY (organisation_id) REFERENCES organisations(id)

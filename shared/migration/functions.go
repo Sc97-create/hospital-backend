@@ -187,5 +187,10 @@ func Migrate() (err error) {
 		log.Fatalf("%v", err)
 		return
 	}
+	err = ApplySQLMigrations(database.PostgreClient.GormDriver)
+	if err != nil {
+		log.Fatalf("%v", err)
+		return
+	}
 	return
 }

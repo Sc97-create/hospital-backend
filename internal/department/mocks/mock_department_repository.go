@@ -94,6 +94,20 @@ func (m *MockDepartmentRepository) FindByID(log *zap.Logger, id string) (departm
 	return ret0, ret1
 }
 
+// LinkByNames mocks base method.
+func (m *MockDepartmentRepository) LinkByNames(log *zap.Logger, tx *gorm.DB, organisationID string, names []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LinkByNames", log, tx, organisationID, names)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LinkByNames indicates an expected call of LinkByNames.
+func (mr *MockDepartmentRepositoryMockRecorder) LinkByNames(log, tx, organisationID, names any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LinkByNames", reflect.TypeOf((*MockDepartmentRepository)(nil).LinkByNames), log, tx, organisationID, names)
+}
+
 // FindByID indicates an expected call of FindByID.
 func (mr *MockDepartmentRepositoryMockRecorder) FindByID(log, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()

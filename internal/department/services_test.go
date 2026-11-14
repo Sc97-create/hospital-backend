@@ -76,6 +76,7 @@ func TestServiceInsertMany(t *testing.T) {
 
 	t.Run("batch insert error", func(t *testing.T) {
 		repo := mocks.NewMockDepartmentRepository(ctrl)
+		repo.EXPECT().FindDeptByName(gomock.Any(), "org-1", gomock.Any()).Return(department.Department{}, nil).Times(len(department.DefaultDeptArr))
 		repo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("insert error"))
 		svc := newDeptService(t, repo)
 		if err := svc.InsertMany(zap.NewNop(), nil, "org-1"); err == nil {
@@ -85,12 +86,14 @@ func TestServiceInsertMany(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		repo := mocks.NewMockDepartmentRepository(ctrl)
+		repo.EXPECT().FindDeptByName(gomock.Any(), "org-1", gomock.Any()).Return(department.Department{}, nil).Times(len(department.DefaultDeptArr))
 		repo.EXPECT().BatchInsert(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(_ *zap.Logger, _ interface{}, depts []department.Department) error {
-			if len(depts) != 8 {
-				t.Fatalf("expected 8 departments, got %d", len(depts))
+			if len(depts) != len(department.DefaultDeptArr) {
+				t.Fatalf("expected %d departments, got %d", len(department.DefaultDeptArr), len(depts))
 			}
 			return nil
 		})
+		repo.EXPECT().LinkByNames(gomock.Any(), gomock.Any(), "org-1", gomock.Any()).Return(nil)
 		svc := newDeptService(t, repo)
 		if err := svc.InsertMany(zap.NewNop(), nil, "org-1"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
